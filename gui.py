@@ -74,6 +74,9 @@ class FastSpeakGUI:
         
         ttk.Label(voice_frame, text="Audio-Samples:").grid(row=0, column=0, sticky=tk.W, padx=5)
         
+        ttk.Label(voice_frame, text="(Tipp: 6-10 Sekunden klare Sprache ohne Hintergrundgeräusche)", 
+                  foreground="blue", font=("Arial", 8)).grid(row=1, column=0, columnspan=4, sticky=tk.W, padx=5, pady=(0, 5))
+        
         self.files_label = ttk.Label(voice_frame, text="Keine Dateien ausgewählt", foreground="gray")
         self.files_label.grid(row=0, column=1, sticky=tk.W, padx=5)
         
@@ -119,6 +122,16 @@ class FastSpeakGUI:
             width=10
         )
         language_combo.grid(row=0, column=4, padx=5)
+        
+        # Konsistente Betonung Checkbox
+        self.consistent_var = tk.BooleanVar(value=True)
+        consistent_check = ttk.Checkbutton(
+            settings_frame,
+            text="Konsistente Betonung",
+            variable=self.consistent_var,
+            command=self.toggle_consistency
+        )
+        consistent_check.grid(row=0, column=5, padx=(20, 5))
         
         # Buttons Frame
         button_frame = ttk.Frame(main_frame)
@@ -202,6 +215,18 @@ class FastSpeakGUI:
     def update_speed_label(self, value):
         """Aktualisiert das Geschwindigkeits-Label"""
         self.speed_label.config(text=f"{int(float(value))} WPM")
+    
+    def toggle_consistency(self):
+        """Schaltet konsistente Betonung um"""
+        if self.consistent_var.get():
+            # Fester Seed für konsistente Ausgabe
+            self.tts.seed = 42
+            self.status_var.set("Konsistente Betonung aktiviert")
+        else:
+            # Zufälliger Seed für variierende Betonung
+            import random
+            self.tts.seed = random.randint(0, 999999)
+            self.status_var.set("Variierende Betonung aktiviert")
     
     def speak_text(self):
         """Liest den eingegebenen Text vor"""

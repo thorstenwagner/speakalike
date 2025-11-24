@@ -25,6 +25,8 @@ class TextToSpeech:
     def __init__(self):
         self.is_speaking = False
         self.speaker_wav = None
+        self.audio_cache = {}  # Cache für identische Texte
+        self.seed = 42  # Fester Seed für konsistente Ausgabe
         
         if COQUI_AVAILABLE:
             # Verwende ein Modell das Voice Cloning unterstützt (XTTS)
@@ -78,16 +80,45 @@ class TextToSpeech:
                 with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
                     output_path = temp_file.name
                 
+                # Deterministischen Seed setzen für konsistente Betonung
+                import torch
+                import numpy as np
+                import random
+                
+                # Cache-Key erstellen
+                cache_key = f"{text}_{language}_{self.speaker_wav}"
+                
+                # Seed für Reproduzierbarkeit setzen
+                torch.manual_seed(self.seed)
+                np.random.seed(self.seed)
+                random.seed(self.seed)
+                if torch.cuda.is_available():
+                    torch.cuda.manual_seed(self.seed)
+                    torch.cuda.manual_seed_all(self.seed)
+                
                 # Voice Cloning wenn Samples verfügbar
                 if self.speaker_wav and len(self.speaker_wav) > 0:
+                    # Optimierte Parameter für besseres Voice Cloning
                     self.engine.tts_to_file(
                         text=text,
                         file_path=output_path,
-                        speaker_wav=self.speaker_wav[0],  # Verwende erste Sample-Datei
-                        language=language
+                        speaker_wav=self.speaker_wav,  # Alle Samples verwenden für bessere Qualität
+                        language=language,
+                        split_sentences=True,  # Bessere Intonation durch Satzaufteilung
+                        temperature=0.65,  # Reduzierte Temperatur für konsistentere Ausgabe
+                        length_penalty=1.0,
+                        repetition_penalty=2.0
                     )
                 else:
-                    self.engine.tts_to_file(text=text, file_path=output_path)
+                    self.engine.tts_to_file(
+                        text=text,
+                        file_path=output_path,
+                        language=language,
+                        split_sentences=True,
+                        temperature=0.65,
+                        length_penalty=1.0,
+                        repetition_penalty=2.0
+                    )
                 
                 # Audio direkt mit sounddevice abspielen
                 import sounddevice as sd
