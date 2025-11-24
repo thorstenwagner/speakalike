@@ -24,16 +24,32 @@ class TextToSpeech:
     
     def __init__(self):
         self.is_speaking = False
+        self.speaker_wav = None
         
         if COQUI_AVAILABLE:
-            # Verwende ein deutsches Coqui TTS Modell
-            self.engine = TTS(model_name="tts_models/de/thorsten/tacotron2-DDC")
-            self.use_coqui = True
-            print("Coqui TTS initialisiert (Deutsch)")
+            # Verwende ein Modell das Voice Cloning unterstützt (XTTS)
+            try:
+                self.engine = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2")
+                self.use_coqui = True
+                print("Coqui TTS initialisiert (XTTS v2 - Voice Cloning)")
+            except:
+                # Fallback auf einfacheres Modell
+                self.engine = TTS(model_name="tts_models/de/thorsten/tacotron2-DDC")
+                self.use_coqui = True
+                print("Coqui TTS initialisiert (Thorsten)")
         else:
             self.engine = pyttsx3.init()
             self.use_coqui = False
             print("pyttsx3 TTS initialisiert (Fallback)")
+    
+    def set_speaker_wav(self, wav_files):
+        """
+        Setzt Audio-Samples für Voice Cloning
+        
+        Args:
+            wav_files (list): Liste von Pfaden zu WAV-Dateien oder None
+        """
+        self.speaker_wav = wav_files
             
     def speak(self, text, rate=150, language='de'):
         """
@@ -55,7 +71,16 @@ class TextToSpeech:
                 with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
                     output_path = temp_file.name
                 
-                self.engine.tts_to_file(text=text, file_path=output_path)
+                # Voice Cloning wenn Samples verfügbar
+                if self.speaker_wav and len(self.speaker_wav) > 0:
+                    self.engine.tts_to_file(
+                        text=text,
+                        file_path=output_path,
+                        speaker_wav=self.speaker_wav[0],  # Verwende erste Sample-Datei
+                        language=language
+                    )
+                else:
+                    self.engine.tts_to_file(text=text, file_path=output_path)
                 
                 # Audio direkt mit sounddevice abspielen
                 import sounddevice as sd

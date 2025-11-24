@@ -6,7 +6,7 @@ import os
 os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get("PATH", "")
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import ttk, scrolledtext, messagebox, filedialog
 from main import TextToSpeech
 
 
@@ -16,12 +16,13 @@ class FastSpeakGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("FastSpeak - Text vorlesen")
-        self.root.geometry("600x450")
+        self.root.geometry("700x550")
         self.root.resizable(True, True)
         
         # TTS Engine initialisieren
         self.tts = TextToSpeech()
         self.current_thread = None
+        self.speaker_wav_files = []
         
         self.setup_ui()
         
@@ -67,6 +68,30 @@ class FastSpeakGUI:
         settings_frame = ttk.LabelFrame(main_frame, text="Einstellungen", padding="5")
         settings_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
         
+        # Voice Cloning Frame
+        voice_frame = ttk.LabelFrame(main_frame, text="Voice Cloning (Optional)", padding="5")
+        voice_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=5)
+        
+        ttk.Label(voice_frame, text="Audio-Samples:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        
+        self.files_label = ttk.Label(voice_frame, text="Keine Dateien ausgewählt", foreground="gray")
+        self.files_label.grid(row=0, column=1, sticky=tk.W, padx=5)
+        
+        upload_button = ttk.Button(
+            voice_frame,
+            text="📁 Samples hochladen",
+            command=self.upload_samples
+        )
+        upload_button.grid(row=0, column=2, padx=5)
+        
+        clear_button = ttk.Button(
+            voice_frame,
+            text="✕ Löschen",
+            command=self.clear_samples,
+            width=10
+        )
+        clear_button.grid(row=0, column=3, padx=5)
+        
         # Geschwindigkeit
         ttk.Label(settings_frame, text="Geschwindigkeit:").grid(row=0, column=0, sticky=tk.W, padx=5)
         self.speed_var = tk.IntVar(value=150)
@@ -97,7 +122,7 @@ class FastSpeakGUI:
         
         # Buttons Frame
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=3, column=0, pady=10)
+        button_frame.grid(row=4, column=0, pady=10)
         
         # Vorlesen Button
         self.speak_button = ttk.Button(
@@ -135,13 +160,44 @@ class FastSpeakGUI:
             relief=tk.SUNKEN,
             anchor=tk.W
         )
-        status_bar.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        status_bar.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
         
     def clear_placeholder(self, event):
         """Entfernt den Platzhalter-Text beim ersten Klick"""
         current_text = self.text_input.get(1.0, tk.END).strip()
         if current_text == "Geben Sie hier Ihren Text ein, der vorgelesen werden soll...":
             self.text_input.delete(1.0, tk.END)
+    
+    def upload_samples(self):
+        """Lädt Audio-Samples für Voice Cloning hoch"""
+        files = filedialog.askopenfilenames(
+            title="Audio-Samples auswählen",
+            filetypes=[
+                ("Audio-Dateien", "*.wav *.mp3 *.flac *.ogg"),
+                ("WAV-Dateien", "*.wav"),
+                ("Alle Dateien", "*.*")
+            ]
+        )
+        
+        if files:
+            self.speaker_wav_files = list(files)
+            self.tts.set_speaker_wav(self.speaker_wav_files)
+            file_count = len(self.speaker_wav_files)
+            self.files_label.config(
+                text=f"{file_count} Datei(en) ausgewählt",
+                foreground="green"
+            )
+            self.status_var.set(f"Voice Cloning aktiviert ({file_count} Sample(s))")
+    
+    def clear_samples(self):
+        """Entfernt die Voice Cloning Samples"""
+        self.speaker_wav_files = []
+        self.tts.set_speaker_wav(None)
+        self.files_label.config(
+            text="Keine Dateien ausgewählt",
+            foreground="gray"
+        )
+        self.status_var.set("Voice Cloning deaktiviert")
     
     def update_speed_label(self, value):
         """Aktualisiert das Geschwindigkeits-Label"""
