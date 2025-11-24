@@ -29,9 +29,16 @@ class TextToSpeech:
         if COQUI_AVAILABLE:
             # Verwende ein Modell das Voice Cloning unterstützt (XTTS)
             try:
-                self.engine = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2")
+                import torch
+                # GPU-Unterstützung prüfen
+                gpu_available = torch.cuda.is_available()
+                self.engine = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=gpu_available)
                 self.use_coqui = True
-                print("Coqui TTS initialisiert (XTTS v2 - Voice Cloning)")
+                if gpu_available:
+                    gpu_name = torch.cuda.get_device_name(0)
+                    print(f"Coqui TTS initialisiert (XTTS v2 - Voice Cloning) mit GPU: {gpu_name}")
+                else:
+                    print("Coqui TTS initialisiert (XTTS v2 - Voice Cloning) mit CPU")
             except:
                 # Fallback auf einfacheres Modell
                 self.engine = TTS(model_name="tts_models/de/thorsten/tacotron2-DDC")
