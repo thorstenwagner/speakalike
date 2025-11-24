@@ -57,23 +57,12 @@ class TextToSpeech:
                 
                 self.engine.tts_to_file(text=text, file_path=output_path)
                 
-                # Audio abspielen
-                try:
-                    import sounddevice as sd
-                    import soundfile as sf
-                    data, samplerate = sf.read(output_path)
-                    sd.play(data, samplerate)
-                    sd.wait()
-                except ImportError:
-                    # Fallback: System-Player verwenden
-                    if sys.platform == 'win32':
-                        os.system(f'start /min "" "{output_path}"')
-                        import time
-                        time.sleep(len(text) / 10)  # Grobe Schätzung
-                    elif sys.platform == 'darwin':
-                        os.system(f'afplay "{output_path}"')
-                    else:
-                        os.system(f'aplay "{output_path}"')
+                # Audio direkt mit sounddevice abspielen
+                import sounddevice as sd
+                import soundfile as sf
+                data, samplerate = sf.read(output_path)
+                sd.play(data, samplerate)
+                sd.wait()
                 
                 # Temporäre Datei löschen
                 try:
@@ -95,6 +84,8 @@ class TextToSpeech:
                 self.engine.runAndWait()
         except Exception as e:
             print(f"Fehler beim Vorlesen: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             self.is_speaking = False
     
