@@ -1,0 +1,4 @@
+coqui-tts
+pyttsx3==2.90
+sounddevice
+soundfile

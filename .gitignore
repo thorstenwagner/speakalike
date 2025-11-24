@@ -1,0 +1,41 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.vscode/
+*.log
+.DS_Store
+
+# Python environments
+.conda/
+.conda-py311/
+.conda-py311/**
+
+# Model files and caches
+*.pth
+*.pt
+*.bin
+*.onnx
+*.safetensors
+models/
+checkpoints/
+
+# Audio files
+*.wav
+*.mp3
+*.flac
+*.ogg
+
+# Data and output
+data/
+output/
+temp/
+
+# Coqui TTS specific
+.models/
+tts_models/
+vocoder_models/
