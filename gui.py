@@ -134,7 +134,75 @@ class FastSpeakGUI:
         self.model_name_label = ttk.Label(voice_frame, text="", foreground="blue", font=("Arial", 9, "bold"))
         self.model_name_label.grid(row=3, column=3, columnspan=2, sticky=tk.W, padx=5)
         
-        # Geschwindigkeit
+        # Qualitätseinstellungen Frame
+        quality_frame = ttk.LabelFrame(main_frame, text="Qualitätseinstellungen", padding="5")
+        quality_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=5)
+        
+        # Temperature (Kreativität)
+        ttk.Label(quality_frame, text="Kreativität:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        self.temp_var = tk.DoubleVar(value=0.3)
+        temp_slider = ttk.Scale(
+            quality_frame,
+            from_=0.1,
+            to=1.0,
+            orient=tk.HORIZONTAL,
+            variable=self.temp_var,
+            length=120
+        )
+        temp_slider.grid(row=0, column=1, padx=5)
+        self.temp_label = ttk.Label(quality_frame, text="0.30", width=5)
+        self.temp_label.grid(row=0, column=2, padx=2)
+        temp_slider.configure(command=lambda v: self.update_quality_labels())
+        
+        # Speed (Geschwindigkeit)
+        ttk.Label(quality_frame, text="Tempo:").grid(row=0, column=3, sticky=tk.W, padx=(15, 5))
+        self.tts_speed_var = tk.DoubleVar(value=1.0)
+        speed_tts_slider = ttk.Scale(
+            quality_frame,
+            from_=0.5,
+            to=1.5,
+            orient=tk.HORIZONTAL,
+            variable=self.tts_speed_var,
+            length=120
+        )
+        speed_tts_slider.grid(row=0, column=4, padx=5)
+        self.tts_speed_label = ttk.Label(quality_frame, text="1.00x", width=5)
+        self.tts_speed_label.grid(row=0, column=5, padx=2)
+        speed_tts_slider.configure(command=lambda v: self.update_quality_labels())
+        
+        # Repetition Penalty
+        ttk.Label(quality_frame, text="Anti-Stottern:").grid(row=1, column=0, sticky=tk.W, padx=5)
+        self.rep_var = tk.DoubleVar(value=5.0)
+        rep_slider = ttk.Scale(
+            quality_frame,
+            from_=1.0,
+            to=10.0,
+            orient=tk.HORIZONTAL,
+            variable=self.rep_var,
+            length=120
+        )
+        rep_slider.grid(row=1, column=1, padx=5)
+        self.rep_label = ttk.Label(quality_frame, text="5.0", width=5)
+        self.rep_label.grid(row=1, column=2, padx=2)
+        rep_slider.configure(command=lambda v: self.update_quality_labels())
+        
+        # Preset-Buttons
+        ttk.Button(
+            quality_frame, text="📖 Klar", width=8,
+            command=lambda: self.apply_preset('clear')
+        ).grid(row=1, column=3, padx=5)
+        
+        ttk.Button(
+            quality_frame, text="🎭 Natürlich", width=9,
+            command=lambda: self.apply_preset('natural')
+        ).grid(row=1, column=4, padx=5)
+        
+        ttk.Button(
+            quality_frame, text="🎨 Kreativ", width=8,
+            command=lambda: self.apply_preset('creative')
+        ).grid(row=1, column=5, padx=5)
+        
+        # Geschwindigkeit (für pyttsx3 Fallback)
         ttk.Label(settings_frame, text="Geschwindigkeit:").grid(row=0, column=0, sticky=tk.W, padx=5)
         self.speed_var = tk.IntVar(value=150)
         speed_slider = ttk.Scale(
@@ -174,7 +242,7 @@ class FastSpeakGUI:
         
         # Buttons Frame
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=4, column=0, pady=10)
+        button_frame.grid(row=5, column=0, pady=10)
         
         # Vorlesen Button
         self.speak_button = ttk.Button(
@@ -222,7 +290,38 @@ class FastSpeakGUI:
             relief=tk.SUNKEN,
             anchor=tk.W
         )
-        status_bar.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        status_bar.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        
+    def update_quality_labels(self):
+        """Aktualisiert die Qualitäts-Labels und überträgt Werte an TTS"""
+        temp = self.temp_var.get()
+        speed = self.tts_speed_var.get()
+        rep = self.rep_var.get()
+        
+        self.temp_label.config(text=f"{temp:.2f}")
+        self.tts_speed_label.config(text=f"{speed:.2f}x")
+        self.rep_label.config(text=f"{rep:.1f}")
+        
+        # Werte an TTS-Engine übertragen
+        self.tts.temperature = temp
+        self.tts.speed = speed
+        self.tts.repetition_penalty = rep
+    
+    def apply_preset(self, preset_name):
+        """Wendet ein Qualitäts-Preset an"""
+        presets = {
+            'clear': {'temp': 0.2, 'speed': 1.0, 'rep': 7.0},    # Sehr klar, wenig Variation
+            'natural': {'temp': 0.4, 'speed': 1.0, 'rep': 5.0},  # Ausgewogen, natürlich
+            'creative': {'temp': 0.7, 'speed': 1.0, 'rep': 3.0}  # Mehr Variation, expressiv
+        }
+        
+        if preset_name in presets:
+            p = presets[preset_name]
+            self.temp_var.set(p['temp'])
+            self.tts_speed_var.set(p['speed'])
+            self.rep_var.set(p['rep'])
+            self.update_quality_labels()
+            self.status_var.set(f"Preset '{preset_name}' angewendet")
         
     def load_last_model_on_startup(self):
         """Lädt beim Start automatisch das zuletzt genutzte Voice-Modell"""

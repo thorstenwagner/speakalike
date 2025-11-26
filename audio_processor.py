@@ -11,29 +11,45 @@ import soundfile as sf
 from pathlib import Path
 
 
-def reduce_noise(audio_data, sample_rate, prop_decrease=0.8):
+def reduce_noise(audio_data, sample_rate, prop_decrease=0.8, use_spectral_gating=True):
     """
-    Reduziert Hintergrundrauschen im Audio
+    Reduziert Hintergrundrauschen im Audio mit mehreren Methoden
     
     Args:
         audio_data: Audio als numpy array
         sample_rate: Sample-Rate
         prop_decrease: Stärke der Rauschunterdrückung (0-1)
+        use_spectral_gating: Verwendet Spectral Gating für bessere Ergebnisse
     """
     try:
         import noisereduce as nr
+        
         # Rauschprofil aus den letzten 0.5 Sekunden schätzen (oft Rauschen am Ende)
         noise_sample_length = min(int(sample_rate * 0.5), len(audio_data) // 4)
         noise_sample = audio_data[-noise_sample_length:]
         
-        # Rauschen reduzieren
+        # Rauschen reduzieren mit stationärer Methode
         reduced = nr.reduce_noise(
             y=audio_data, 
             sr=sample_rate,
             y_noise=noise_sample,
             prop_decrease=prop_decrease,
-            stationary=True
+            stationary=True,
+            n_fft=2048,  # Bessere Frequenzauflösung
+            hop_length=512
         )
+        
+        # Optional: Zweiter Durchgang mit nicht-stationärer Methode für bessere Qualität
+        if use_spectral_gating:
+            reduced = nr.reduce_noise(
+                y=reduced,
+                sr=sample_rate,
+                prop_decrease=prop_decrease * 0.5,  # Sanfter im zweiten Durchgang
+                stationary=False,
+                n_fft=2048,
+                hop_length=512
+            )
+        
         return reduced
     except Exception as e:
         print(f"Warnung: Rauschunterdrückung fehlgeschlagen: {e}")
@@ -100,8 +116,84 @@ def normalize_audio(audio_data, target_db=-3):
     return audio_data * (target_amplitude / peak)
 
 
+def apply_highpass_filter(audio_data, sample_rate, cutoff_freq=80):
+    """
+    Wendet einen Hochpassfilter an um tieffrequentes Brummen zu entfernen
+    
+    Args:
+        audio_data: Audio als numpy array
+        sample_rate: Sample-Rate
+        cutoff_freq: Grenzfrequenz in Hz (Standard: 80Hz entfernt Brummen)
+    """
+    try:
+        from scipy import signal
+        
+        # Butterworth Hochpassfilter 4. Ordnung
+        nyquist = sample_rate / 2
+        normalized_cutoff = cutoff_freq / nyquist
+        
+        # Sicherstellen dass der Wert gültig ist
+        if normalized_cutoff >= 1:
+            normalized_cutoff = 0.9
+        
+        b, a = signal.butter(4, normalized_cutoff, btype='high')
+        filtered = signal.filtfilt(b, a, audio_data)
+        
+        return filtered
+    except Exception as e:
+        print(f"Warnung: Hochpassfilter fehlgeschlagen: {e}")
+        return audio_data
+
+
+def apply_deesser(audio_data, sample_rate, threshold_db=-20, freq_range=(4000, 9000)):
+    """
+    Reduziert scharfe S-Laute (De-Esser)
+    
+    Args:
+        audio_data: Audio als numpy array
+        sample_rate: Sample-Rate  
+        threshold_db: Schwellwert für De-Essing
+        freq_range: Frequenzbereich für S-Laute
+    """
+    try:
+        from scipy import signal
+        from scipy.fft import fft, ifft
+        
+        # Bandpass für S-Laute Erkennung
+        nyquist = sample_rate / 2
+        low = min(freq_range[0] / nyquist, 0.99)
+        high = min(freq_range[1] / nyquist, 0.99)
+        
+        b, a = signal.butter(2, [low, high], btype='band')
+        sibilant = signal.filtfilt(b, a, audio_data)
+        
+        # Envelope des Sibilant-Signals
+        envelope = np.abs(signal.hilbert(sibilant))
+        
+        # Schwellwert
+        threshold = 10 ** (threshold_db / 20) * np.max(np.abs(audio_data))
+        
+        # Gain Reduction berechnen
+        gain = np.ones_like(envelope)
+        mask = envelope > threshold
+        gain[mask] = threshold / envelope[mask]
+        
+        # Glätten
+        window_size = int(0.01 * sample_rate)
+        gain = np.convolve(gain, np.ones(window_size)/window_size, mode='same')
+        
+        # Anwenden (nur auf Sibilant-Bereich)
+        result = audio_data - sibilant * (1 - gain)
+        
+        return result
+    except Exception as e:
+        print(f"Warnung: De-Esser fehlgeschlagen: {e}")
+        return audio_data
+
+
 def process_audio_file(file_path, output_path=None, reduce_noise_enabled=True, 
-                       trim_enabled=True, normalize_enabled=True):
+                       trim_enabled=True, normalize_enabled=True,
+                       highpass_enabled=True, deesser_enabled=False):
     """
     Verarbeitet eine Audio-Datei mit allen Optimierungen
     
@@ -111,6 +203,8 @@ def process_audio_file(file_path, output_path=None, reduce_noise_enabled=True,
         reduce_noise_enabled: Rauschunterdrückung aktivieren
         trim_enabled: Stille entfernen
         normalize_enabled: Audio normalisieren
+        highpass_enabled: Hochpassfilter gegen Brummen
+        deesser_enabled: De-Esser für scharfe S-Laute
         
     Returns:
         Pfad zur verarbeiteten Datei
@@ -122,13 +216,25 @@ def process_audio_file(file_path, output_path=None, reduce_noise_enabled=True,
     if len(audio_data.shape) > 1:
         audio_data = np.mean(audio_data, axis=1)
     
-    # Verarbeitungsschritte
+    # Verarbeitungsschritte in optimaler Reihenfolge
+    
+    # 1. Hochpassfilter zuerst (entfernt DC-Offset und Brummen)
+    if highpass_enabled:
+        audio_data = apply_highpass_filter(audio_data, sample_rate, cutoff_freq=80)
+    
+    # 2. Stille trimmen
     if trim_enabled:
         audio_data = trim_silence(audio_data, sample_rate)
     
+    # 3. Rauschunterdrückung
     if reduce_noise_enabled:
         audio_data = reduce_noise(audio_data, sample_rate)
     
+    # 4. De-Esser (optional, kann Sprachqualität verbessern)
+    if deesser_enabled:
+        audio_data = apply_deesser(audio_data, sample_rate)
+    
+    # 5. Normalisierung zum Schluss
     if normalize_enabled:
         audio_data = normalize_audio(audio_data)
     

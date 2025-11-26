@@ -51,6 +51,14 @@ class TextToSpeech:
         self.gpt_cond_chunk_len = 6  # Chunk-Größe für stabilere Latents (Standard: 4)
         self.max_ref_len = 60  # Mehr Referenz-Audio verwenden (Standard: 10)
         
+        # Erweiterte Qualitätseinstellungen
+        self.temperature = 0.3  # Niedrig für klare, konsistente Ausgabe
+        self.top_k = 30  # Eingeschränktere Token-Auswahl
+        self.top_p = 0.75  # Nucleus Sampling
+        self.repetition_penalty = 5.0  # Gegen Stottern/Wiederholungen
+        self.speed = 1.0  # Sprechgeschwindigkeit
+        self.length_penalty = 1.0  # Ausgeglichene Länge
+        
         # Erstelle Voice-Modell-Verzeichnis falls nicht vorhanden
         self.VOICE_MODELS_DIR.mkdir(exist_ok=True)
         
@@ -194,12 +202,17 @@ class TextToSpeech:
             
             model_path = self.VOICE_MODELS_DIR / f"{safe_name}.pt"
             
-            # Speichere die Embeddings
+            # Speichere die Embeddings und alle Parameter
             torch.save({
                 'gpt_cond_latent': self.gpt_cond_latent,
                 'speaker_embedding': self.speaker_embedding,
                 'gpt_cond_len': self.gpt_cond_len,
                 'gpt_cond_chunk_len': self.gpt_cond_chunk_len,
+                'temperature': self.temperature,
+                'top_k': self.top_k,
+                'top_p': self.top_p,
+                'repetition_penalty': self.repetition_penalty,
+                'speed': self.speed,
                 'seed': self.seed,
                 'name': name
             }, model_path)
@@ -254,6 +267,16 @@ class TextToSpeech:
                 self.gpt_cond_len = data['gpt_cond_len']
             if 'gpt_cond_chunk_len' in data:
                 self.gpt_cond_chunk_len = data['gpt_cond_chunk_len']
+            if 'temperature' in data:
+                self.temperature = data['temperature']
+            if 'top_k' in data:
+                self.top_k = data['top_k']
+            if 'top_p' in data:
+                self.top_p = data['top_p']
+            if 'repetition_penalty' in data:
+                self.repetition_penalty = data['repetition_penalty']
+            if 'speed' in data:
+                self.speed = data['speed']
             if 'seed' in data:
                 self.seed = data['seed']
             
@@ -480,26 +503,119 @@ class TextToSpeech:
         """Direkte XTTS-Inference mit optimierten Parametern"""
         import torch
         import torchaudio
+        import numpy as np
         
-        print("Verwende optimierte direkte XTTS-Inference...")
+        print(f"Verwende optimierte direkte XTTS-Inference...")
+        print(f"  - Temperature: {self.temperature}, Top-K: {self.top_k}, Top-P: {self.top_p}")
+        print(f"  - Repetition Penalty: {self.repetition_penalty}, Speed: {self.speed}")
         
         out = self.model.inference(
             text=text,
             language=language,
             gpt_cond_latent=self.gpt_cond_latent,
             speaker_embedding=self.speaker_embedding,
-            # Optimierte Parameter für beste Qualität
-            temperature=0.3,  # Niedrig für konsistente, klare Ausgabe (Standard: 0.65)
-            length_penalty=1.0,  # Ausgeglichene Länge
-            repetition_penalty=5.0,  # Hoch gegen Wiederholungen/Stottern
-            top_k=30,  # Eingeschränktere Token-Auswahl für Stabilität (Standard: 50)
-            top_p=0.75,  # Leicht reduziert für weniger Variation (Standard: 0.8)
-            speed=1.0,  # Normale Geschwindigkeit
+            # Dynamische Parameter aus Klassenattributen
+            temperature=self.temperature,
+            length_penalty=self.length_penalty,
+            repetition_penalty=self.repetition_penalty,
+            top_k=self.top_k,
+            top_p=self.top_p,
+            speed=self.speed,
             enable_text_splitting=True  # Satzweise Verarbeitung
         )
         
+        # Audio-Nachbearbeitung: Entferne Artefakte am Ende
+        wav = np.array(out["wav"])
+        wav = self._remove_trailing_artifacts(wav, sample_rate=24000)
+        
         # Speichern mit korrekter Sample-Rate (24kHz für XTTS)
-        torchaudio.save(output_path, torch.tensor(out["wav"]).unsqueeze(0), 24000)
+        torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
+    
+    def _remove_trailing_artifacts(self, audio, sample_rate=24000, 
+                                    silence_threshold_db=-35, 
+                                    min_silence_duration=0.15):
+        """
+        Entfernt Artefakte/Halluzinationen am Ende des Audios.
+        
+        Sucht nach der letzten signifikanten Sprachaktivität und schneidet
+        danach ab, um unverständliche Laute am Ende zu entfernen.
+        
+        Args:
+            audio: Audio-Array
+            sample_rate: Sample-Rate
+            silence_threshold_db: Schwellwert für Stille in dB
+            min_silence_duration: Minimale Stille-Dauer um Ende zu erkennen
+        """
+        import numpy as np
+        
+        if len(audio) == 0:
+            return audio
+        
+        # Berechne RMS-Energie in kleinen Fenstern
+        window_size = int(0.02 * sample_rate)  # 20ms Fenster
+        hop_size = window_size // 2
+        
+        # Sliding window RMS
+        num_windows = (len(audio) - window_size) // hop_size + 1
+        if num_windows <= 0:
+            return audio
+            
+        rms_values = []
+        for i in range(num_windows):
+            start = i * hop_size
+            end = start + window_size
+            window = audio[start:end]
+            rms = np.sqrt(np.mean(window ** 2))
+            rms_values.append(rms)
+        
+        rms_values = np.array(rms_values)
+        
+        # Konvertiere zu dB
+        rms_db = 20 * np.log10(rms_values + 1e-10)
+        max_db = np.max(rms_db)
+        rms_db_normalized = rms_db - max_db
+        
+        # Finde die letzte Position mit Sprache
+        is_speech = rms_db_normalized > silence_threshold_db
+        
+        # Suche von hinten nach vorne nach dem letzten Sprachsegment
+        min_silence_windows = int(min_silence_duration * sample_rate / hop_size)
+        
+        last_speech_window = len(is_speech) - 1
+        silence_count = 0
+        
+        for i in range(len(is_speech) - 1, -1, -1):
+            if is_speech[i]:
+                if silence_count >= min_silence_windows:
+                    # Wir haben ein Stille-Segment nach Sprache gefunden
+                    # Das könnte der Beginn von Artefakten sein
+                    last_speech_window = i + min_silence_windows // 2
+                    break
+                silence_count = 0
+            else:
+                silence_count += 1
+        
+        # Berechne die Sample-Position
+        end_sample = min((last_speech_window + 1) * hop_size + window_size, len(audio))
+        
+        # Füge ein kurzes Fade-Out hinzu (50ms)
+        fade_samples = int(0.05 * sample_rate)
+        if end_sample > fade_samples:
+            fade_start = end_sample - fade_samples
+            fade_curve = np.linspace(1.0, 0.0, fade_samples)
+            audio[fade_start:end_sample] *= fade_curve[:end_sample - fade_start]
+        
+        # Schneide ab
+        trimmed = audio[:end_sample]
+        
+        original_duration = len(audio) / sample_rate
+        trimmed_duration = len(trimmed) / sample_rate
+        
+        if original_duration - trimmed_duration > 0.1:
+            print(f"  → Audio getrimmt: {original_duration:.2f}s → {trimmed_duration:.2f}s "
+                  f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
+        
+        return trimmed
     
     def _inference_api_cloning(self, text, language, output_path):
         """TTS API Inference mit Voice Cloning"""
