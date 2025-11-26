@@ -202,6 +202,25 @@ class FastSpeakGUI:
             command=lambda: self.apply_preset('creative')
         ).grid(row=1, column=5, padx=5)
         
+        # Streaming-Modus Checkbox (Zeile 2)
+        self.streaming_var = tk.BooleanVar(value=False)
+        streaming_check = ttk.Checkbutton(
+            quality_frame,
+            text="⚡ Streaming (schneller)",
+            variable=self.streaming_var,
+            command=self.update_streaming_mode
+        )
+        streaming_check.grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=5, pady=5)
+        
+        # Info-Label für Performance
+        self.perf_label = ttk.Label(
+            quality_frame, 
+            text="💡 Tipp: Streaming für schnellere erste Ausgabe",
+            foreground="gray",
+            font=("Arial", 8)
+        )
+        self.perf_label.grid(row=2, column=2, columnspan=4, sticky=tk.W, padx=5)
+        
         # Geschwindigkeit (für pyttsx3 Fallback)
         ttk.Label(settings_frame, text="Geschwindigkeit:").grid(row=0, column=0, sticky=tk.W, padx=5)
         self.speed_var = tk.IntVar(value=150)
@@ -306,6 +325,12 @@ class FastSpeakGUI:
         self.tts.temperature = temp
         self.tts.speed = speed
         self.tts.repetition_penalty = rep
+    
+    def update_streaming_mode(self):
+        """Aktiviert/deaktiviert den Streaming-Modus"""
+        self.tts.use_streaming = self.streaming_var.get()
+        mode = "aktiviert" if self.tts.use_streaming else "deaktiviert"
+        self.status_var.set(f"⚡ Streaming-Modus {mode}")
     
     def apply_preset(self, preset_name):
         """Wendet ein Qualitäts-Preset an"""

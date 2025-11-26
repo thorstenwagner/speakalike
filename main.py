@@ -46,10 +46,13 @@ class TextToSpeech:
         self.cached_speaker_wav = None
         self.current_voice_name = None  # Name des aktuell geladenen Voice-Modells
         
-        # Optimierte Inference-Parameter
-        self.gpt_cond_len = 30  # Längere Konditionierung = bessere Stimmerfassung (Standard: 12)
-        self.gpt_cond_chunk_len = 6  # Chunk-Größe für stabilere Latents (Standard: 4)
-        self.max_ref_len = 60  # Mehr Referenz-Audio verwenden (Standard: 10)
+        # Performance-Einstellungen
+        self.use_streaming = False  # Streaming für schnellere erste Ausgabe
+        
+        # Optimierte Inference-Parameter (Balance zwischen Qualität und Geschwindigkeit)
+        self.gpt_cond_len = 6  # Reduziert für schnellere Generierung (Standard: 12, war 30)
+        self.gpt_cond_chunk_len = 3  # Kleinere Chunks = schneller (Standard: 4)
+        self.max_ref_len = 30  # Reduziert für Performance (Standard: 10)
         
         # Erweiterte Qualitätseinstellungen
         self.temperature = 0.3  # Niedrig für klare, konsistente Ausgabe
@@ -504,10 +507,16 @@ class TextToSpeech:
         import torch
         import torchaudio
         import numpy as np
+        import time
         
-        print(f"Verwende optimierte direkte XTTS-Inference...")
-        print(f"  - Temperature: {self.temperature}, Top-K: {self.top_k}, Top-P: {self.top_p}")
-        print(f"  - Repetition Penalty: {self.repetition_penalty}, Speed: {self.speed}")
+        start_time = time.time()
+        print(f"Generiere Audio...")
+        
+        # Streaming-Modus für schnelleres erstes Audio
+        if self.use_streaming:
+            self._inference_direct_streaming(text, language, output_path)
+            print(f"  Generierung abgeschlossen in {time.time() - start_time:.2f}s (Streaming)")
+            return
         
         out = self.model.inference(
             text=text,
@@ -530,6 +539,38 @@ class TextToSpeech:
         
         # Speichern mit korrekter Sample-Rate (24kHz für XTTS)
         torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
+        print(f"  Generierung abgeschlossen in {time.time() - start_time:.2f}s")
+    
+    def _inference_direct_streaming(self, text, language, output_path):
+        """Streaming-Inference für schnellere erste Audioausgabe"""
+        import torch
+        import torchaudio
+        import numpy as np
+        
+        chunks = []
+        
+        # Streaming-Generator verwenden
+        for chunk in self.model.inference_stream(
+            text=text,
+            language=language,
+            gpt_cond_latent=self.gpt_cond_latent,
+            speaker_embedding=self.speaker_embedding,
+            temperature=self.temperature,
+            length_penalty=self.length_penalty,
+            repetition_penalty=self.repetition_penalty,
+            top_k=self.top_k,
+            top_p=self.top_p,
+            speed=self.speed,
+            enable_text_splitting=True,
+            stream_chunk_size=20  # Kleinere Chunks = schnellerer Start
+        ):
+            chunks.append(chunk)
+        
+        # Alle Chunks zusammenfügen
+        if chunks:
+            wav = np.concatenate([c.cpu().numpy() for c in chunks])
+            wav = self._remove_trailing_artifacts(wav, sample_rate=24000)
+            torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
     
     def _remove_trailing_artifacts(self, audio, sample_rate=24000, 
                                     silence_threshold_db=-35, 
