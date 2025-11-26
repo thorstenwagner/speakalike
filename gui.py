@@ -28,6 +28,9 @@ class FastSpeakGUI:
         
         self.setup_ui()
         
+        # Versuche zuletzt genutztes Voice-Modell zu laden
+        self.load_last_model_on_startup()
+        
     def setup_ui(self):
         """Erstellt die Benutzeroberfläche"""
         
@@ -109,6 +112,27 @@ class FastSpeakGUI:
             variable=self.denoise_var
         )
         denoise_check.grid(row=0, column=4, padx=5)
+        
+        # Voice-Modell speichern/laden Buttons
+        save_model_button = ttk.Button(
+            voice_frame,
+            text="💾 Stimme speichern",
+            command=self.save_voice_model,
+            width=18
+        )
+        save_model_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky=tk.W)
+        
+        load_model_button = ttk.Button(
+            voice_frame,
+            text="📂 Stimme laden",
+            command=self.load_voice_model,
+            width=18
+        )
+        load_model_button.grid(row=3, column=2, padx=5, pady=5)
+        
+        # Label für geladenes Modell
+        self.model_name_label = ttk.Label(voice_frame, text="", foreground="blue", font=("Arial", 9, "bold"))
+        self.model_name_label.grid(row=3, column=3, columnspan=2, sticky=tk.W, padx=5)
         
         # Geschwindigkeit
         ttk.Label(settings_frame, text="Geschwindigkeit:").grid(row=0, column=0, sticky=tk.W, padx=5)
@@ -200,6 +224,24 @@ class FastSpeakGUI:
         )
         status_bar.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
         
+    def load_last_model_on_startup(self):
+        """Lädt beim Start automatisch das zuletzt genutzte Voice-Modell"""
+        try:
+            if self.tts.load_last_model():
+                name = self.tts.current_voice_name
+                self.model_name_label.config(text=f"📢 Geladen: {name}")
+                self.embedding_label.config(
+                    text=f"✓ Voice-Modell '{name}' automatisch geladen",
+                    foreground="green"
+                )
+                self.files_label.config(
+                    text=f"Gespeicherte Stimme aktiv",
+                    foreground="blue"
+                )
+                self.status_var.set(f"Voice-Modell '{name}' automatisch geladen - bereit!")
+        except Exception as e:
+            print(f"Fehler beim automatischen Laden des Voice-Modells: {e}")
+    
     def clear_placeholder(self, event):
         """Entfernt den Platzhalter-Text beim ersten Klick"""
         current_text = self.text_input.get(1.0, tk.END).strip()
@@ -354,6 +396,114 @@ class FastSpeakGUI:
         """Löscht den Text im Eingabefeld"""
         self.text_input.delete(1.0, tk.END)
         self.status_var.set("Text gelöscht")
+    
+    def save_voice_model(self):
+        """Speichert das aktuelle Voice-Modell"""
+        # Prüfe ob Embeddings vorhanden sind
+        if not hasattr(self.tts, 'gpt_cond_latent') or self.tts.gpt_cond_latent is None:
+            messagebox.showwarning(
+                "Keine Stimme", 
+                "Bitte laden Sie zuerst Audio-Samples hoch, um eine Stimme zu erstellen!"
+            )
+            return
+        
+        # Name für das Modell abfragen
+        from tkinter import simpledialog
+        name = simpledialog.askstring(
+            "Stimme speichern",
+            "Geben Sie einen Namen für die Stimme ein:",
+            initialvalue=self.tts.current_voice_name or "meine_stimme"
+        )
+        
+        if name:
+            result = self.tts.save_voice_model(name)
+            if result:
+                self.model_name_label.config(text=f"✓ Gespeichert: {name}")
+                self.status_var.set(f"Voice-Modell '{name}' gespeichert")
+                messagebox.showinfo(
+                    "Erfolg", 
+                    f"Voice-Modell '{name}' wurde gespeichert!\n\n"
+                    f"Es wird beim nächsten Start automatisch verfügbar sein."
+                )
+            else:
+                messagebox.showerror("Fehler", "Konnte Voice-Modell nicht speichern!")
+    
+    def load_voice_model(self):
+        """Lädt ein gespeichertes Voice-Modell"""
+        # Liste der verfügbaren Modelle abrufen
+        models = self.tts.list_saved_voice_models()
+        
+        if not models:
+            messagebox.showinfo(
+                "Keine Modelle",
+                "Es sind noch keine gespeicherten Stimmen vorhanden.\n\n"
+                "Laden Sie zuerst Audio-Samples hoch und speichern Sie die Stimme."
+            )
+            return
+        
+        # Auswahldialog erstellen
+        select_window = tk.Toplevel(self.root)
+        select_window.title("Stimme laden")
+        select_window.geometry("400x300")
+        select_window.transient(self.root)
+        select_window.grab_set()
+        
+        ttk.Label(
+            select_window, 
+            text="Wählen Sie eine gespeicherte Stimme:",
+            font=("Arial", 10, "bold")
+        ).pack(pady=10)
+        
+        # Listbox mit Modellen
+        listbox = tk.Listbox(select_window, font=("Arial", 11), height=10)
+        listbox.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
+        
+        for model in models:
+            listbox.insert(tk.END, model['name'])
+        
+        if models:
+            listbox.selection_set(0)
+        
+        def on_load():
+            selection = listbox.curselection()
+            if selection:
+                model_name = models[selection[0]]['name']
+                select_window.destroy()
+                
+                self.status_var.set(f"Lade Voice-Modell '{model_name}'...")
+                self.root.update()
+                
+                if self.tts.load_voice_model(model_name):
+                    self.model_name_label.config(text=f"📢 Geladen: {model_name}")
+                    self.embedding_label.config(
+                        text=f"✓ Voice-Modell '{model_name}' geladen (bereit zum Vorlesen)",
+                        foreground="green"
+                    )
+                    self.files_label.config(
+                        text=f"Gespeicherte Stimme aktiv",
+                        foreground="blue"
+                    )
+                    self.status_var.set(f"Voice-Modell '{model_name}' geladen und bereit!")
+                else:
+                    messagebox.showerror("Fehler", f"Konnte Voice-Modell '{model_name}' nicht laden!")
+                    self.status_var.set("Fehler beim Laden")
+        
+        def on_delete():
+            selection = listbox.curselection()
+            if selection:
+                model_name = models[selection[0]]['name']
+                if messagebox.askyesno("Löschen bestätigen", f"Voice-Modell '{model_name}' wirklich löschen?"):
+                    if self.tts.delete_voice_model(model_name):
+                        listbox.delete(selection[0])
+                        models.pop(selection[0])
+                        self.status_var.set(f"Voice-Modell '{model_name}' gelöscht")
+        
+        button_frame = ttk.Frame(select_window)
+        button_frame.pack(pady=10)
+        
+        ttk.Button(button_frame, text="✓ Laden", command=on_load, width=12).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="🗑 Löschen", command=on_delete, width=12).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Abbrechen", command=select_window.destroy, width=12).pack(side=tk.LEFT, padx=5)
     
     def download_audio(self):
         """Speichert die letzte Sprachausgabe als MP3"""

@@ -31,6 +31,10 @@ except ImportError:
 class TextToSpeech:
     """Text-to-Speech Engine Wrapper mit optimiertem Voice Cloning"""
     
+    # Verzeichnis für gespeicherte Voice-Modelle
+    VOICE_MODELS_DIR = Path(__file__).parent / "voice_models"
+    LAST_MODEL_FILE = Path(__file__).parent / "voice_models" / ".last_model"
+    
     def __init__(self):
         self.is_speaking = False
         self.speaker_wav = None
@@ -40,11 +44,15 @@ class TextToSpeech:
         self.gpt_cond_latent = None
         self.speaker_embedding = None
         self.cached_speaker_wav = None
+        self.current_voice_name = None  # Name des aktuell geladenen Voice-Modells
         
         # Optimierte Inference-Parameter
         self.gpt_cond_len = 30  # Längere Konditionierung = bessere Stimmerfassung (Standard: 12)
         self.gpt_cond_chunk_len = 6  # Chunk-Größe für stabilere Latents (Standard: 4)
         self.max_ref_len = 60  # Mehr Referenz-Audio verwenden (Standard: 10)
+        
+        # Erstelle Voice-Modell-Verzeichnis falls nicht vorhanden
+        self.VOICE_MODELS_DIR.mkdir(exist_ok=True)
         
         if COQUI_AVAILABLE:
             try:
@@ -161,6 +169,180 @@ class TextToSpeech:
             print(f"Fehler bei Speaker-Embedding-Berechnung: {e}")
             self.gpt_cond_latent = None
             self.speaker_embedding = None
+    
+    def save_voice_model(self, name):
+        """
+        Speichert das aktuelle Voice-Modell (Speaker-Embeddings) auf der Festplatte
+        
+        Args:
+            name (str): Name für das Voice-Modell (z.B. "meine_stimme")
+            
+        Returns:
+            str: Pfad zur gespeicherten Datei oder None bei Fehler
+        """
+        if self.gpt_cond_latent is None or self.speaker_embedding is None:
+            print("Keine Speaker-Embeddings zum Speichern vorhanden!")
+            return None
+        
+        try:
+            import torch
+            
+            # Bereinige den Namen für Dateinamen
+            safe_name = "".join(c for c in name if c.isalnum() or c in "._- ").strip()
+            if not safe_name:
+                safe_name = "voice_model"
+            
+            model_path = self.VOICE_MODELS_DIR / f"{safe_name}.pt"
+            
+            # Speichere die Embeddings
+            torch.save({
+                'gpt_cond_latent': self.gpt_cond_latent,
+                'speaker_embedding': self.speaker_embedding,
+                'gpt_cond_len': self.gpt_cond_len,
+                'gpt_cond_chunk_len': self.gpt_cond_chunk_len,
+                'seed': self.seed,
+                'name': name
+            }, model_path)
+            
+            self.current_voice_name = name
+            print(f"Voice-Modell '{name}' gespeichert unter: {model_path}")
+            
+            # Speichere als zuletzt genutztes Modell
+            self._save_last_model_name(name)
+            
+            return str(model_path)
+            
+        except Exception as e:
+            print(f"Fehler beim Speichern des Voice-Modells: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def load_voice_model(self, name_or_path):
+        """
+        Lädt ein gespeichertes Voice-Modell von der Festplatte
+        
+        Args:
+            name_or_path (str): Name des Modells oder vollständiger Pfad
+            
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
+        try:
+            import torch
+            
+            # Prüfe ob es ein Pfad oder ein Name ist
+            if os.path.isfile(name_or_path):
+                model_path = Path(name_or_path)
+            else:
+                # Suche im Voice-Modell-Verzeichnis
+                model_path = self.VOICE_MODELS_DIR / f"{name_or_path}.pt"
+            
+            if not model_path.exists():
+                print(f"Voice-Modell nicht gefunden: {model_path}")
+                return False
+            
+            # Lade die Embeddings
+            data = torch.load(model_path, map_location='cuda' if torch.cuda.is_available() else 'cpu')
+            
+            self.gpt_cond_latent = data['gpt_cond_latent']
+            self.speaker_embedding = data['speaker_embedding']
+            self.current_voice_name = data.get('name', model_path.stem)
+            
+            # Optionale Parameter wiederherstellen
+            if 'gpt_cond_len' in data:
+                self.gpt_cond_len = data['gpt_cond_len']
+            if 'gpt_cond_chunk_len' in data:
+                self.gpt_cond_chunk_len = data['gpt_cond_chunk_len']
+            if 'seed' in data:
+                self.seed = data['seed']
+            
+            print(f"Voice-Modell '{self.current_voice_name}' geladen!")
+            print(f"  - GPT Latent Shape: {self.gpt_cond_latent.shape}")
+            print(f"  - Speaker Embedding Shape: {self.speaker_embedding.shape}")
+            
+            # Speichere als zuletzt genutztes Modell
+            self._save_last_model_name(self.current_voice_name)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Fehler beim Laden des Voice-Modells: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def list_saved_voice_models(self):
+        """
+        Listet alle gespeicherten Voice-Modelle auf
+        
+        Returns:
+            list: Liste von Dictionaries mit 'name' und 'path' für jedes Modell
+        """
+        models = []
+        if self.VOICE_MODELS_DIR.exists():
+            for model_file in self.VOICE_MODELS_DIR.glob("*.pt"):
+                models.append({
+                    'name': model_file.stem,
+                    'path': str(model_file)
+                })
+        return models
+    
+    def delete_voice_model(self, name):
+        """
+        Löscht ein gespeichertes Voice-Modell
+        
+        Args:
+            name (str): Name des zu löschenden Modells
+            
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
+        try:
+            model_path = self.VOICE_MODELS_DIR / f"{name}.pt"
+            if model_path.exists():
+                model_path.unlink()
+                print(f"Voice-Modell '{name}' gelöscht")
+                return True
+            else:
+                print(f"Voice-Modell '{name}' nicht gefunden")
+                return False
+        except Exception as e:
+            print(f"Fehler beim Löschen: {e}")
+            return False
+    
+    def _save_last_model_name(self, name):
+        """Speichert den Namen des zuletzt genutzten Modells"""
+        try:
+            self.LAST_MODEL_FILE.write_text(name, encoding='utf-8')
+        except Exception as e:
+            print(f"Fehler beim Speichern des letzten Modellnamens: {e}")
+    
+    def _get_last_model_name(self):
+        """Gibt den Namen des zuletzt genutzten Modells zurück"""
+        try:
+            if self.LAST_MODEL_FILE.exists():
+                return self.LAST_MODEL_FILE.read_text(encoding='utf-8').strip()
+        except Exception as e:
+            print(f"Fehler beim Lesen des letzten Modellnamens: {e}")
+        return None
+    
+    def load_last_model(self):
+        """
+        Lädt automatisch das zuletzt genutzte Voice-Modell
+        
+        Returns:
+            bool: True wenn ein Modell geladen wurde, False sonst
+        """
+        last_name = self._get_last_model_name()
+        if last_name:
+            model_path = self.VOICE_MODELS_DIR / f"{last_name}.pt"
+            if model_path.exists():
+                print(f"Lade zuletzt genutztes Voice-Modell: {last_name}")
+                return self.load_voice_model(last_name)
+            else:
+                print(f"Zuletzt genutztes Modell '{last_name}' nicht mehr vorhanden")
+        return False
             
     def speak(self, text, rate=150, language='de'):
         """
