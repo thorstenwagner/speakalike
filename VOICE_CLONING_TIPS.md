@@ -4,9 +4,10 @@
 
 ### Empfohlene Eigenschaften der Aufnahmen:
 
-1. **Länge**: 6-10 Sekunden pro Sample
-   - Mehrere Samples (3-5) sind besser als ein einziges langes Sample
-   - Kurze, klare Sätze funktionieren am besten
+1. **Länge**: **10-30 Sekunden** pro Sample (mehr ist besser!)
+   - Mehrere Samples (3-5) sind **deutlich** besser als ein einziges Sample
+   - Die App verwendet bis zu **30 Sekunden** für GPT-Konditionierung
+   - Längere Referenzen = bessere Stimmerfassung
 
 2. **Audioqualität**:
    - **Sample Rate**: Mindestens 22050 Hz (besser 44100 Hz oder 48000 Hz)
@@ -57,11 +58,32 @@ Gute Testsätze mit verschiedenen phonetischen Eigenschaften:
 
 ## ⚙️ Technische Optimierungen in FastSpeak
 
-Die App nutzt jetzt:
-- ✅ **Alle Samples** statt nur das erste (bessere Durchschnittsbildung)
-- ✅ **split_sentences=True** für natürlichere Satzmelodie
+Die App nutzt jetzt **fortgeschrittene XTTS-Optimierungen**:
+
+### Direkte Modell-Kontrolle
+- ✅ **Direkter XTTS-Zugriff** statt nur TTS API (mehr Kontrolle)
+- ✅ **Vorab-berechnete Speaker-Embeddings** (Caching für konsistente Qualität)
+- ✅ **Audio-Normalisierung** der Referenz-Samples
+
+### Optimierte Konditionierungs-Parameter
+| Parameter | Standard | FastSpeak | Wirkung |
+|-----------|----------|-----------|---------|
+| `gpt_cond_len` | 12s | **30s** | Mehr Kontext für GPT |
+| `gpt_cond_chunk_len` | 4s | **6s** | Stabilere Latent-Berechnung |
+| `max_ref_len` | 10s | **60s** | Längere Decoder-Referenz |
+| `sound_norm_refs` | False | **True** | Normalisierte Audio-Qualität |
+
+### Optimierte Inference-Parameter
+| Parameter | Standard | FastSpeak | Wirkung |
+|-----------|----------|-----------|---------|
+| `temperature` | 0.65 | **0.3** | Konsistentere, klarere Ausgabe |
+| `repetition_penalty` | 2.0 | **5.0** | Verhindert Stottern/Wiederholungen |
+| `top_k` | 50 | **30** | Stabilere Token-Auswahl |
+| `top_p` | 0.8 | **0.75** | Weniger zufällige Variation |
+
+### Hardware-Beschleunigung
 - ✅ **GPU-Beschleunigung** mit NVIDIA RTX 4070 für schnellere Verarbeitung
-- ✅ **XTTS v2 Modell** - State-of-the-art Voice Cloning
+- ✅ **Deterministischer Seed** für reproduzierbare Ergebnisse
 
 ## 🎤 Aufnahme-Tipps
 

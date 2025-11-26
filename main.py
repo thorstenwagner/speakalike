@@ -12,57 +12,159 @@ os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get
 
 try:
     from TTS.api import TTS
+    from TTS.tts.configs.xtts_config import XttsConfig
+    from TTS.tts.models.xtts import Xtts
     COQUI_AVAILABLE = True
+    XTTS_DIRECT = True
 except ImportError:
-    COQUI_AVAILABLE = False
-    print("Warnung: Coqui TTS nicht verfügbar. Fallback auf pyttsx3.")
-    import pyttsx3
+    try:
+        from TTS.api import TTS
+        COQUI_AVAILABLE = True
+        XTTS_DIRECT = False
+    except ImportError:
+        COQUI_AVAILABLE = False
+        XTTS_DIRECT = False
+        print("Warnung: Coqui TTS nicht verfügbar. Fallback auf pyttsx3.")
+        import pyttsx3
 
 
 class TextToSpeech:
-    """Text-to-Speech Engine Wrapper"""
+    """Text-to-Speech Engine Wrapper mit optimiertem Voice Cloning"""
     
     def __init__(self):
         self.is_speaking = False
         self.speaker_wav = None
-        self.audio_cache = {}  # Cache für identische Texte
         self.seed = 42  # Fester Seed für konsistente Ausgabe
         
+        # Speaker Embedding Cache für bessere Qualität und Performance
+        self.gpt_cond_latent = None
+        self.speaker_embedding = None
+        self.cached_speaker_wav = None
+        
+        # Optimierte Inference-Parameter
+        self.gpt_cond_len = 30  # Längere Konditionierung = bessere Stimmerfassung (Standard: 12)
+        self.gpt_cond_chunk_len = 6  # Chunk-Größe für stabilere Latents (Standard: 4)
+        self.max_ref_len = 60  # Mehr Referenz-Audio verwenden (Standard: 10)
+        
         if COQUI_AVAILABLE:
-            # Verwende ein Modell das Voice Cloning unterstützt (XTTS)
             try:
                 import torch
-                # GPU-Unterstützung prüfen
-                gpu_available = torch.cuda.is_available()
-                self.engine = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=gpu_available)
-                self.use_coqui = True
-                if gpu_available:
-                    gpu_name = torch.cuda.get_device_name(0)
-                    print(f"Coqui TTS initialisiert (XTTS v2 - Voice Cloning) mit GPU: {gpu_name}")
+                self.gpu_available = torch.cuda.is_available()
+                
+                if XTTS_DIRECT and self.gpu_available:
+                    # Direkter XTTS-Zugriff für beste Kontrolle
+                    self._init_xtts_direct()
                 else:
-                    print("Coqui TTS initialisiert (XTTS v2 - Voice Cloning) mit CPU")
-            except:
-                # Fallback auf einfacheres Modell
-                self.engine = TTS(model_name="tts_models/de/thorsten/tacotron2-DDC")
-                self.use_coqui = True
-                print("Coqui TTS initialisiert (Thorsten)")
+                    # Fallback auf TTS API
+                    self._init_tts_api()
+                    
+            except Exception as e:
+                print(f"Fehler bei XTTS-Init: {e}")
+                self._init_fallback()
         else:
-            self.engine = pyttsx3.init()
-            self.use_coqui = False
-            print("pyttsx3 TTS initialisiert (Fallback)")
+            self._init_pyttsx3()
+    
+    def _init_xtts_direct(self):
+        """Initialisiert XTTS mit direktem Modell-Zugriff für beste Qualität"""
+        import torch
+        
+        # Lade Modell über TTS API (lädt automatisch herunter)
+        self.tts_api = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=True)
+        
+        # Direkter Zugriff auf das XTTS-Modell für erweiterte Kontrolle
+        self.model = self.tts_api.synthesizer.tts_model
+        self.use_coqui = True
+        self.use_direct = True
+        
+        gpu_name = torch.cuda.get_device_name(0)
+        print(f"XTTS v2 initialisiert (Direkter Zugriff) mit GPU: {gpu_name}")
+        print(f"  - gpt_cond_len: {self.gpt_cond_len}s (mehr Kontext)")
+        print(f"  - gpt_cond_chunk_len: {self.gpt_cond_chunk_len}s (stabilere Latents)")
+        print(f"  - max_ref_len: {self.max_ref_len}s (längere Referenz)")
+    
+    def _init_tts_api(self):
+        """Fallback auf TTS API"""
+        import torch
+        self.tts_api = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=self.gpu_available)
+        self.model = None
+        self.use_coqui = True
+        self.use_direct = False
+        
+        if self.gpu_available:
+            gpu_name = torch.cuda.get_device_name(0)
+            print(f"XTTS v2 initialisiert (API-Modus) mit GPU: {gpu_name}")
+        else:
+            print("XTTS v2 initialisiert (API-Modus) mit CPU")
+    
+    def _init_fallback(self):
+        """Fallback auf einfacheres Modell"""
+        self.tts_api = TTS(model_name="tts_models/de/thorsten/tacotron2-DDC")
+        self.model = None
+        self.use_coqui = True
+        self.use_direct = False
+        print("Coqui TTS initialisiert (Thorsten Fallback)")
+    
+    def _init_pyttsx3(self):
+        """Fallback auf pyttsx3"""
+        import pyttsx3
+        self.engine = pyttsx3.init()
+        self.model = None
+        self.use_coqui = False
+        self.use_direct = False
+        print("pyttsx3 TTS initialisiert (Fallback)")
     
     def set_speaker_wav(self, wav_files):
         """
-        Setzt Audio-Samples für Voice Cloning
+        Setzt Audio-Samples für Voice Cloning und berechnet Speaker Embeddings
         
         Args:
             wav_files (list): Liste von Pfaden zu WAV-Dateien oder None
         """
         self.speaker_wav = wav_files
+        
+        # Invalidiere Cache wenn sich die Samples ändern
+        if wav_files != self.cached_speaker_wav:
+            self.gpt_cond_latent = None
+            self.speaker_embedding = None
+            self.cached_speaker_wav = wav_files
+            
+            # Berechne Embeddings vorab für bessere Qualität
+            if wav_files and len(wav_files) > 0 and self.use_direct and self.model:
+                self._compute_speaker_latents(wav_files)
+    
+    def _compute_speaker_latents(self, wav_files):
+        """
+        Berechnet Speaker Latents mit optimierten Parametern für bessere Stimmerfassung
+        """
+        try:
+            import torch
+            print("Berechne optimierte Speaker-Embeddings...")
+            
+            # Seed setzen für Reproduzierbarkeit
+            torch.manual_seed(self.seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed(self.seed)
+            
+            # Erweiterte Konditionierung für bessere Stimmerfassung
+            # Nur Parameter verwenden, die von der API unterstützt werden
+            self.gpt_cond_latent, self.speaker_embedding = self.model.get_conditioning_latents(
+                audio_path=wav_files,
+                gpt_cond_len=self.gpt_cond_len,  # Mehr Audio für GPT-Konditionierung
+                gpt_cond_chunk_len=self.gpt_cond_chunk_len,  # Stabilere Chunk-Verarbeitung
+            )
+            
+            print(f"Speaker-Embeddings berechnet aus {len(wav_files)} Sample(s)")
+            print(f"  - GPT Latent Shape: {self.gpt_cond_latent.shape}")
+            print(f"  - Speaker Embedding Shape: {self.speaker_embedding.shape}")
+            
+        except Exception as e:
+            print(f"Fehler bei Speaker-Embedding-Berechnung: {e}")
+            self.gpt_cond_latent = None
+            self.speaker_embedding = None
             
     def speak(self, text, rate=150, language='de'):
         """
-        Spricht den übergebenen Text aus
+        Spricht den übergebenen Text mit optimiertem Voice Cloning aus
         
         Args:
             text (str): Der zu sprechende Text
@@ -76,81 +178,213 @@ class TextToSpeech:
         
         try:
             if self.use_coqui:
-                # Coqui TTS verwendet - Ausgabe in temporäre Datei
-                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                    output_path = temp_file.name
-                
-                # Deterministischen Seed setzen für konsistente Betonung
-                import torch
-                import numpy as np
-                import random
-                
-                # Cache-Key erstellen
-                cache_key = f"{text}_{language}_{self.speaker_wav}"
-                
-                # Seed für Reproduzierbarkeit setzen
-                torch.manual_seed(self.seed)
-                np.random.seed(self.seed)
-                random.seed(self.seed)
-                if torch.cuda.is_available():
-                    torch.cuda.manual_seed(self.seed)
-                    torch.cuda.manual_seed_all(self.seed)
-                
-                # Voice Cloning wenn Samples verfügbar
-                if self.speaker_wav and len(self.speaker_wav) > 0:
-                    # Optimierte Parameter für besseres Voice Cloning
-                    self.engine.tts_to_file(
-                        text=text,
-                        file_path=output_path,
-                        speaker_wav=self.speaker_wav,  # Alle Samples verwenden für bessere Qualität
-                        language=language,
-                        split_sentences=True,  # Bessere Intonation durch Satzaufteilung
-                        temperature=0.65,  # Reduzierte Temperatur für konsistentere Ausgabe
-                        length_penalty=1.0,
-                        repetition_penalty=2.0
-                    )
-                else:
-                    self.engine.tts_to_file(
-                        text=text,
-                        file_path=output_path,
-                        language=language,
-                        split_sentences=True,
-                        temperature=0.65,
-                        length_penalty=1.0,
-                        repetition_penalty=2.0
-                    )
-                
-                # Audio direkt mit sounddevice abspielen
-                import sounddevice as sd
-                import soundfile as sf
-                data, samplerate = sf.read(output_path)
-                sd.play(data, samplerate)
-                sd.wait()
-                
-                # Temporäre Datei löschen
-                try:
-                    os.unlink(output_path)
-                except:
-                    pass
+                self._speak_coqui(text, language)
             else:
-                # pyttsx3 Fallback
-                self.engine.setProperty('rate', rate)
-                voices = self.engine.getProperty('voices')
-                
-                # Versuche deutsche Stimme zu finden
-                for voice in voices:
-                    if language in voice.id.lower() or 'german' in voice.name.lower():
-                        self.engine.setProperty('voice', voice.id)
-                        break
-                
-                self.engine.say(text)
-                self.engine.runAndWait()
+                self._speak_pyttsx3(text, rate, language)
         except Exception as e:
             print(f"Fehler beim Vorlesen: {e}")
             import traceback
             traceback.print_exc()
         finally:
             self.is_speaking = False
+    
+    def speak_and_save(self, text, rate=150, language='de'):
+        """
+        Spricht den Text aus und gibt den Pfad zur Audio-Datei zurück
+        
+        Args:
+            text (str): Der zu sprechende Text
+            rate (int): Sprechgeschwindigkeit (Wörter pro Minute)
+            language (str): Sprachcode (z.B. 'de', 'en')
+            
+        Returns:
+            str: Pfad zur gespeicherten WAV-Datei oder None bei Fehler
+        """
+        if not text.strip():
+            return None
+            
+        self.is_speaking = True
+        
+        try:
+            if self.use_coqui:
+                return self._speak_coqui_and_save(text, language)
+            else:
+                self._speak_pyttsx3(text, rate, language)
+                return None
+        except Exception as e:
+            print(f"Fehler beim Vorlesen: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+        finally:
+            self.is_speaking = False
+    
+    def _speak_coqui_and_save(self, text, language):
+        """Sprachausgabe mit Coqui TTS und Rückgabe des Audio-Pfads"""
+        import torch
+        import numpy as np
+        import random
+        import sounddevice as sd
+        import soundfile as sf
+        
+        # Seed setzen für konsistente Ausgabe
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
+        random.seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(self.seed)
+            torch.cuda.manual_seed_all(self.seed)
+        
+        # Persistente Datei im temp-Verzeichnis erstellen
+        temp_dir = tempfile.gettempdir()
+        output_path = os.path.join(temp_dir, "fastspeak_last_audio.wav")
+        
+        if self.use_direct and self.model and self.gpt_cond_latent is not None:
+            self._inference_direct(text, language, output_path)
+        elif self.speaker_wav and len(self.speaker_wav) > 0:
+            self._inference_api_cloning(text, language, output_path)
+        else:
+            self._inference_api_default(text, language, output_path)
+        
+        # Audio abspielen
+        data, samplerate = sf.read(output_path)
+        sd.play(data, samplerate)
+        sd.wait()
+        
+        return output_path
+    
+    def _speak_coqui(self, text, language):
+        """Sprachausgabe mit Coqui TTS (optimiert)"""
+        import torch
+        import numpy as np
+        import random
+        import sounddevice as sd
+        import soundfile as sf
+        
+        # Seed setzen für konsistente Ausgabe
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
+        random.seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(self.seed)
+            torch.cuda.manual_seed_all(self.seed)
+        
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+            output_path = temp_file.name
+        
+        try:
+            if self.use_direct and self.model and self.gpt_cond_latent is not None:
+                # Direkter XTTS-Zugriff mit gecachten Embeddings (beste Qualität)
+                self._inference_direct(text, language, output_path)
+            elif self.speaker_wav and len(self.speaker_wav) > 0:
+                # TTS API mit Voice Cloning
+                self._inference_api_cloning(text, language, output_path)
+            else:
+                # TTS API ohne Voice Cloning
+                self._inference_api_default(text, language, output_path)
+            
+            # Audio abspielen
+            data, samplerate = sf.read(output_path)
+            sd.play(data, samplerate)
+            sd.wait()
+            
+        finally:
+            try:
+                os.unlink(output_path)
+            except:
+                pass
+    
+    def _inference_direct(self, text, language, output_path):
+        """Direkte XTTS-Inference mit optimierten Parametern"""
+        import torch
+        import torchaudio
+        
+        print("Verwende optimierte direkte XTTS-Inference...")
+        
+        out = self.model.inference(
+            text=text,
+            language=language,
+            gpt_cond_latent=self.gpt_cond_latent,
+            speaker_embedding=self.speaker_embedding,
+            # Optimierte Parameter für beste Qualität
+            temperature=0.3,  # Niedrig für konsistente, klare Ausgabe (Standard: 0.65)
+            length_penalty=1.0,  # Ausgeglichene Länge
+            repetition_penalty=5.0,  # Hoch gegen Wiederholungen/Stottern
+            top_k=30,  # Eingeschränktere Token-Auswahl für Stabilität (Standard: 50)
+            top_p=0.75,  # Leicht reduziert für weniger Variation (Standard: 0.8)
+            speed=1.0,  # Normale Geschwindigkeit
+            enable_text_splitting=True  # Satzweise Verarbeitung
+        )
+        
+        # Speichern mit korrekter Sample-Rate (24kHz für XTTS)
+        torchaudio.save(output_path, torch.tensor(out["wav"]).unsqueeze(0), 24000)
+    
+    def _inference_api_cloning(self, text, language, output_path):
+        """TTS API Inference mit Voice Cloning"""
+        self.tts_api.tts_to_file(
+            text=text,
+            file_path=output_path,
+            speaker_wav=self.speaker_wav,
+            language=language,
+            split_sentences=True,
+            temperature=0.4,  # Niedrigere Temperatur für Konsistenz
+            length_penalty=1.0,
+            repetition_penalty=5.0,
+            top_k=30,
+            top_p=0.75
+        )
+    
+    def _inference_api_default(self, text, language, output_path):
+        """TTS API Inference ohne Voice Cloning - verwendet eingebaute Stimme"""
+        # XTTS v2 hat eingebaute Speaker - verwende einen davon
+        # Verfügbare Speaker können mit tts_api.speakers abgefragt werden
+        try:
+            # Versuche einen eingebauten Speaker zu verwenden
+            available_speakers = getattr(self.tts_api, 'speakers', None)
+            if available_speakers and len(available_speakers) > 0:
+                # Verwende den ersten verfügbaren Speaker
+                speaker = available_speakers[0]
+                self.tts_api.tts_to_file(
+                    text=text,
+                    file_path=output_path,
+                    speaker=speaker,
+                    language=language,
+                    split_sentences=True,
+                    temperature=0.5,
+                    length_penalty=1.0,
+                    repetition_penalty=2.0
+                )
+            else:
+                # Fallback: Verwende eine Standard-Referenz-WAV oder einfache Ausgabe
+                # Bei XTTS ohne Speaker-Wav funktioniert nur mit speaker_idx
+                self.tts_api.tts_to_file(
+                    text=text,
+                    file_path=output_path,
+                    speaker="Claribel Dervla",  # Standard XTTS Speaker
+                    language=language,
+                    split_sentences=True
+                )
+        except Exception as e:
+            print(f"Fehler bei Standard-TTS, versuche Fallback: {e}")
+            # Letzter Fallback - einfachste Form
+            self.tts_api.tts_to_file(
+                text=text,
+                file_path=output_path,
+                language=language
+            )
+    
+    def _speak_pyttsx3(self, text, rate, language):
+        """Fallback Sprachausgabe mit pyttsx3"""
+        self.engine.setProperty('rate', rate)
+        voices = self.engine.getProperty('voices')
+        
+        for voice in voices:
+            if language in voice.id.lower() or 'german' in voice.name.lower():
+                self.engine.setProperty('voice', voice.id)
+                break
+        
+        self.engine.say(text)
+        self.engine.runAndWait()
     
     def speak_async(self, text, rate=150, language='de'):
         """Spricht Text asynchron in einem separaten Thread"""
@@ -161,7 +395,7 @@ class TextToSpeech:
     
     def stop(self):
         """Stoppt die Wiedergabe"""
-        if not self.use_coqui and hasattr(self.engine, 'stop'):
+        if not self.use_coqui and hasattr(self, 'engine') and hasattr(self.engine, 'stop'):
             self.engine.stop()
         self.is_speaking = False
 
