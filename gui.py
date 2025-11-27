@@ -12,22 +12,51 @@ from audio_processor import prepare_samples_for_cloning, get_audio_info
 
 
 class FastSpeakGUI:
-    """Hauptfenster der Anwendung - optimiert für Eye-Tracking"""
+    """Hauptfenster der Anwendung - optimiert für Eye-Tracking
     
-    # Größere Elemente für Eye-Tracking
-    BUTTON_WIDTH = 20
+    Design-Prinzipien (learnui.design):
+    1. Light comes from the sky - subtile Schatten
+    2. Black and white first - neutrale Farben, Akzentfarbe sparsam
+    3. Double your whitespace - großzügige Abstände
+    4. Good fonts - klare, lesbare Schrift
+    5. Make text pop/un-pop - visuelle Hierarchie
+    """
+    
+    # Design-Konstanten
+    BUTTON_WIDTH = 18
     BUTTON_HEIGHT = 2
-    BUTTON_FONT = ("Arial", 12, "bold")
-    LABEL_FONT = ("Arial", 11)
-    SLIDER_LENGTH = 180
-    PADDING = 10
+    
+    # Farben - minimalistisch mit einer Akzentfarbe
+    COLOR_BG = "#f5f5f5"           # Heller Hintergrund
+    COLOR_PRIMARY = "#2563eb"       # Blau als Akzent
+    COLOR_PRIMARY_HOVER = "#1d4ed8" # Dunkleres Blau
+    COLOR_SUCCESS = "#16a34a"       # Grün für Vorlesen
+    COLOR_DANGER = "#dc2626"        # Rot für Stop
+    COLOR_TEXT = "#1f2937"          # Fast-Schwarz für Text
+    COLOR_TEXT_MUTED = "#6b7280"    # Grau für sekundären Text
+    COLOR_BORDER = "#e5e7eb"        # Subtile Rahmen
+    
+    # Fonts - konsistent
+    FONT_FAMILY = "Segoe UI"        # Moderner als Arial
+    FONT_LARGE = ("Segoe UI", 14, "bold")
+    FONT_MEDIUM = ("Segoe UI", 12)
+    FONT_BUTTON = ("Segoe UI", 13, "bold")
+    FONT_SMALL = ("Segoe UI", 11)
+    FONT_TINY = ("Segoe UI", 10)
+    
+    # Spacing - großzügig (Rule 3: Double your whitespace)
+    PADDING_LARGE = 20
+    PADDING_MEDIUM = 15
+    PADDING_SMALL = 10
+    PADDING_TINY = 5
     
     def __init__(self, root):
         self.root = root
-        self.root.title("FastSpeak - Text vorlesen")
-        self.root.geometry("800x500")  # Kompakteres Fenster
-        self.root.minsize(700, 450)  # Mindestgröße
+        self.root.title("FastSpeak")
+        self.root.geometry("750x520")  # Kompaktes Fenster
+        self.root.minsize(650, 480)    # Mindestgröße
         self.root.resizable(True, True)
+        self.root.configure(bg=self.COLOR_BG)
         
         # TTS Engine initialisieren
         self.tts = TextToSpeech()
@@ -35,7 +64,7 @@ class FastSpeakGUI:
         self.speaker_wav_files = []
         self.last_audio_path = None  # Pfad zur letzten generierten Audio-Datei
         
-        # Style für größere Elemente
+        # Style für Elemente
         self.setup_styles()
         self.setup_ui()
         
@@ -43,36 +72,66 @@ class FastSpeakGUI:
         self.load_last_model_on_startup()
     
     def setup_styles(self):
-        """Konfiguriert ttk Styles für größere Bedienelemente"""
+        """Konfiguriert ttk Styles - minimalistisch und konsistent"""
         style = ttk.Style()
+        style.theme_use('clam')  # Modernes Theme als Basis
         
-        # Größere Buttons
-        style.configure("Big.TButton", 
-                       font=self.BUTTON_FONT, 
+        # Haupt-Frame Hintergrund
+        style.configure("TFrame", background=self.COLOR_BG)
+        
+        # Preset-Buttons - neutral mit subtilen Effekten
+        style.configure("Preset.TButton", 
+                       font=self.FONT_BUTTON, 
+                       padding=(20, 12),
+                       background="#ffffff",
+                       foreground=self.COLOR_TEXT)
+        
+        # Sekundäre Buttons
+        style.configure("Secondary.TButton", 
+                       font=self.FONT_MEDIUM, 
                        padding=(15, 10))
         
-        # Größere Checkbuttons
-        style.configure("Big.TCheckbutton", 
-                       font=self.LABEL_FONT,
-                       padding=5)
+        # Labels - verschiedene Hierarchien
+        style.configure("TLabel", 
+                       font=self.FONT_SMALL,
+                       background=self.COLOR_BG,
+                       foreground=self.COLOR_TEXT)
         
-        # Größere Labels
-        style.configure("Big.TLabel", 
-                       font=self.LABEL_FONT,
-                       padding=3)
+        style.configure("Heading.TLabel", 
+                       font=self.FONT_LARGE,
+                       background=self.COLOR_BG,
+                       foreground=self.COLOR_TEXT)
         
-        # Größere LabelFrames
-        style.configure("Big.TLabelframe", 
-                       font=("Arial", 12, "bold"),
-                       padding=10)
-        style.configure("Big.TLabelframe.Label", 
-                       font=("Arial", 12, "bold"))
+        style.configure("Muted.TLabel", 
+                       font=self.FONT_SMALL,
+                       background=self.COLOR_BG,
+                       foreground=self.COLOR_TEXT_MUTED)
+        
+        style.configure("Accent.TLabel", 
+                       font=self.FONT_MEDIUM,
+                       background=self.COLOR_BG,
+                       foreground=self.COLOR_PRIMARY)
+        
+        # LabelFrames
+        style.configure("Card.TLabelframe", 
+                       font=self.FONT_MEDIUM,
+                       background=self.COLOR_BG,
+                       padding=self.PADDING_MEDIUM)
+        style.configure("Card.TLabelframe.Label", 
+                       font=(self.FONT_FAMILY, 11),
+                       foreground=self.COLOR_TEXT_MUTED,
+                       background=self.COLOR_BG)
+        
+        # Checkbuttons
+        style.configure("TCheckbutton", 
+                       font=self.FONT_SMALL,
+                       background=self.COLOR_BG)
         
     def setup_ui(self):
-        """Erstellt die Benutzeroberfläche mit größeren Elementen"""
+        """Erstellt die Benutzeroberfläche - clean und minimalistisch"""
         
-        # Hauptcontainer mit mehr Padding
-        main_frame = ttk.Frame(self.root, padding="15")
+        # Hauptcontainer mit großzügigem Padding (Rule 3)
+        main_frame = ttk.Frame(self.root, padding=self.PADDING_LARGE)
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Konfiguriere Grid-Gewichtung
@@ -81,152 +140,199 @@ class FastSpeakGUI:
         main_frame.columnconfigure(0, weight=1)
         main_frame.rowconfigure(0, weight=1)  # Textfeld bekommt den Platz
         
-        # ===== TEXTFELD ZUERST - OBEN =====
+        # ===== TEXTFELD - Hauptelement mit subtiler Karte =====
         text_frame = ttk.LabelFrame(main_frame, text="Text eingeben", 
-                                    padding="10", style="Big.TLabelframe")
-        text_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+                                    padding=self.PADDING_MEDIUM, style="Card.TLabelframe")
+        text_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), 
+                        pady=(0, self.PADDING_MEDIUM))
         text_frame.columnconfigure(0, weight=1)
         text_frame.rowconfigure(0, weight=1)
         
+        # Textfeld mit weißem Hintergrund und subtiler Border
         self.text_input = scrolledtext.ScrolledText(
             text_frame,
             wrap=tk.WORD,
             width=60,
-            height=8,  # Größer für bessere Sichtbarkeit
-            font=("Arial", 14)
+            height=7,
+            font=(self.FONT_FAMILY, 13),
+            bg="#ffffff",
+            fg=self.COLOR_TEXT,
+            insertbackground=self.COLOR_PRIMARY,  # Cursor-Farbe
+            relief=tk.FLAT,
+            borderwidth=0,
+            padx=12,
+            pady=10
         )
         self.text_input.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        self.text_input.insert(1.0, "Geben Sie hier Ihren Text ein...")
+        self.text_input.insert(1.0, "Text hier eingeben...")
+        self.text_input.config(fg=self.COLOR_TEXT_MUTED)  # Placeholder grau
         self.text_input.bind("<FocusIn>", self.clear_placeholder)
         
-        # ===== HAUPTBUTTONS - DIREKT UNTER TEXTFELD =====
+        # ===== HAUPTBUTTONS - mit großzügigem Spacing =====
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=1, column=0, pady=10)
+        button_frame.grid(row=1, column=0, pady=self.PADDING_SMALL)
         
-        # Vorlesen Button - EXTRA GROSS
+        # Vorlesen Button - Primäre Aktion (Akzentfarbe)
         self.speak_button = tk.Button(
             button_frame,
-            text="▶  VORLESEN",
+            text="▶  Vorlesen",
             command=self.speak_text,
-            font=("Arial", 16, "bold"),
-            bg="#4CAF50",
+            font=self.FONT_BUTTON,
+            bg=self.COLOR_SUCCESS,
             fg="white",
-            width=18,
+            activebackground="#15803d",
+            activeforeground="white",
+            width=16,
             height=2,
-            cursor="hand2"
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
         )
-        self.speak_button.grid(row=0, column=0, padx=10, pady=5)
+        self.speak_button.grid(row=0, column=0, padx=self.PADDING_SMALL, pady=self.PADDING_TINY)
         
-        # Stop Button - EXTRA GROSS
+        # Stop Button - Destruktive Aktion
         self.stop_button = tk.Button(
             button_frame,
-            text="⏹  STOP",
+            text="⏹  Stop",
             command=self.stop_speaking,
             state=tk.DISABLED,
-            font=("Arial", 16, "bold"),
-            bg="#f44336",
+            font=self.FONT_BUTTON,
+            bg=self.COLOR_DANGER,
             fg="white",
-            width=18,
+            activebackground="#b91c1c",
+            activeforeground="white",
+            disabledforeground="#9ca3af",
+            width=16,
             height=2,
-            cursor="hand2"
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
         )
-        self.stop_button.grid(row=0, column=1, padx=10, pady=5)
+        self.stop_button.grid(row=0, column=1, padx=self.PADDING_SMALL, pady=self.PADDING_TINY)
         
-        # Zweite Reihe: Löschen und MP3 speichern
+        # Sekundäre Buttons - weniger prominent (neutral)
+        secondary_frame = ttk.Frame(button_frame)
+        secondary_frame.grid(row=0, column=2, padx=(self.PADDING_LARGE, 0))
+        
         self.clear_button = tk.Button(
-            button_frame,
-            text="🗑  Text löschen",
+            secondary_frame,
+            text="Text löschen",
             command=self.clear_text,
-            font=("Arial", 12, "bold"),
-            width=18,
-            height=2,
-            cursor="hand2"
+            font=self.FONT_SMALL,
+            bg="#e5e7eb",
+            fg=self.COLOR_TEXT,
+            activebackground="#d1d5db",
+            width=14,
+            height=1,
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
         )
-        self.clear_button.grid(row=1, column=0, padx=10, pady=5)
+        self.clear_button.grid(row=0, column=0, pady=2)
         
         self.download_button = tk.Button(
-            button_frame,
-            text="💾  Als MP3 speichern",
+            secondary_frame,
+            text="Als MP3 speichern",
             command=self.download_audio,
             state=tk.DISABLED,
-            font=("Arial", 12, "bold"),
-            width=18,
-            height=2,
-            cursor="hand2"
+            font=self.FONT_SMALL,
+            bg="#e5e7eb",
+            fg=self.COLOR_TEXT,
+            activebackground="#d1d5db",
+            disabledforeground="#9ca3af",
+            width=14,
+            height=1,
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
         )
-        self.download_button.grid(row=1, column=1, padx=10, pady=5)
+        self.download_button.grid(row=1, column=0, pady=2)
         
-        # ===== STIMME (kompakt - nur Anzeige + Button zum Menü) =====
-        voice_frame = ttk.Frame(main_frame)
-        voice_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        # ===== OPTIONEN - horizontale Leiste mit mehr Whitespace =====
+        options_frame = ttk.Frame(main_frame)
+        options_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(self.PADDING_MEDIUM, self.PADDING_SMALL))
         
-        # Button zum Öffnen des Voice Cloning Menüs
+        # Stimme
+        voice_section = ttk.Frame(options_frame)
+        voice_section.grid(row=0, column=0, padx=(0, self.PADDING_LARGE))
+        
+        ttk.Label(voice_section, text="Stimme", 
+                  style="Muted.TLabel").grid(row=0, column=0, sticky=tk.W)
+        
+        self.model_name_label = ttk.Label(voice_section, text="Standard", 
+                                          style="Accent.TLabel")
+        self.model_name_label.grid(row=0, column=1, sticky=tk.W, padx=(self.PADDING_SMALL, 0))
+        
         self.voice_menu_button = tk.Button(
-            voice_frame,
-            text="🎤  Stimme verwalten",
+            voice_section,
+            text="Ändern",
             command=self.open_voice_cloning_menu,
-            font=("Arial", 12, "bold"),
-            width=20,
-            height=2,
-            cursor="hand2"
+            font=self.FONT_TINY,
+            bg="#ffffff",
+            fg=self.COLOR_PRIMARY,
+            activebackground="#eff6ff",
+            width=8,
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
         )
-        self.voice_menu_button.grid(row=0, column=0, padx=10, pady=5)
+        self.voice_menu_button.grid(row=0, column=2, padx=self.PADDING_SMALL)
         
-        # Anzeige der geladenen Stimme - immer sichtbar
-        voice_status_frame = ttk.Frame(voice_frame)
-        voice_status_frame.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=20)
-        
-        ttk.Label(voice_status_frame, text="Aktive Stimme:", 
-                  style="Big.TLabel").grid(row=0, column=0, sticky=tk.W)
-        
-        self.model_name_label = ttk.Label(voice_status_frame, text="Standard-Stimme", 
-                                          foreground="blue", font=("Arial", 14, "bold"))
-        self.model_name_label.grid(row=1, column=0, sticky=tk.W)
+        # Trennlinie (visuell)
+        ttk.Label(options_frame, text="│", style="Muted.TLabel").grid(row=0, column=1)
         
         # Interne Labels für Voice Cloning Status (werden im Menü genutzt)
-        self.files_label = None  # Wird im Menü erstellt
-        self.embedding_label = None  # Wird im Menü erstellt
+        self.files_label = None
+        self.embedding_label = None
         self.denoise_var = tk.BooleanVar(value=True)
         
-        # ===== QUALITÄT (kompakt - nur Presets + Button zum Menü) =====
-        quality_frame = ttk.Frame(main_frame)
-        quality_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=8)
+        # ===== QUALITÄT - inline neben Stimme =====
+        quality_section = ttk.Frame(options_frame)
+        quality_section.grid(row=0, column=2, padx=(self.PADDING_LARGE, 0))
         
-        # Preset-Buttons - groß und prominent
-        ttk.Button(
-            quality_frame, text="📖 Klar", 
-            style="Big.TButton", width=12,
-            command=lambda: self.apply_preset('clear')
-        ).grid(row=0, column=0, padx=8)
+        ttk.Label(quality_section, text="Qualität", 
+                  style="Muted.TLabel").grid(row=0, column=0, sticky=tk.W)
         
-        ttk.Button(
-            quality_frame, text="🎭 Natürlich", 
-            style="Big.TButton", width=12,
-            command=lambda: self.apply_preset('natural')
-        ).grid(row=0, column=1, padx=8)
+        self.current_preset_label = ttk.Label(quality_section, text="Klar", 
+                                              style="Accent.TLabel")
+        self.current_preset_label.grid(row=0, column=1, sticky=tk.W, padx=(self.PADDING_SMALL, 0))
         
-        ttk.Button(
-            quality_frame, text="🎨 Kreativ", 
-            style="Big.TButton", width=12,
-            command=lambda: self.apply_preset('creative')
-        ).grid(row=0, column=2, padx=8)
+        # Preset-Buttons in einer Zeile - kompakt
+        preset_frame = ttk.Frame(quality_section)
+        preset_frame.grid(row=0, column=2, padx=self.PADDING_SMALL)
         
-        # Button für erweiterte Einstellungen
+        # Kompakte Preset-Buttons
+        for i, (key, label) in enumerate([('clear', 'Klar'), ('natural', 'Natürlich'), ('creative', 'Kreativ')]):
+            btn = tk.Button(
+                preset_frame,
+                text=label,
+                command=lambda k=key: self.apply_preset(k),
+                font=self.FONT_TINY,
+                bg="#ffffff",
+                fg=self.COLOR_TEXT,
+                activebackground="#f3f4f6",
+                width=8,
+                cursor="hand2",
+                relief=tk.FLAT,
+                bd=0
+            )
+            btn.grid(row=0, column=i, padx=2)
+        
+        # Erweitert Button - sehr subtil
         self.quality_menu_button = tk.Button(
-            quality_frame,
-            text="⚙️  Erweitert",
+            quality_section,
+            text="⚙",
             command=self.open_quality_menu,
-            font=("Arial", 12, "bold"),
-            width=12,
-            height=2,
-            cursor="hand2"
+            font=self.FONT_SMALL,
+            bg=self.COLOR_BG,
+            fg=self.COLOR_TEXT_MUTED,
+            activebackground="#e5e7eb",
+            width=3,
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
         )
-        self.quality_menu_button.grid(row=0, column=3, padx=15)
-        
-        # Aktuelles Preset anzeigen
-        self.current_preset_label = ttk.Label(quality_frame, text="Aktiv: Klar", 
-                                              foreground="blue", font=("Arial", 12, "bold"))
-        self.current_preset_label.grid(row=0, column=4, padx=15)
+        self.quality_menu_button.grid(row=0, column=3, padx=self.PADDING_TINY)
         
         # Interne Variablen für Qualität (werden im Menü genutzt)
         self.temp_var = tk.DoubleVar(value=0.2)
@@ -240,17 +346,15 @@ class FastSpeakGUI:
         # Initiale Werte an TTS übertragen
         self.update_quality_values()
         
-        # Statusleiste - größere Schrift
+        # Statusleiste - subtil am unteren Rand
         self.status_var = tk.StringVar(value="Bereit")
         status_bar = ttk.Label(
             main_frame,
             textvariable=self.status_var,
-            relief=tk.SUNKEN,
-            anchor=tk.W,
-            font=("Arial", 11),
-            padding=5
+            style="Muted.TLabel",
+            anchor=tk.W
         )
-        status_bar.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        status_bar.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(self.PADDING_MEDIUM, 0))
     
     def update_quality_values(self):
         """Überträgt Qualitätswerte an TTS-Engine"""
@@ -416,8 +520,8 @@ class FastSpeakGUI:
             self.tts_speed_var.set(p['speed'])
             self.rep_var.set(p['rep'])
             self.update_quality_values()
-            self.current_preset_label.config(text=f"Aktiv: {p['label']}")
-            self.status_var.set(f"Preset '{p['label']}' aktiviert")
+            self.current_preset_label.config(text=p['label'])
+            self.status_var.set(f"Qualität: {p['label']}")
     
     def open_voice_cloning_menu(self):
         """Öffnet das Voice Cloning Menü als separates Fenster"""
@@ -689,16 +793,17 @@ class FastSpeakGUI:
         try:
             if self.tts.load_last_model():
                 name = self.tts.current_voice_name
-                self.model_name_label.config(text=f"📢 {name}")
-                self.status_var.set(f"Stimme '{name}' automatisch geladen - bereit!")
+                self.model_name_label.config(text=name)
+                self.status_var.set(f"Stimme '{name}' geladen")
         except Exception as e:
             print(f"Fehler beim automatischen Laden des Voice-Modells: {e}")
     
     def clear_placeholder(self, event):
-        """Entfernt den Platzhalter-Text beim ersten Klick"""
+        """Entfernt den Platzhalter-Text beim ersten Klick und setzt Textfarbe"""
         current_text = self.text_input.get(1.0, tk.END).strip()
-        if current_text == "Geben Sie hier Ihren Text ein, der vorgelesen werden soll...":
+        if current_text == "Text hier eingeben...":
             self.text_input.delete(1.0, tk.END)
+            self.text_input.config(fg=self.COLOR_TEXT)
     
     def toggle_consistency(self):
         """Schaltet konsistente Betonung um"""
