@@ -12,12 +12,21 @@ from audio_processor import prepare_samples_for_cloning, get_audio_info
 
 
 class FastSpeakGUI:
-    """Hauptfenster der Anwendung"""
+    """Hauptfenster der Anwendung - optimiert für Eye-Tracking"""
+    
+    # Größere Elemente für Eye-Tracking
+    BUTTON_WIDTH = 20
+    BUTTON_HEIGHT = 2
+    BUTTON_FONT = ("Arial", 12, "bold")
+    LABEL_FONT = ("Arial", 11)
+    SLIDER_LENGTH = 180
+    PADDING = 10
     
     def __init__(self, root):
         self.root = root
         self.root.title("FastSpeak - Text vorlesen")
-        self.root.geometry("700x550")
+        self.root.geometry("900x900")  # Größeres Fenster
+        self.root.minsize(800, 800)  # Mindestgröße damit alles sichtbar ist
         self.root.resizable(True, True)
         
         # TTS Engine initialisieren
@@ -26,35 +35,56 @@ class FastSpeakGUI:
         self.speaker_wav_files = []
         self.last_audio_path = None  # Pfad zur letzten generierten Audio-Datei
         
+        # Style für größere Elemente
+        self.setup_styles()
         self.setup_ui()
         
         # Versuche zuletzt genutztes Voice-Modell zu laden
         self.load_last_model_on_startup()
+    
+    def setup_styles(self):
+        """Konfiguriert ttk Styles für größere Bedienelemente"""
+        style = ttk.Style()
+        
+        # Größere Buttons
+        style.configure("Big.TButton", 
+                       font=self.BUTTON_FONT, 
+                       padding=(15, 10))
+        
+        # Größere Checkbuttons
+        style.configure("Big.TCheckbutton", 
+                       font=self.LABEL_FONT,
+                       padding=5)
+        
+        # Größere Labels
+        style.configure("Big.TLabel", 
+                       font=self.LABEL_FONT,
+                       padding=3)
+        
+        # Größere LabelFrames
+        style.configure("Big.TLabelframe", 
+                       font=("Arial", 12, "bold"),
+                       padding=10)
+        style.configure("Big.TLabelframe.Label", 
+                       font=("Arial", 12, "bold"))
         
     def setup_ui(self):
-        """Erstellt die Benutzeroberfläche"""
+        """Erstellt die Benutzeroberfläche mit größeren Elementen"""
         
-        # Hauptcontainer
-        main_frame = ttk.Frame(self.root, padding="10")
+        # Hauptcontainer mit mehr Padding
+        main_frame = ttk.Frame(self.root, padding="15")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Konfiguriere Grid-Gewichtung
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(1, weight=1)
+        main_frame.rowconfigure(0, weight=1)  # Textfeld bekommt den Platz
         
-        # Titel
-        title_label = ttk.Label(
-            main_frame, 
-            text="FastSpeak - Text-to-Speech", 
-            font=("Helvetica", 16, "bold")
-        )
-        title_label.grid(row=0, column=0, pady=(0, 10))
-        
-        # Textfeld für Eingabe
-        text_frame = ttk.LabelFrame(main_frame, text="Text eingeben", padding="5")
-        text_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        # ===== TEXTFELD ZUERST - OBEN =====
+        text_frame = ttk.LabelFrame(main_frame, text="Text eingeben", 
+                                    padding="10", style="Big.TLabelframe")
+        text_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         text_frame.columnconfigure(0, weight=1)
         text_frame.rowconfigure(0, weight=1)
         
@@ -62,254 +92,263 @@ class FastSpeakGUI:
             text_frame,
             wrap=tk.WORD,
             width=60,
-            height=12,
-            font=("Arial", 11)
+            height=8,  # Größer für bessere Sichtbarkeit
+            font=("Arial", 14)
         )
         self.text_input.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        self.text_input.insert(1.0, "Geben Sie hier Ihren Text ein, der vorgelesen werden soll...")
+        self.text_input.insert(1.0, "Geben Sie hier Ihren Text ein...")
         self.text_input.bind("<FocusIn>", self.clear_placeholder)
         
-        # Einstellungen Frame
-        settings_frame = ttk.LabelFrame(main_frame, text="Einstellungen", padding="5")
-        settings_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        # ===== HAUPTBUTTONS - DIREKT UNTER TEXTFELD =====
+        button_frame = ttk.Frame(main_frame)
+        button_frame.grid(row=1, column=0, pady=10)
         
-        # Voice Cloning Frame
-        voice_frame = ttk.LabelFrame(main_frame, text="Voice Cloning (Optional)", padding="5")
-        voice_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=5)
+        # Vorlesen Button - EXTRA GROSS
+        self.speak_button = tk.Button(
+            button_frame,
+            text="▶  VORLESEN",
+            command=self.speak_text,
+            font=("Arial", 16, "bold"),
+            bg="#4CAF50",
+            fg="white",
+            width=18,
+            height=2,
+            cursor="hand2"
+        )
+        self.speak_button.grid(row=0, column=0, padx=10, pady=5)
         
-        ttk.Label(voice_frame, text="Audio-Samples:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        # Stop Button - EXTRA GROSS
+        self.stop_button = tk.Button(
+            button_frame,
+            text="⏹  STOP",
+            command=self.stop_speaking,
+            state=tk.DISABLED,
+            font=("Arial", 16, "bold"),
+            bg="#f44336",
+            fg="white",
+            width=18,
+            height=2,
+            cursor="hand2"
+        )
+        self.stop_button.grid(row=0, column=1, padx=10, pady=5)
         
-        ttk.Label(voice_frame, text="(Kurze Samples werden automatisch zusammengefügt, Rauschen wird entfernt)", 
-                  foreground="blue", font=("Arial", 8)).grid(row=1, column=0, columnspan=5, sticky=tk.W, padx=5, pady=(0, 5))
+        # Zweite Reihe: Löschen und MP3 speichern
+        self.clear_button = tk.Button(
+            button_frame,
+            text="🗑  Text löschen",
+            command=self.clear_text,
+            font=("Arial", 12, "bold"),
+            width=18,
+            height=2,
+            cursor="hand2"
+        )
+        self.clear_button.grid(row=1, column=0, padx=10, pady=5)
         
-        self.files_label = ttk.Label(voice_frame, text="Keine Dateien ausgewählt", foreground="gray")
-        self.files_label.grid(row=0, column=1, sticky=tk.W, padx=5)
+        self.download_button = tk.Button(
+            button_frame,
+            text="💾  Als MP3 speichern",
+            command=self.download_audio,
+            state=tk.DISABLED,
+            font=("Arial", 12, "bold"),
+            width=18,
+            height=2,
+            cursor="hand2"
+        )
+        self.download_button.grid(row=1, column=1, padx=10, pady=5)
         
-        # Embedding-Status Label
-        self.embedding_label = ttk.Label(voice_frame, text="", foreground="gray", font=("Arial", 8))
-        self.embedding_label.grid(row=2, column=0, columnspan=5, sticky=tk.W, padx=5)
+        # ===== VOICE CLONING =====
+        voice_frame = ttk.LabelFrame(main_frame, text="Voice Cloning", 
+                                     padding="8", style="Big.TLabelframe")
+        voice_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
         
-        upload_button = ttk.Button(
-            voice_frame,
+        # Voice Cloning Buttons - größer und in einer Reihe
+        voice_buttons = ttk.Frame(voice_frame)
+        voice_buttons.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        
+        ttk.Button(
+            voice_buttons,
             text="📁 Samples hochladen",
-            command=self.upload_samples
-        )
-        upload_button.grid(row=0, column=2, padx=5)
+            command=self.upload_samples,
+            style="Big.TButton",
+            width=self.BUTTON_WIDTH
+        ).grid(row=0, column=0, padx=8, pady=5)
         
-        clear_button = ttk.Button(
-            voice_frame,
-            text="✕ Löschen",
+        ttk.Button(
+            voice_buttons,
+            text="💾 Stimme speichern",
+            command=self.save_voice_model,
+            style="Big.TButton",
+            width=self.BUTTON_WIDTH
+        ).grid(row=0, column=1, padx=8, pady=5)
+        
+        ttk.Button(
+            voice_buttons,
+            text="📂 Stimme laden",
+            command=self.load_voice_model,
+            style="Big.TButton",
+            width=self.BUTTON_WIDTH
+        ).grid(row=0, column=2, padx=8, pady=5)
+        
+        ttk.Button(
+            voice_buttons,
+            text="✕ Samples löschen",
             command=self.clear_samples,
-            width=10
-        )
-        clear_button.grid(row=0, column=3, padx=5)
+            style="Big.TButton",
+            width=self.BUTTON_WIDTH
+        ).grid(row=0, column=3, padx=8, pady=5)
+        
+        # Status-Labels für Voice Cloning
+        status_frame = ttk.Frame(voice_frame)
+        status_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+        
+        self.files_label = ttk.Label(status_frame, text="Keine Dateien ausgewählt", 
+                                     foreground="gray", style="Big.TLabel")
+        self.files_label.grid(row=0, column=0, sticky=tk.W, padx=5)
+        
+        self.model_name_label = ttk.Label(status_frame, text="", 
+                                          foreground="blue", font=("Arial", 11, "bold"))
+        self.model_name_label.grid(row=0, column=1, sticky=tk.W, padx=20)
+        
+        self.embedding_label = ttk.Label(voice_frame, text="", foreground="gray", 
+                                         font=("Arial", 10))
+        self.embedding_label.grid(row=2, column=0, sticky=tk.W, padx=5)
         
         # Checkbox für Rauschunterdrückung
         self.denoise_var = tk.BooleanVar(value=True)
-        denoise_check = ttk.Checkbutton(
+        ttk.Checkbutton(
             voice_frame,
             text="🔇 Rauschen entfernen",
-            variable=self.denoise_var
-        )
-        denoise_check.grid(row=0, column=4, padx=5)
-        
-        # Voice-Modell speichern/laden Buttons
-        save_model_button = ttk.Button(
-            voice_frame,
-            text="💾 Stimme speichern",
-            command=self.save_voice_model,
-            width=18
-        )
-        save_model_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky=tk.W)
-        
-        load_model_button = ttk.Button(
-            voice_frame,
-            text="📂 Stimme laden",
-            command=self.load_voice_model,
-            width=18
-        )
-        load_model_button.grid(row=3, column=2, padx=5, pady=5)
-        
-        # Label für geladenes Modell
-        self.model_name_label = ttk.Label(voice_frame, text="", foreground="blue", font=("Arial", 9, "bold"))
-        self.model_name_label.grid(row=3, column=3, columnspan=2, sticky=tk.W, padx=5)
+            variable=self.denoise_var,
+            style="Big.TCheckbutton"
+        ).grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
         
         # Qualitätseinstellungen Frame
-        quality_frame = ttk.LabelFrame(main_frame, text="Qualitätseinstellungen", padding="5")
-        quality_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=5)
+        quality_frame = ttk.LabelFrame(main_frame, text="Qualität", 
+                                       padding="10", style="Big.TLabelframe")
+        quality_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=8)
         
-        # Temperature (Kreativität)
-        ttk.Label(quality_frame, text="Kreativität:").grid(row=0, column=0, sticky=tk.W, padx=5)
-        self.temp_var = tk.DoubleVar(value=0.3)
-        temp_slider = ttk.Scale(
-            quality_frame,
-            from_=0.1,
-            to=1.0,
-            orient=tk.HORIZONTAL,
-            variable=self.temp_var,
-            length=120
-        )
-        temp_slider.grid(row=0, column=1, padx=5)
-        self.temp_label = ttk.Label(quality_frame, text="0.30", width=5)
-        self.temp_label.grid(row=0, column=2, padx=2)
-        temp_slider.configure(command=lambda v: self.update_quality_labels())
+        # Preset-Buttons - groß und prominent
+        preset_frame = ttk.Frame(quality_frame)
+        preset_frame.grid(row=0, column=0, columnspan=6, pady=(0, 10))
         
-        # Speed (Geschwindigkeit)
-        ttk.Label(quality_frame, text="Tempo:").grid(row=0, column=3, sticky=tk.W, padx=(15, 5))
-        self.tts_speed_var = tk.DoubleVar(value=1.0)
-        speed_tts_slider = ttk.Scale(
-            quality_frame,
-            from_=0.5,
-            to=1.5,
-            orient=tk.HORIZONTAL,
-            variable=self.tts_speed_var,
-            length=120
-        )
-        speed_tts_slider.grid(row=0, column=4, padx=5)
-        self.tts_speed_label = ttk.Label(quality_frame, text="1.00x", width=5)
-        self.tts_speed_label.grid(row=0, column=5, padx=2)
-        speed_tts_slider.configure(command=lambda v: self.update_quality_labels())
-        
-        # Repetition Penalty
-        ttk.Label(quality_frame, text="Anti-Stottern:").grid(row=1, column=0, sticky=tk.W, padx=5)
-        self.rep_var = tk.DoubleVar(value=5.0)
-        rep_slider = ttk.Scale(
-            quality_frame,
-            from_=1.0,
-            to=10.0,
-            orient=tk.HORIZONTAL,
-            variable=self.rep_var,
-            length=120
-        )
-        rep_slider.grid(row=1, column=1, padx=5)
-        self.rep_label = ttk.Label(quality_frame, text="5.0", width=5)
-        self.rep_label.grid(row=1, column=2, padx=2)
-        rep_slider.configure(command=lambda v: self.update_quality_labels())
-        
-        # Preset-Buttons
         ttk.Button(
-            quality_frame, text="📖 Klar", width=8,
+            preset_frame, text="📖 Klar", 
+            style="Big.TButton", width=15,
             command=lambda: self.apply_preset('clear')
-        ).grid(row=1, column=3, padx=5)
+        ).grid(row=0, column=0, padx=10)
         
         ttk.Button(
-            quality_frame, text="🎭 Natürlich", width=9,
+            preset_frame, text="🎭 Natürlich", 
+            style="Big.TButton", width=15,
             command=lambda: self.apply_preset('natural')
-        ).grid(row=1, column=4, padx=5)
+        ).grid(row=0, column=1, padx=10)
         
         ttk.Button(
-            quality_frame, text="🎨 Kreativ", width=8,
+            preset_frame, text="🎨 Kreativ", 
+            style="Big.TButton", width=15,
             command=lambda: self.apply_preset('creative')
-        ).grid(row=1, column=5, padx=5)
+        ).grid(row=0, column=2, padx=10)
         
-        # Streaming-Modus Checkbox (Zeile 2)
+        # Streaming Checkbox - groß
         self.streaming_var = tk.BooleanVar(value=False)
-        streaming_check = ttk.Checkbutton(
-            quality_frame,
+        ttk.Checkbutton(
+            preset_frame,
             text="⚡ Streaming (schneller)",
             variable=self.streaming_var,
-            command=self.update_streaming_mode
-        )
-        streaming_check.grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=5, pady=5)
+            command=self.update_streaming_mode,
+            style="Big.TCheckbutton"
+        ).grid(row=0, column=3, padx=20)
         
-        # Info-Label für Performance
-        self.perf_label = ttk.Label(
-            quality_frame, 
-            text="💡 Tipp: Streaming für schnellere erste Ausgabe",
-            foreground="gray",
-            font=("Arial", 8)
-        )
-        self.perf_label.grid(row=2, column=2, columnspan=4, sticky=tk.W, padx=5)
+        # Slider für Feineinstellungen
+        slider_frame = ttk.Frame(quality_frame)
+        slider_frame.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
-        # Geschwindigkeit (für pyttsx3 Fallback)
-        ttk.Label(settings_frame, text="Geschwindigkeit:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        # Temperature
+        ttk.Label(slider_frame, text="Kreativität:", style="Big.TLabel").grid(row=0, column=0, padx=5)
+        self.temp_var = tk.DoubleVar(value=0.3)
+        temp_slider = ttk.Scale(
+            slider_frame, from_=0.1, to=1.0,
+            orient=tk.HORIZONTAL, variable=self.temp_var,
+            length=self.SLIDER_LENGTH
+        )
+        temp_slider.grid(row=0, column=1, padx=5, pady=8)
+        self.temp_label = ttk.Label(slider_frame, text="0.30", width=6, style="Big.TLabel")
+        self.temp_label.grid(row=0, column=2, padx=5)
+        temp_slider.configure(command=lambda v: self.update_quality_labels())
+        
+        # Tempo
+        ttk.Label(slider_frame, text="Tempo:", style="Big.TLabel").grid(row=0, column=3, padx=(30, 5))
+        self.tts_speed_var = tk.DoubleVar(value=1.0)
+        speed_slider = ttk.Scale(
+            slider_frame, from_=0.5, to=1.5,
+            orient=tk.HORIZONTAL, variable=self.tts_speed_var,
+            length=self.SLIDER_LENGTH
+        )
+        speed_slider.grid(row=0, column=4, padx=5, pady=8)
+        self.tts_speed_label = ttk.Label(slider_frame, text="1.00x", width=6, style="Big.TLabel")
+        self.tts_speed_label.grid(row=0, column=5, padx=5)
+        speed_slider.configure(command=lambda v: self.update_quality_labels())
+        
+        # Anti-Stottern
+        ttk.Label(slider_frame, text="Anti-Stottern:", style="Big.TLabel").grid(row=1, column=0, padx=5)
+        self.rep_var = tk.DoubleVar(value=5.0)
+        rep_slider = ttk.Scale(
+            slider_frame, from_=1.0, to=10.0,
+            orient=tk.HORIZONTAL, variable=self.rep_var,
+            length=self.SLIDER_LENGTH
+        )
+        rep_slider.grid(row=1, column=1, padx=5, pady=8)
+        self.rep_label = ttk.Label(slider_frame, text="5.0", width=6, style="Big.TLabel")
+        self.rep_label.grid(row=1, column=2, padx=5)
+        rep_slider.configure(command=lambda v: self.update_quality_labels())
+        
+        # Konsistenz Checkbox
+        self.consistent_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            slider_frame,
+            text="🎯 Konsistente Betonung",
+            variable=self.consistent_var,
+            command=self.toggle_consistency,
+            style="Big.TCheckbutton"
+        ).grid(row=1, column=3, columnspan=3, padx=20, pady=5)
+        
+        # Einstellungen Frame (für pyttsx3 Fallback) - kleiner
+        settings_frame = ttk.LabelFrame(main_frame, text="Erweitert", padding="5")
+        settings_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=5)
+        
+        ttk.Label(settings_frame, text="Fallback-Geschwindigkeit:").grid(row=0, column=0, padx=5)
         self.speed_var = tk.IntVar(value=150)
         speed_slider = ttk.Scale(
-            settings_frame,
-            from_=50,
-            to=300,
-            orient=tk.HORIZONTAL,
-            variable=self.speed_var,
-            length=200
+            settings_frame, from_=50, to=300,
+            orient=tk.HORIZONTAL, variable=self.speed_var,
+            length=150
         )
         speed_slider.grid(row=0, column=1, padx=5)
         self.speed_label = ttk.Label(settings_frame, text="150 WPM")
         self.speed_label.grid(row=0, column=2, padx=5)
         speed_slider.configure(command=self.update_speed_label)
         
-        # Sprache
-        ttk.Label(settings_frame, text="Sprache:").grid(row=0, column=3, sticky=tk.W, padx=(20, 5))
+        ttk.Label(settings_frame, text="Sprache:").grid(row=0, column=3, padx=(20, 5))
         self.language_var = tk.StringVar(value="de")
         language_combo = ttk.Combobox(
-            settings_frame,
-            textvariable=self.language_var,
+            settings_frame, textvariable=self.language_var,
             values=["de", "en", "fr", "es"],
-            state="readonly",
-            width=10
+            state="readonly", width=8,
+            font=("Arial", 11)
         )
         language_combo.grid(row=0, column=4, padx=5)
         
-        # Konsistente Betonung Checkbox
-        self.consistent_var = tk.BooleanVar(value=True)
-        consistent_check = ttk.Checkbutton(
-            settings_frame,
-            text="Konsistente Betonung",
-            variable=self.consistent_var,
-            command=self.toggle_consistency
-        )
-        consistent_check.grid(row=0, column=5, padx=(20, 5))
-        
-        # Buttons Frame
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=5, column=0, pady=10)
-        
-        # Vorlesen Button
-        self.speak_button = ttk.Button(
-            button_frame,
-            text="▶ Vorlesen",
-            command=self.speak_text,
-            width=15
-        )
-        self.speak_button.grid(row=0, column=0, padx=5)
-        
-        # Stop Button
-        self.stop_button = ttk.Button(
-            button_frame,
-            text="⏹ Stop",
-            command=self.stop_speaking,
-            state=tk.DISABLED,
-            width=15
-        )
-        self.stop_button.grid(row=0, column=1, padx=5)
-        
-        # Clear Button
-        clear_button = ttk.Button(
-            button_frame,
-            text="🗑 Löschen",
-            command=self.clear_text,
-            width=15
-        )
-        clear_button.grid(row=0, column=2, padx=5)
-        
-        # Download Button
-        self.download_button = ttk.Button(
-            button_frame,
-            text="💾 Als MP3 speichern",
-            command=self.download_audio,
-            state=tk.DISABLED,
-            width=18
-        )
-        self.download_button.grid(row=0, column=3, padx=5)
-        
-        # Statusleiste
+        # Statusleiste - größere Schrift
         self.status_var = tk.StringVar(value="Bereit")
         status_bar = ttk.Label(
             main_frame,
             textvariable=self.status_var,
             relief=tk.SUNKEN,
-            anchor=tk.W
+            anchor=tk.W,
+            font=("Arial", 11),
+            padding=5
         )
-        status_bar.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        status_bar.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
     def update_quality_labels(self):
         """Aktualisiert die Qualitäts-Labels und überträgt Werte an TTS"""
