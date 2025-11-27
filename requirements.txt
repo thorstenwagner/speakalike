@@ -1,7 +1,23 @@
-coqui-tts
-pyttsx3==2.90
+# FastSpeak - Abhängigkeiten
+# Installation: pip install -r requirements.txt
+
+# TTS Engine
+coqui-tts>=0.22.0
+
+# Audio
 sounddevice
 soundfile
 lameenc
 noisereduce
+
+# Fallback TTS
+pyttsx3>=2.90
+
+# NLP
 spacy
+
+# Artefakt-Entfernung (optional aber empfohlen)
+openai-whisper
+
+# Audio Resampling
+torchaudio
