@@ -533,9 +533,9 @@ class TextToSpeech:
             enable_text_splitting=True  # Satzweise Verarbeitung
         )
         
-        # Audio-Nachbearbeitung: Entferne Artefakte am Ende
+        # Audio-Nachbearbeitung: Entferne Artefakte am Ende basierend auf Transkription
         wav = np.array(out["wav"])
-        wav = self._remove_trailing_artifacts(wav, sample_rate=24000)
+        wav = self._remove_artifacts_with_transcription(wav, text, sample_rate=24000)
         
         # Speichern mit korrekter Sample-Rate (24kHz für XTTS)
         torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
@@ -569,8 +569,245 @@ class TextToSpeech:
         # Alle Chunks zusammenfügen
         if chunks:
             wav = np.concatenate([c.cpu().numpy() for c in chunks])
-            wav = self._remove_trailing_artifacts(wav, sample_rate=24000)
+            wav = self._remove_artifacts_with_transcription(wav, text, sample_rate=24000)
             torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
+    
+    def _remove_artifacts_with_transcription(self, audio, expected_text, sample_rate=24000):
+        """
+        Entfernt Artefakte am Ende des Audios durch Whisper-Transkription.
+        
+        Vergleicht den transkribierten Text mit dem erwarteten Text und
+        schneidet das Audio am Ende des erkannten Textes ab.
+        
+        Args:
+            audio: Audio-Array (numpy)
+            expected_text: Der erwartete Text der gesprochen wurde
+            sample_rate: Sample-Rate des Audios
+            
+        Returns:
+            Getrimmtes Audio-Array
+        """
+        import numpy as np
+        
+        if len(audio) == 0:
+            return audio
+        
+        try:
+            # Lazy-Load Whisper beim ersten Aufruf
+            if not hasattr(self, '_whisper_model') or self._whisper_model is None:
+                print("  Lade Whisper-Modell für Artefakt-Erkennung...")
+                import whisper
+                # Verwende das base Modell - gut für Deutsch
+                self._whisper_model = whisper.load_model("base", device="cuda")
+                print("  Whisper-Modell geladen.")
+            
+            # Whisper erwartet Audio bei 16kHz als float32 im Bereich [-1, 1]
+            import torch
+            import torchaudio
+            
+            # Konvertiere numpy zu torch tensor
+            audio_tensor = torch.tensor(audio).float()
+            if audio_tensor.dim() == 1:
+                audio_tensor = audio_tensor.unsqueeze(0)
+            
+            # Resample zu 16kHz mit torchaudio (bessere Qualität als scipy)
+            if sample_rate != 16000:
+                resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
+                audio_16k = resampler(audio_tensor).squeeze().numpy()
+            else:
+                audio_16k = audio_tensor.squeeze().numpy()
+            
+            # Normalisiere Audio für Whisper (wichtig!)
+            audio_16k = audio_16k.astype(np.float32)
+            max_val = np.max(np.abs(audio_16k))
+            if max_val > 0:
+                audio_16k = audio_16k / max_val
+            
+            # Debug: Zeige Audio-Info
+            print(f"  Whisper-Input: {len(audio_16k)} samples, max={np.max(np.abs(audio_16k)):.3f}, dtype={audio_16k.dtype}")
+            
+            # Transkribiere mit Wort-Zeitstempeln
+            result = self._whisper_model.transcribe(
+                audio_16k,
+                language="de",
+                word_timestamps=True,
+                fp16=torch.cuda.is_available(),
+                verbose=False
+            )
+            
+            # Debug: Zeige was erkannt wurde
+            if result.get("text"):
+                print(f"  Whisper erkannt: '{result['text'][:100]}...' " if len(result.get("text", "")) > 100 else f"  Whisper erkannt: '{result.get('text', '')}'")
+            else:
+                print("  Whisper: Kein Text erkannt")
+            
+            # Finde das letzte Wort das zum erwarteten Text gehört
+            expected_words = self._normalize_text(expected_text).split()
+            
+            if not result.get("segments"):
+                print("  Keine Segmente erkannt, verwende Fallback-Trimming")
+                return self._remove_trailing_artifacts(audio, sample_rate)
+            
+            # Sammle alle erkannten Wörter mit Zeitstempeln
+            recognized_words = []
+            for segment in result["segments"]:
+                if "words" in segment:
+                    for word_info in segment["words"]:
+                        word = self._normalize_text(word_info["word"])
+                        if word:
+                            recognized_words.append({
+                                "word": word,
+                                "start": word_info["start"],
+                                "end": word_info["end"]
+                            })
+            
+            if not recognized_words:
+                print("  Keine Wörter erkannt, verwende Fallback-Trimming")
+                return self._remove_trailing_artifacts(audio, sample_rate)
+            
+            # Debug: Zeige erkannte Wörter
+            print(f"  Erkannte Wörter: {[w['word'] for w in recognized_words[:10]]}...")
+            print(f"  Erwartete Wörter: {expected_words[:10]}...")
+            
+            # Strategie: Finde das letzte erkannte Wort, das zum erwarteten Text gehört
+            # Wir suchen von hinten nach vorne nach dem letzten "guten" Wort
+            last_valid_end = 0
+            last_valid_word = ""
+            matched_count = 0
+            
+            # Erstelle Set der erwarteten Wörter für schnelleren Lookup
+            expected_set = set(expected_words)
+            
+            for rw in recognized_words:
+                word = rw["word"]
+                # Prüfe ob das Wort im erwarteten Text vorkommt (exakt oder fuzzy)
+                is_match = False
+                
+                # Exakter Match im Set
+                if word in expected_set:
+                    is_match = True
+                else:
+                    # Fuzzy-Match gegen alle erwarteten Wörter
+                    for ew in expected_words:
+                        if self._words_match(word, ew):
+                            is_match = True
+                            break
+                
+                if is_match:
+                    last_valid_end = rw["end"]
+                    last_valid_word = word
+                    matched_count += 1
+                else:
+                    # Wenn wir schon Matches hatten und jetzt ein Nicht-Match kommt,
+                    # könnte das der Beginn der Artefakte sein
+                    if matched_count > 0:
+                        # Prüfe ob das Wort "komisch" aussieht (z.B. nicht-lateinische Zeichen)
+                        if self._is_likely_artifact(word):
+                            print(f"  Artefakt erkannt: '{word}' nach {matched_count} gematchten Wörtern")
+                            break
+            
+            if last_valid_end > 0:
+                # Konvertiere Zeit zurück zu Sample-Position (bei Original-Samplerate)
+                end_sample = int(last_valid_end * sample_rate)
+                # Füge 200ms Puffer hinzu für natürliches Ausklingen
+                end_sample = min(end_sample + int(0.20 * sample_rate), len(audio))
+                
+                # Sanftes Fade-Out (150ms) für natürlichen Übergang
+                fade_duration = 0.15  # 150ms
+                fade_samples = int(fade_duration * sample_rate)
+                if end_sample > fade_samples:
+                    fade_start = end_sample - fade_samples
+                    # Exponentielles Fade-Out für natürlicheren Klang
+                    fade_curve = np.power(np.linspace(1.0, 0.0, fade_samples), 2)
+                    audio = audio.copy()
+                    audio[fade_start:end_sample] *= fade_curve[:end_sample - fade_start]
+                
+                trimmed = audio[:end_sample]
+                
+                original_duration = len(audio) / sample_rate
+                trimmed_duration = len(trimmed) / sample_rate
+                
+                if original_duration - trimmed_duration > 0.05:
+                    print(f"  → Whisper-Trimming: {original_duration:.2f}s → {trimmed_duration:.2f}s "
+                          f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
+                    print(f"    Letztes erkanntes Wort: '{last_valid_word}' ({matched_count} Matches)")
+                
+                return trimmed
+            else:
+                print("  Kein Text erkannt, verwende Fallback-Trimming")
+                return self._remove_trailing_artifacts(audio, sample_rate)
+                
+        except ImportError:
+            print("  Whisper nicht installiert, verwende Fallback-Trimming")
+            return self._remove_trailing_artifacts(audio, sample_rate)
+        except Exception as e:
+            print(f"  Whisper-Fehler: {e}, verwende Fallback-Trimming")
+            return self._remove_trailing_artifacts(audio, sample_rate)
+    
+    def _normalize_text(self, text):
+        """Normalisiert Text für Vergleich (Kleinbuchstaben, nur alphanumerisch)"""
+        import re
+        text = text.lower().strip()
+        # Entferne Satzzeichen
+        text = re.sub(r'[^\w\s]', '', text)
+        return text
+    
+    def _is_likely_artifact(self, word):
+        """
+        Prüft ob ein Wort wahrscheinlich ein Artefakt/Halluzination ist.
+        
+        Artefakte haben oft:
+        - Nicht-lateinische Zeichen
+        - Sehr kurze ungewöhnliche Zeichenfolgen
+        - Sonderzeichen
+        """
+        import re
+        
+        if not word:
+            return True
+        
+        # Prüfe auf nicht-lateinische Zeichen (außer deutschen Umlauten)
+        # Erlaubt: a-z, äöüß, Zahlen
+        latin_pattern = re.compile(r'^[a-zäöüß0-9]+$', re.IGNORECASE)
+        if not latin_pattern.match(word):
+            return True
+        
+        # Sehr kurze Wörter die keine deutschen Wörter sind
+        common_short = {'ich', 'du', 'er', 'es', 'ja', 'so', 'da', 'an', 'in', 'um', 'zu', 'ob', 'wo', 'oh', 'ah', 'na', 'ey', 'hi', 'ok'}
+        if len(word) <= 2 and word.lower() not in common_short:
+            return True
+        
+        return False
+    
+    def _words_match(self, word1, word2, threshold=0.5):
+        """Prüft ob zwei Wörter ähnlich genug sind (fuzzy match)"""
+        w1 = word1.lower()
+        w2 = word2.lower()
+        
+        # Exakter Match
+        if w1 == w2:
+            return True
+        
+        # Ein Wort enthält das andere
+        if w1 in w2 or w2 in w1:
+            return True
+        
+        # Gleicher Anfang (mind. 3 Zeichen) - z.B. "Kind" ~ "Klingt"
+        if len(w1) >= 3 and len(w2) >= 3:
+            if w1[:3] == w2[:3]:
+                return True
+            # Oder gleicher Anfang mit 2 Zeichen bei kürzeren Wörtern
+            if w1[:2] == w2[:2] and (len(w1) <= 5 or len(w2) <= 5):
+                return True
+        
+        # Levenshtein-ähnliche Prüfung für kleine Unterschiede
+        if abs(len(w1) - len(w2)) <= 3:
+            matches = sum(c1 == c2 for c1, c2 in zip(w1, w2))
+            max_len = max(len(w1), len(w2))
+            if max_len > 0 and matches / max_len >= threshold:
+                return True
+        
+        return False
     
     def _remove_trailing_artifacts(self, audio, sample_rate=24000, 
                                     silence_threshold_db=-35, 
