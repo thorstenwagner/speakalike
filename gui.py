@@ -2,6 +2,10 @@
 SpeakAlike GUI - Grafische Benutzeroberfläche für Text-to-Speech
 """
 import os
+import base64
+from io import BytesIO
+from PIL import Image, ImageTk
+
 # Füge espeak-ng zum PATH hinzu
 os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get("PATH", "")
 
@@ -9,6 +13,27 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
 from main import TextToSpeech
 from audio_processor import prepare_samples_for_cloning, get_audio_info
+
+# Icon als Base64 (Mikrofon/Lautsprecher Symbol - 32x32 PNG)
+ICON_BASE64 = """
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAAOxAAADsQBlSsOGwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAANFSURB
+VFiF7ZdLbExRGMd/596ZzjzaaWdKp0qNR4hHPBIPEhYkFjYWNhYSKxYSCwsLKwsLsRCxsLDwWBCx
+EBYeQYgQj4hHPOJRrYdptTPtzNx7/y7m3s6dzkynLSSs/Jfb8/2/7/ud75xz7oGRGIl/HOSPah/L
+VFmFxPMA/nQVT49d85bZk7YBcHV0YXNRifp3QKcTx9OjC/IfRc+6aV5Xv8kB0NEWYHxZKWbA
+/y0JAKvGjaPo0iV0Q4Nh/4TaEYRg7coVBPz+3wKIwGVbLJb1kqq6EIIrxcU8O38e4+jRIT5/A0D/
+4EHS4+Pp0+kHBC4fD8epK+wK1u4OAzW1gN/tZm9NDQ2qlppAQGJXUxPnz52j+rPPr18FQCvFj95e
+Lh47xofa2mGvl1VXE/D7h+0HsEqKz/v7qVm+nA+bNw8PAJj87BmnFywYnoCUFt4fOMC7JUuGLG/4
+5BPm+HjKjh/ncV5e+gBSymFxDMDU+nqKk5LSTkAhGZJVu3cvdRER6QEAJJ8fNwwMYOjsZERREeE5
+OT8G0LZvz48pXMHPj+EbNvxUPKYglV9Z+F3xgLQ0PHE/6LIEPz+hBw5w6+xZrLa2H4oD7G1spPzg
+wYzr04WPp0/zt6oK35cvPywuBHu6ulh36hRfxowZPgCA9b6e5X19NJw8ybT6+mGLT/7wgTMFBXQ6
+nRkBCKmxauxY7hUXZ7Q/Agcam5nh9zPd4ciIQUjNz8hILo8bR6fDMWxyBaDe4+Gx283n8PCMxgCE
+EmK9z8fC7m5K7HYWBYMZjetrbuZ1cTFnXS5qnM7hAdxrbKQ8O5veIetHh4fzpqSEW1FRnI6IyGg9
+hBqoXLsWNWnSj1ECfj8LurpY0NnJzPb2jJkJR0dTGxtLq8fDGZeL8qioYefDuLo6tJ4eCAQGT0NC
+sKe5mY0dHfjj45njdGYE4Fi/Hhob6bfbB+dLu506n49Wm42Wrq7B7eWVlXSNGkW/0zkIsFsIxOdP
+PIqIoNxqpcTvz2hegD1C4Hj5kv1Sy+C7I3RqOJ2cdDopcThoF+Kn9ej7A6D55Us+DdmX2rH8cFsb
+C1tbKRMCm8uV0RGUoHv/x/X/E0biP4lvOT/4qBmPh2QAAAAASUVORK5CYII=
+"""
 
 
 class SpeakAlikeGUI:
@@ -58,6 +83,9 @@ class SpeakAlikeGUI:
         self.root.resizable(True, True)
         self.root.configure(bg=self.COLOR_BG)
         
+        # Icon setzen
+        self._set_icon()
+        
         # TTS Engine initialisieren
         self.tts = TextToSpeech()
         self.current_thread = None
@@ -70,6 +98,16 @@ class SpeakAlikeGUI:
         
         # Versuche zuletzt genutztes Voice-Modell zu laden
         self.load_last_model_on_startup()
+    
+    def _set_icon(self):
+        """Setzt das Anwendungs-Icon"""
+        try:
+            icon_data = base64.b64decode(ICON_BASE64)
+            image = Image.open(BytesIO(icon_data))
+            self.icon_image = ImageTk.PhotoImage(image)
+            self.root.iconphoto(True, self.icon_image)
+        except Exception as e:
+            print(f"Icon konnte nicht geladen werden: {e}")
     
     def setup_styles(self):
         """Konfiguriert ttk Styles - minimalistisch und konsistent"""

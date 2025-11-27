@@ -669,42 +669,50 @@ class TextToSpeech:
             print(f"  Erkannte Wörter: {[w['word'] for w in recognized_words[:10]]}...")
             print(f"  Erwartete Wörter: {expected_words[:10]}...")
             
-            # Strategie: Finde das letzte erkannte Wort, das zum erwarteten Text gehört
-            # Wir suchen von hinten nach vorne nach dem letzten "guten" Wort
+            # Strategie: Sequentieller Abgleich - Reihenfolge ist wichtig!
+            # Wir gehen durch die erkannten Wörter und matchen sie gegen die erwarteten
+            # in der richtigen Reihenfolge. Sobald alle erwarteten Wörter gematcht sind,
+            # ist alles danach ein Artefakt.
             last_valid_end = 0
             last_valid_word = ""
-            matched_count = 0
-            
-            # Erstelle Set der erwarteten Wörter für schnelleren Lookup
-            expected_set = set(expected_words)
+            expected_idx = 0  # Zeiger auf das nächste erwartete Wort
             
             for rw in recognized_words:
                 word = rw["word"]
-                # Prüfe ob das Wort im erwarteten Text vorkommt (exakt oder fuzzy)
-                is_match = False
                 
-                # Exakter Match im Set
-                if word in expected_set:
-                    is_match = True
-                else:
-                    # Fuzzy-Match gegen alle erwarteten Wörter
-                    for ew in expected_words:
-                        if self._words_match(word, ew):
-                            is_match = True
-                            break
+                # Haben wir schon alle erwarteten Wörter gematcht?
+                if expected_idx >= len(expected_words):
+                    # Ja! Alles weitere sind Artefakte
+                    print(f"  Alle {len(expected_words)} erwarteten Wörter gematcht, Rest sind Artefakte ab '{word}'")
+                    break
                 
-                if is_match:
+                # Prüfe ob das erkannte Wort zum nächsten erwarteten Wort passt
+                expected_word = expected_words[expected_idx]
+                
+                if self._words_match(word, expected_word):
+                    # Match gefunden! Gehe zum nächsten erwarteten Wort
                     last_valid_end = rw["end"]
                     last_valid_word = word
-                    matched_count += 1
+                    expected_idx += 1
+                    print(f"    Match: '{word}' ~ '{expected_word}' ({expected_idx}/{len(expected_words)})")
                 else:
-                    # Wenn wir schon Matches hatten und jetzt ein Nicht-Match kommt,
-                    # könnte das der Beginn der Artefakte sein
-                    if matched_count > 0:
-                        # Prüfe ob das Wort "komisch" aussieht (z.B. nicht-lateinische Zeichen)
-                        if self._is_likely_artifact(word):
-                            print(f"  Artefakt erkannt: '{word}' nach {matched_count} gematchten Wörtern")
-                            break
+                    # Kein Match - könnte ein zusätzliches Wort sein (Whisper hört mehr)
+                    # Prüfe ob es vielleicht zum übernächsten erwarteten Wort passt
+                    if expected_idx + 1 < len(expected_words):
+                        next_expected = expected_words[expected_idx + 1]
+                        if self._words_match(word, next_expected):
+                            # Skip ein erwartetes Wort und matche das nächste
+                            last_valid_end = rw["end"]
+                            last_valid_word = word
+                            expected_idx += 2
+                            print(f"    Match (skip): '{word}' ~ '{next_expected}' ({expected_idx}/{len(expected_words)})")
+                            continue
+                    
+                    # Prüfe ob wir schon genug gematcht haben und das ein Artefakt ist
+                    if expected_idx >= len(expected_words) - 1:
+                        # Fast am Ende - das könnte der Anfang der Artefakte sein
+                        print(f"  Wahrscheinlich Artefakt: '{word}' (erwartet: '{expected_word}')")
+                        # Wir brechen nicht sofort ab, vielleicht kommt noch ein Match
             
             if last_valid_end > 0:
                 # Konvertiere Zeit zurück zu Sample-Position (bei Original-Samplerate)
@@ -730,7 +738,7 @@ class TextToSpeech:
                 if original_duration - trimmed_duration > 0.05:
                     print(f"  → Whisper-Trimming: {original_duration:.2f}s → {trimmed_duration:.2f}s "
                           f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
-                    print(f"    Letztes erkanntes Wort: '{last_valid_word}' ({matched_count} Matches)")
+                    print(f"    Letztes erkanntes Wort: '{last_valid_word}' ({expected_idx}/{len(expected_words)} gematcht)")
                 
                 return trimmed
             else:
@@ -788,12 +796,38 @@ class TextToSpeech:
         if w1 == w2:
             return True
         
-        # Ein Wort enthält das andere
-        if w1 in w2 or w2 in w1:
+        # Normalisiere phonetisch ähnliche Schreibweisen (deutsch/englisch)
+        def normalize(w):
+            replacements = [
+                ('tz', 'z'), ('ts', 'z'), ('ceps', 'zeps'),  # biceps -> bizeps
+                ('ph', 'f'), ('ck', 'k'), ('dt', 't'), ('th', 't'),
+                ('ae', 'ä'), ('oe', 'ö'), ('ue', 'ü'), ('ss', 'ß'),
+                ('ai', 'ei'), ('ey', 'ei'), ('ay', 'ei'),
+                ('c', 'k'), ('qu', 'kw'), ('x', 'ks'), ('y', 'i'),
+            ]
+            for old, new in replacements:
+                w = w.replace(old, new)
+            return w
+        
+        w1_norm = normalize(w1)
+        w2_norm = normalize(w2)
+        
+        # Match nach Normalisierung
+        if w1_norm == w2_norm:
             return True
         
-        # Gleicher Anfang (mind. 3 Zeichen) - z.B. "Kind" ~ "Klingt"
-        if len(w1) >= 3 and len(w2) >= 3:
+        # Ein Wort enthält das andere - aber nur wenn das kürzere Wort lang genug ist
+        # und das längere Wort nicht viel länger ist (verhindert "der" in "ender")
+        min_len = min(len(w1), len(w2))
+        max_len = max(len(w1), len(w2))
+        if min_len >= 4 and max_len <= min_len + 2:  # Strenger: mind. 4 Zeichen, max 2 Zeichen Differenz
+            if w1 in w2 or w2 in w1:
+                return True
+            if w1_norm in w2_norm or w2_norm in w1_norm:
+                return True
+        
+        # Gleicher Anfang (mind. 3 Zeichen) - nur wenn Längen ähnlich sind
+        if len(w1) >= 3 and len(w2) >= 3 and abs(len(w1) - len(w2)) <= 2:
             if w1[:3] == w2[:3]:
                 return True
             # Oder gleicher Anfang mit 2 Zeichen bei kürzeren Wörtern
@@ -804,6 +838,13 @@ class TextToSpeech:
         if abs(len(w1) - len(w2)) <= 3:
             matches = sum(c1 == c2 for c1, c2 in zip(w1, w2))
             max_len = max(len(w1), len(w2))
+            if max_len > 0 and matches / max_len >= threshold:
+                return True
+        
+        # Auch für normalisierte Versionen
+        if abs(len(w1_norm) - len(w2_norm)) <= 3:
+            matches = sum(c1 == c2 for c1, c2 in zip(w1_norm, w2_norm))
+            max_len = max(len(w1_norm), len(w2_norm))
             if max_len > 0 and matches / max_len >= threshold:
                 return True
         
