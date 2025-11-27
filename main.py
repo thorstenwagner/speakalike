@@ -1,5 +1,5 @@
 """
-FastSpeak - Text-to-Speech Anwendung mit Coqui TTS
+SpeakAlike - Text-to-Speech Anwendung mit Coqui TTS
 """
 import sys
 import threading
@@ -445,7 +445,7 @@ class TextToSpeech:
         
         # Persistente Datei im temp-Verzeichnis erstellen
         temp_dir = tempfile.gettempdir()
-        output_path = os.path.join(temp_dir, "fastspeak_last_audio.wav")
+        output_path = os.path.join(temp_dir, "speakalike_last_audio.wav")
         
         if self.use_direct and self.model and self.gpt_cond_latent is not None:
             self._inference_direct(text, language, output_path)
@@ -984,7 +984,7 @@ def main():
         print(f"Spreche: {text}")
         tts.speak(text)
     else:
-        print("FastSpeak - Text-to-Speech mit Coqui TTS")
+        print("SpeakAlike - Text-to-Speech mit Coqui TTS")
         print("\nVerwendung:")
         print("  python main.py \"Ihr Text hier\"")
         print("\nOder starten Sie die GUI:")

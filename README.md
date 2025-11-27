@@ -1,4 +1,4 @@
-# FastSpeak
+# SpeakAlike
 
 Eine Text-to-Speech Anwendung mit Voice Cloning für Windows, optimiert für Barrierefreiheit (Eye-Tracking).
 
@@ -29,8 +29,8 @@ Eine Text-to-Speech Anwendung mit Voice Cloning für Windows, optimiert für Bar
 ### Schritt 1: Repository klonen
 
 ```bash
-git clone https://github.com/username/fastspeak.git
-cd fastspeak
+git clone https://github.com/username/speakalike.git
+cd speakalike
 ```
 
 ### Schritt 2: Python-Umgebung erstellen
@@ -38,8 +38,8 @@ cd fastspeak
 **Mit Conda (empfohlen):**
 
 ```bash
-conda create -n fastspeak python=3.11
-conda activate fastspeak
+conda create -n speakalike python=3.11
+conda activate speakalike
 ```
 
 **Oder mit venv:**
@@ -76,7 +76,7 @@ pip install -r requirements.txt
 
 1. Download: https://github.com/espeak-ng/espeak-ng/releases
 2. Installer ausführen (Standard-Pfad: `C:\Program Files\eSpeak NG`)
-3. Der Pfad wird automatisch von FastSpeak erkannt
+3. Der Pfad wird automatisch von SpeakAlike erkannt
 
 **Linux:**
 
@@ -196,7 +196,7 @@ pip install --upgrade openai-whisper
 ## Projektstruktur
 
 ```
-fastspeak/
+speakalike/
 ├── gui.py              # Grafische Benutzeroberfläche
 ├── main.py             # TTS-Engine (XTTS v2)
 ├── audio_processor.py  # Audio-Vorverarbeitung

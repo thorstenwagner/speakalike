@@ -49,14 +49,14 @@ Gute Testsätze mit verschiedenen phonetischen Eigenschaften:
 "Was für ein wunderschöner Tag heute!"
 ```
 
-## 🚀 Verwendung in FastSpeak
+## 🚀 Verwendung in SpeakAlike
 
 1. Bereiten Sie 3-5 Audio-Samples vor (je 6-10 Sekunden)
 2. Laden Sie alle Samples über "Samples hochladen" hoch
 3. Die App verwendet automatisch ALLE Samples für bessere Qualität
 4. Parameter `split_sentences=True` sorgt für natürlichere Intonation
 
-## ⚙️ Technische Optimierungen in FastSpeak
+## ⚙️ Technische Optimierungen in SpeakAlike
 
 Die App nutzt jetzt **fortgeschrittene XTTS-Optimierungen**:
 
@@ -66,7 +66,7 @@ Die App nutzt jetzt **fortgeschrittene XTTS-Optimierungen**:
 - ✅ **Audio-Normalisierung** der Referenz-Samples
 
 ### Optimierte Konditionierungs-Parameter
-| Parameter | Standard | FastSpeak | Wirkung |
+| Parameter | Standard | SpeakAlike | Wirkung |
 |-----------|----------|-----------|---------|
 | `gpt_cond_len` | 12s | **30s** | Mehr Kontext für GPT |
 | `gpt_cond_chunk_len` | 4s | **6s** | Stabilere Latent-Berechnung |
@@ -74,7 +74,7 @@ Die App nutzt jetzt **fortgeschrittene XTTS-Optimierungen**:
 | `sound_norm_refs` | False | **True** | Normalisierte Audio-Qualität |
 
 ### Optimierte Inference-Parameter
-| Parameter | Standard | FastSpeak | Wirkung |
+| Parameter | Standard | SpeakAlike | Wirkung |
 |-----------|----------|-----------|---------|
 | `temperature` | 0.65 | **0.3** | Konsistentere, klarere Ausgabe |
 | `repetition_penalty` | 2.0 | **5.0** | Verhindert Stottern/Wiederholungen |

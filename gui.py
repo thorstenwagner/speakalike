@@ -1,5 +1,5 @@
 """
-FastSpeak GUI - Grafische Benutzeroberfläche für Text-to-Speech
+SpeakAlike GUI - Grafische Benutzeroberfläche für Text-to-Speech
 """
 import os
 # Füge espeak-ng zum PATH hinzu
@@ -11,7 +11,7 @@ from main import TextToSpeech
 from audio_processor import prepare_samples_for_cloning, get_audio_info
 
 
-class FastSpeakGUI:
+class SpeakAlikeGUI:
     """Hauptfenster der Anwendung - optimiert für Eye-Tracking
     
     Design-Prinzipien (learnui.design):
@@ -52,7 +52,7 @@ class FastSpeakGUI:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("FastSpeak")
+        self.root.title("SpeakAlike")
         self.root.geometry("750x520")  # Kompaktes Fenster
         self.root.minsize(650, 480)    # Mindestgröße
         self.root.resizable(True, True)
@@ -941,7 +941,7 @@ class FastSpeakGUI:
 def main():
     """Startet die GUI-Anwendung"""
     root = tk.Tk()
-    app = FastSpeakGUI(root)
+    app = SpeakAlikeGUI(root)
     root.mainloop()
 
 

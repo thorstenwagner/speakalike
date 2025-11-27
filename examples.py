@@ -1,5 +1,5 @@
 """
-FastSpeak - Beispiele für die Verwendung
+SpeakAlike - Beispiele für die Verwendung
 """
 from main import TextToSpeech
 
@@ -8,7 +8,7 @@ def beispiel_einfach():
     """Einfaches Beispiel: Text vorlesen"""
     print("Beispiel 1: Einfacher Text")
     tts = TextToSpeech()
-    tts.speak("Hallo, ich bin FastSpeak. Ich kann deutschen Text vorlesen!")
+    tts.speak("Hallo, ich bin SpeakAlike. Ich kann deutschen Text vorlesen!")
 
 
 def beispiel_geschwindigkeit():
@@ -45,7 +45,7 @@ def beispiel_langer_text():
     tts = TextToSpeech()
     
     text = """
-    FastSpeak ist eine benutzerfreundliche Anwendung zur Sprachsynthese.
+    SpeakAlike ist eine benutzerfreundliche Anwendung zur Sprachsynthese.
     Sie nutzt die Coqui TTS-Bibliothek, um Text in gesprochene Sprache umzuwandeln.
     Die Anwendung bietet eine grafische Benutzeroberfläche und unterstützt
     verschiedene Sprachen sowie einstellbare Sprechgeschwindigkeiten.
@@ -55,7 +55,7 @@ def beispiel_langer_text():
 
 
 if __name__ == "__main__":
-    print("=== FastSpeak Beispiele ===\n")
+    print("=== SpeakAlike Beispiele ===\n")
     
     # Führe alle Beispiele aus
     beispiel_einfach()

@@ -1,5 +1,5 @@
 """
-FastSpeak - Einfache Text-to-Speech Anwendung mit pyttsx3
+SpeakAlike - Einfache Text-to-Speech Anwendung mit pyttsx3
 """
 import sys
 import threading
@@ -78,7 +78,7 @@ def main():
         print(f"Spreche: {text}")
         tts.speak(text)
     else:
-        print("FastSpeak - Text-to-Speech")
+        print("SpeakAlike - Text-to-Speech")
         print("\nVerwendung:")
         print("  python main_simple.py \"Ihr Text hier\"")
         print("\nOder starten Sie die GUI:")

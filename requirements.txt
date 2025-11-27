@@ -1,4 +1,4 @@
-# FastSpeak - Abhängigkeiten
+# SpeakAlike - Abhängigkeiten
 # Installation: pip install -r requirements.txt
 
 # TTS Engine
