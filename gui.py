@@ -25,8 +25,8 @@ class FastSpeakGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("FastSpeak - Text vorlesen")
-        self.root.geometry("900x900")  # Größeres Fenster
-        self.root.minsize(800, 800)  # Mindestgröße damit alles sichtbar ist
+        self.root.geometry("800x500")  # Kompakteres Fenster
+        self.root.minsize(700, 450)  # Mindestgröße
         self.root.resizable(True, True)
         
         # TTS Engine initialisieren
@@ -188,121 +188,57 @@ class FastSpeakGUI:
         self.embedding_label = None  # Wird im Menü erstellt
         self.denoise_var = tk.BooleanVar(value=True)
         
-        # Qualitätseinstellungen Frame
-        quality_frame = ttk.LabelFrame(main_frame, text="Qualität", 
-                                       padding="10", style="Big.TLabelframe")
+        # ===== QUALITÄT (kompakt - nur Presets + Button zum Menü) =====
+        quality_frame = ttk.Frame(main_frame)
         quality_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=8)
         
         # Preset-Buttons - groß und prominent
-        preset_frame = ttk.Frame(quality_frame)
-        preset_frame.grid(row=0, column=0, columnspan=6, pady=(0, 10))
-        
         ttk.Button(
-            preset_frame, text="📖 Klar", 
-            style="Big.TButton", width=15,
+            quality_frame, text="📖 Klar", 
+            style="Big.TButton", width=12,
             command=lambda: self.apply_preset('clear')
-        ).grid(row=0, column=0, padx=10)
+        ).grid(row=0, column=0, padx=8)
         
         ttk.Button(
-            preset_frame, text="🎭 Natürlich", 
-            style="Big.TButton", width=15,
+            quality_frame, text="🎭 Natürlich", 
+            style="Big.TButton", width=12,
             command=lambda: self.apply_preset('natural')
-        ).grid(row=0, column=1, padx=10)
+        ).grid(row=0, column=1, padx=8)
         
         ttk.Button(
-            preset_frame, text="🎨 Kreativ", 
-            style="Big.TButton", width=15,
+            quality_frame, text="🎨 Kreativ", 
+            style="Big.TButton", width=12,
             command=lambda: self.apply_preset('creative')
-        ).grid(row=0, column=2, padx=10)
+        ).grid(row=0, column=2, padx=8)
         
-        # Streaming Checkbox - groß
-        self.streaming_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            preset_frame,
-            text="⚡ Streaming (schneller)",
-            variable=self.streaming_var,
-            command=self.update_streaming_mode,
-            style="Big.TCheckbutton"
-        ).grid(row=0, column=3, padx=20)
-        
-        # Slider für Feineinstellungen
-        slider_frame = ttk.Frame(quality_frame)
-        slider_frame.grid(row=1, column=0, sticky=(tk.W, tk.E))
-        
-        # Temperature
-        ttk.Label(slider_frame, text="Kreativität:", style="Big.TLabel").grid(row=0, column=0, padx=5)
-        self.temp_var = tk.DoubleVar(value=0.3)
-        temp_slider = ttk.Scale(
-            slider_frame, from_=0.1, to=1.0,
-            orient=tk.HORIZONTAL, variable=self.temp_var,
-            length=self.SLIDER_LENGTH
+        # Button für erweiterte Einstellungen
+        self.quality_menu_button = tk.Button(
+            quality_frame,
+            text="⚙️  Erweitert",
+            command=self.open_quality_menu,
+            font=("Arial", 12, "bold"),
+            width=12,
+            height=2,
+            cursor="hand2"
         )
-        temp_slider.grid(row=0, column=1, padx=5, pady=8)
-        self.temp_label = ttk.Label(slider_frame, text="0.30", width=6, style="Big.TLabel")
-        self.temp_label.grid(row=0, column=2, padx=5)
-        temp_slider.configure(command=lambda v: self.update_quality_labels())
+        self.quality_menu_button.grid(row=0, column=3, padx=15)
         
-        # Tempo
-        ttk.Label(slider_frame, text="Tempo:", style="Big.TLabel").grid(row=0, column=3, padx=(30, 5))
+        # Aktuelles Preset anzeigen
+        self.current_preset_label = ttk.Label(quality_frame, text="Aktiv: Klar", 
+                                              foreground="blue", font=("Arial", 12, "bold"))
+        self.current_preset_label.grid(row=0, column=4, padx=15)
+        
+        # Interne Variablen für Qualität (werden im Menü genutzt)
+        self.temp_var = tk.DoubleVar(value=0.2)
         self.tts_speed_var = tk.DoubleVar(value=1.0)
-        speed_slider = ttk.Scale(
-            slider_frame, from_=0.5, to=1.5,
-            orient=tk.HORIZONTAL, variable=self.tts_speed_var,
-            length=self.SLIDER_LENGTH
-        )
-        speed_slider.grid(row=0, column=4, padx=5, pady=8)
-        self.tts_speed_label = ttk.Label(slider_frame, text="1.00x", width=6, style="Big.TLabel")
-        self.tts_speed_label.grid(row=0, column=5, padx=5)
-        speed_slider.configure(command=lambda v: self.update_quality_labels())
-        
-        # Anti-Stottern
-        ttk.Label(slider_frame, text="Anti-Stottern:", style="Big.TLabel").grid(row=1, column=0, padx=5)
-        self.rep_var = tk.DoubleVar(value=5.0)
-        rep_slider = ttk.Scale(
-            slider_frame, from_=1.0, to=10.0,
-            orient=tk.HORIZONTAL, variable=self.rep_var,
-            length=self.SLIDER_LENGTH
-        )
-        rep_slider.grid(row=1, column=1, padx=5, pady=8)
-        self.rep_label = ttk.Label(slider_frame, text="5.0", width=6, style="Big.TLabel")
-        self.rep_label.grid(row=1, column=2, padx=5)
-        rep_slider.configure(command=lambda v: self.update_quality_labels())
-        
-        # Konsistenz Checkbox
+        self.rep_var = tk.DoubleVar(value=7.0)
+        self.streaming_var = tk.BooleanVar(value=False)
         self.consistent_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(
-            slider_frame,
-            text="🎯 Konsistente Betonung",
-            variable=self.consistent_var,
-            command=self.toggle_consistency,
-            style="Big.TCheckbutton"
-        ).grid(row=1, column=3, columnspan=3, padx=20, pady=5)
-        
-        # Einstellungen Frame (für pyttsx3 Fallback) - kleiner
-        settings_frame = ttk.LabelFrame(main_frame, text="Erweitert", padding="5")
-        settings_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=5)
-        
-        ttk.Label(settings_frame, text="Fallback-Geschwindigkeit:").grid(row=0, column=0, padx=5)
         self.speed_var = tk.IntVar(value=150)
-        speed_slider = ttk.Scale(
-            settings_frame, from_=50, to=300,
-            orient=tk.HORIZONTAL, variable=self.speed_var,
-            length=150
-        )
-        speed_slider.grid(row=0, column=1, padx=5)
-        self.speed_label = ttk.Label(settings_frame, text="150 WPM")
-        self.speed_label.grid(row=0, column=2, padx=5)
-        speed_slider.configure(command=self.update_speed_label)
-        
-        ttk.Label(settings_frame, text="Sprache:").grid(row=0, column=3, padx=(20, 5))
         self.language_var = tk.StringVar(value="de")
-        language_combo = ttk.Combobox(
-            settings_frame, textvariable=self.language_var,
-            values=["de", "en", "fr", "es"],
-            state="readonly", width=8,
-            font=("Arial", 11)
-        )
-        language_combo.grid(row=0, column=4, padx=5)
+        
+        # Initiale Werte an TTS übertragen
+        self.update_quality_values()
         
         # Statusleiste - größere Schrift
         self.status_var = tk.StringVar(value="Bereit")
@@ -314,35 +250,164 @@ class FastSpeakGUI:
             font=("Arial", 11),
             padding=5
         )
-        status_bar.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
-        
-    def update_quality_labels(self):
-        """Aktualisiert die Qualitäts-Labels und überträgt Werte an TTS"""
-        temp = self.temp_var.get()
-        speed = self.tts_speed_var.get()
-        rep = self.rep_var.get()
-        
-        self.temp_label.config(text=f"{temp:.2f}")
-        self.tts_speed_label.config(text=f"{speed:.2f}x")
-        self.rep_label.config(text=f"{rep:.1f}")
-        
-        # Werte an TTS-Engine übertragen
-        self.tts.temperature = temp
-        self.tts.speed = speed
-        self.tts.repetition_penalty = rep
+        status_bar.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
     
-    def update_streaming_mode(self):
-        """Aktiviert/deaktiviert den Streaming-Modus"""
+    def update_quality_values(self):
+        """Überträgt Qualitätswerte an TTS-Engine"""
+        self.tts.temperature = self.temp_var.get()
+        self.tts.speed = self.tts_speed_var.get()
+        self.tts.repetition_penalty = self.rep_var.get()
         self.tts.use_streaming = self.streaming_var.get()
-        mode = "aktiviert" if self.tts.use_streaming else "deaktiviert"
-        self.status_var.set(f"⚡ Streaming-Modus {mode}")
+    
+    def open_quality_menu(self):
+        """Öffnet das erweiterte Qualitäts-Menü"""
+        menu_window = tk.Toplevel(self.root)
+        menu_window.title("Erweiterte Qualitätseinstellungen")
+        menu_window.geometry("550x450")
+        menu_window.transient(self.root)
+        menu_window.grab_set()
+        
+        # Hauptcontainer
+        main_frame = ttk.Frame(menu_window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Titel
+        ttk.Label(main_frame, text="Feineinstellungen", 
+                  font=("Arial", 16, "bold")).pack(pady=(0, 20))
+        
+        # === Slider Frame ===
+        slider_frame = ttk.LabelFrame(main_frame, text="Sprachqualität", padding="15")
+        slider_frame.pack(fill=tk.X, pady=10)
+        
+        # Temperature / Kreativität
+        temp_row = ttk.Frame(slider_frame)
+        temp_row.pack(fill=tk.X, pady=8)
+        ttk.Label(temp_row, text="Kreativität:", font=("Arial", 11), width=15).pack(side=tk.LEFT)
+        temp_slider = ttk.Scale(temp_row, from_=0.1, to=1.0, orient=tk.HORIZONTAL, 
+                               variable=self.temp_var, length=200)
+        temp_slider.pack(side=tk.LEFT, padx=10)
+        self.menu_temp_label = ttk.Label(temp_row, text=f"{self.temp_var.get():.2f}", 
+                                         font=("Arial", 11), width=6)
+        self.menu_temp_label.pack(side=tk.LEFT)
+        temp_slider.configure(command=lambda v: self._update_menu_labels())
+        
+        # Tempo
+        speed_row = ttk.Frame(slider_frame)
+        speed_row.pack(fill=tk.X, pady=8)
+        ttk.Label(speed_row, text="Tempo:", font=("Arial", 11), width=15).pack(side=tk.LEFT)
+        speed_slider = ttk.Scale(speed_row, from_=0.5, to=1.5, orient=tk.HORIZONTAL, 
+                                variable=self.tts_speed_var, length=200)
+        speed_slider.pack(side=tk.LEFT, padx=10)
+        self.menu_speed_label = ttk.Label(speed_row, text=f"{self.tts_speed_var.get():.2f}x", 
+                                          font=("Arial", 11), width=6)
+        self.menu_speed_label.pack(side=tk.LEFT)
+        speed_slider.configure(command=lambda v: self._update_menu_labels())
+        
+        # Anti-Stottern
+        rep_row = ttk.Frame(slider_frame)
+        rep_row.pack(fill=tk.X, pady=8)
+        ttk.Label(rep_row, text="Anti-Stottern:", font=("Arial", 11), width=15).pack(side=tk.LEFT)
+        rep_slider = ttk.Scale(rep_row, from_=1.0, to=10.0, orient=tk.HORIZONTAL, 
+                              variable=self.rep_var, length=200)
+        rep_slider.pack(side=tk.LEFT, padx=10)
+        self.menu_rep_label = ttk.Label(rep_row, text=f"{self.rep_var.get():.1f}", 
+                                        font=("Arial", 11), width=6)
+        self.menu_rep_label.pack(side=tk.LEFT)
+        rep_slider.configure(command=lambda v: self._update_menu_labels())
+        
+        # === Optionen ===
+        options_frame = ttk.LabelFrame(main_frame, text="Optionen", padding="15")
+        options_frame.pack(fill=tk.X, pady=10)
+        
+        # Streaming
+        ttk.Checkbutton(
+            options_frame,
+            text="⚡ Streaming-Modus (schnellere Ausgabe)",
+            variable=self.streaming_var,
+            style="Big.TCheckbutton"
+        ).pack(anchor=tk.W, pady=5)
+        
+        # Konsistente Betonung
+        ttk.Checkbutton(
+            options_frame,
+            text="🎯 Konsistente Betonung (gleicher Seed)",
+            variable=self.consistent_var,
+            command=self.toggle_consistency,
+            style="Big.TCheckbutton"
+        ).pack(anchor=tk.W, pady=5)
+        
+        # === Fallback Einstellungen ===
+        fallback_frame = ttk.LabelFrame(main_frame, text="Fallback (pyttsx3)", padding="15")
+        fallback_frame.pack(fill=tk.X, pady=10)
+        
+        fb_row = ttk.Frame(fallback_frame)
+        fb_row.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(fb_row, text="Geschwindigkeit:", font=("Arial", 11)).pack(side=tk.LEFT)
+        fb_speed_slider = ttk.Scale(fb_row, from_=50, to=300, orient=tk.HORIZONTAL, 
+                                   variable=self.speed_var, length=150)
+        fb_speed_slider.pack(side=tk.LEFT, padx=10)
+        self.menu_fb_speed_label = ttk.Label(fb_row, text=f"{self.speed_var.get()} WPM", 
+                                             font=("Arial", 11))
+        self.menu_fb_speed_label.pack(side=tk.LEFT)
+        fb_speed_slider.configure(command=lambda v: self._update_menu_labels())
+        
+        ttk.Label(fb_row, text="Sprache:", font=("Arial", 11)).pack(side=tk.LEFT, padx=(20, 5))
+        language_combo = ttk.Combobox(fb_row, textvariable=self.language_var,
+                                      values=["de", "en", "fr", "es"],
+                                      state="readonly", width=6, font=("Arial", 11))
+        language_combo.pack(side=tk.LEFT)
+        
+        # Buttons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(pady=15)
+        
+        tk.Button(
+            btn_frame,
+            text="✓  Übernehmen",
+            command=lambda: self._apply_quality_settings(menu_window),
+            font=("Arial", 12, "bold"),
+            bg="#4CAF50",
+            fg="white",
+            width=15,
+            height=2,
+            cursor="hand2"
+        ).pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(
+            btn_frame,
+            text="Schließen",
+            command=menu_window.destroy,
+            font=("Arial", 12),
+            width=15,
+            height=2,
+            cursor="hand2"
+        ).pack(side=tk.LEFT, padx=10)
+    
+    def _update_menu_labels(self):
+        """Aktualisiert die Labels im Qualitäts-Menü"""
+        if hasattr(self, 'menu_temp_label'):
+            self.menu_temp_label.config(text=f"{self.temp_var.get():.2f}")
+        if hasattr(self, 'menu_speed_label'):
+            self.menu_speed_label.config(text=f"{self.tts_speed_var.get():.2f}x")
+        if hasattr(self, 'menu_rep_label'):
+            self.menu_rep_label.config(text=f"{self.rep_var.get():.1f}")
+        if hasattr(self, 'menu_fb_speed_label'):
+            self.menu_fb_speed_label.config(text=f"{int(self.speed_var.get())} WPM")
+    
+    def _apply_quality_settings(self, menu_window):
+        """Wendet die Qualitätseinstellungen an"""
+        self.update_quality_values()
+        self.current_preset_label.config(text="Aktiv: Benutzerdefiniert")
+        self.status_var.set("Qualitätseinstellungen übernommen")
+        menu_window.destroy()
     
     def apply_preset(self, preset_name):
         """Wendet ein Qualitäts-Preset an"""
         presets = {
-            'clear': {'temp': 0.2, 'speed': 1.0, 'rep': 7.0},    # Sehr klar, wenig Variation
-            'natural': {'temp': 0.4, 'speed': 1.0, 'rep': 5.0},  # Ausgewogen, natürlich
-            'creative': {'temp': 0.7, 'speed': 1.0, 'rep': 3.0}  # Mehr Variation, expressiv
+            'clear': {'temp': 0.2, 'speed': 1.0, 'rep': 7.0, 'label': 'Klar'},
+            'natural': {'temp': 0.4, 'speed': 1.0, 'rep': 5.0, 'label': 'Natürlich'},
+            'creative': {'temp': 0.7, 'speed': 1.0, 'rep': 3.0, 'label': 'Kreativ'}
         }
         
         if preset_name in presets:
@@ -350,8 +415,9 @@ class FastSpeakGUI:
             self.temp_var.set(p['temp'])
             self.tts_speed_var.set(p['speed'])
             self.rep_var.set(p['rep'])
-            self.update_quality_labels()
-            self.status_var.set(f"Preset '{preset_name}' angewendet")
+            self.update_quality_values()
+            self.current_preset_label.config(text=f"Aktiv: {p['label']}")
+            self.status_var.set(f"Preset '{p['label']}' aktiviert")
     
     def open_voice_cloning_menu(self):
         """Öffnet das Voice Cloning Menü als separates Fenster"""
@@ -633,10 +699,6 @@ class FastSpeakGUI:
         current_text = self.text_input.get(1.0, tk.END).strip()
         if current_text == "Geben Sie hier Ihren Text ein, der vorgelesen werden soll...":
             self.text_input.delete(1.0, tk.END)
-    
-    def update_speed_label(self, value):
-        """Aktualisiert das Geschwindigkeits-Label"""
-        self.speed_label.config(text=f"{int(float(value))} WPM")
     
     def toggle_consistency(self):
         """Schaltet konsistente Betonung um"""
