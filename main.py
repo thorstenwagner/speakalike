@@ -669,50 +669,25 @@ class TextToSpeech:
             print(f"  Erkannte Wörter: {[w['word'] for w in recognized_words[:10]]}...")
             print(f"  Erwartete Wörter: {expected_words[:10]}...")
             
-            # Strategie: Sequentieller Abgleich - Reihenfolge ist wichtig!
-            # Wir gehen durch die erkannten Wörter und matchen sie gegen die erwarteten
-            # in der richtigen Reihenfolge. Sobald alle erwarteten Wörter gematcht sind,
-            # ist alles danach ein Artefakt.
-            last_valid_end = 0
-            last_valid_word = ""
-            expected_idx = 0  # Zeiger auf das nächste erwartete Wort
+            # Strategie: Einfach zählen!
+            # Der erwartete Text hat N Wörter → nimm das Ende des N-ten erkannten Wortes
+            # Das ist robust gegenüber Schreibweisen (bizeps/biceps) und Whisper-Varianten
+            num_expected = len(expected_words)
             
-            for rw in recognized_words:
-                word = rw["word"]
+            if len(recognized_words) >= num_expected:
+                # Nimm das Ende des letzten erwarteten Wortes
+                last_valid_word_info = recognized_words[num_expected - 1]
+                last_valid_end = last_valid_word_info["end"]
+                last_valid_word = last_valid_word_info["word"]
                 
-                # Haben wir schon alle erwarteten Wörter gematcht?
-                if expected_idx >= len(expected_words):
-                    # Ja! Alles weitere sind Artefakte
-                    print(f"  Alle {len(expected_words)} erwarteten Wörter gematcht, Rest sind Artefakte ab '{word}'")
-                    break
+                print(f"  Erwarte {num_expected} Wörter, schneide nach Wort {num_expected}: '{last_valid_word}'")
+            else:
+                # Weniger erkannte Wörter als erwartet - nimm alles
+                last_valid_word_info = recognized_words[-1]
+                last_valid_end = last_valid_word_info["end"]
+                last_valid_word = last_valid_word_info["word"]
                 
-                # Prüfe ob das erkannte Wort zum nächsten erwarteten Wort passt
-                expected_word = expected_words[expected_idx]
-                
-                if self._words_match(word, expected_word):
-                    # Match gefunden! Gehe zum nächsten erwarteten Wort
-                    last_valid_end = rw["end"]
-                    last_valid_word = word
-                    expected_idx += 1
-                    print(f"    Match: '{word}' ~ '{expected_word}' ({expected_idx}/{len(expected_words)})")
-                else:
-                    # Kein Match - könnte ein zusätzliches Wort sein (Whisper hört mehr)
-                    # Prüfe ob es vielleicht zum übernächsten erwarteten Wort passt
-                    if expected_idx + 1 < len(expected_words):
-                        next_expected = expected_words[expected_idx + 1]
-                        if self._words_match(word, next_expected):
-                            # Skip ein erwartetes Wort und matche das nächste
-                            last_valid_end = rw["end"]
-                            last_valid_word = word
-                            expected_idx += 2
-                            print(f"    Match (skip): '{word}' ~ '{next_expected}' ({expected_idx}/{len(expected_words)})")
-                            continue
-                    
-                    # Prüfe ob wir schon genug gematcht haben und das ein Artefakt ist
-                    if expected_idx >= len(expected_words) - 1:
-                        # Fast am Ende - das könnte der Anfang der Artefakte sein
-                        print(f"  Wahrscheinlich Artefakt: '{word}' (erwartet: '{expected_word}')")
-                        # Wir brechen nicht sofort ab, vielleicht kommt noch ein Match
+                print(f"  Nur {len(recognized_words)} von {num_expected} Wörtern erkannt, verwende alle")
             
             if last_valid_end > 0:
                 # Konvertiere Zeit zurück zu Sample-Position (bei Original-Samplerate)
@@ -738,7 +713,7 @@ class TextToSpeech:
                 if original_duration - trimmed_duration > 0.05:
                     print(f"  → Whisper-Trimming: {original_duration:.2f}s → {trimmed_duration:.2f}s "
                           f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
-                    print(f"    Letztes erkanntes Wort: '{last_valid_word}' ({expected_idx}/{len(expected_words)} gematcht)")
+                    print(f"    Letztes Wort: '{last_valid_word}'")
                 
                 return trimmed
             else:
