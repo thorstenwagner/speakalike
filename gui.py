@@ -156,71 +156,37 @@ class FastSpeakGUI:
         )
         self.download_button.grid(row=1, column=1, padx=10, pady=5)
         
-        # ===== VOICE CLONING =====
-        voice_frame = ttk.LabelFrame(main_frame, text="Voice Cloning", 
-                                     padding="8", style="Big.TLabelframe")
+        # ===== STIMME (kompakt - nur Anzeige + Button zum Menü) =====
+        voice_frame = ttk.Frame(main_frame)
         voice_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
         
-        # Voice Cloning Buttons - größer und in einer Reihe
-        voice_buttons = ttk.Frame(voice_frame)
-        voice_buttons.grid(row=0, column=0, sticky=(tk.W, tk.E))
-        
-        ttk.Button(
-            voice_buttons,
-            text="📁 Samples hochladen",
-            command=self.upload_samples,
-            style="Big.TButton",
-            width=self.BUTTON_WIDTH
-        ).grid(row=0, column=0, padx=8, pady=5)
-        
-        ttk.Button(
-            voice_buttons,
-            text="💾 Stimme speichern",
-            command=self.save_voice_model,
-            style="Big.TButton",
-            width=self.BUTTON_WIDTH
-        ).grid(row=0, column=1, padx=8, pady=5)
-        
-        ttk.Button(
-            voice_buttons,
-            text="📂 Stimme laden",
-            command=self.load_voice_model,
-            style="Big.TButton",
-            width=self.BUTTON_WIDTH
-        ).grid(row=0, column=2, padx=8, pady=5)
-        
-        ttk.Button(
-            voice_buttons,
-            text="✕ Samples löschen",
-            command=self.clear_samples,
-            style="Big.TButton",
-            width=self.BUTTON_WIDTH
-        ).grid(row=0, column=3, padx=8, pady=5)
-        
-        # Status-Labels für Voice Cloning
-        status_frame = ttk.Frame(voice_frame)
-        status_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
-        
-        self.files_label = ttk.Label(status_frame, text="Keine Dateien ausgewählt", 
-                                     foreground="gray", style="Big.TLabel")
-        self.files_label.grid(row=0, column=0, sticky=tk.W, padx=5)
-        
-        self.model_name_label = ttk.Label(status_frame, text="", 
-                                          foreground="blue", font=("Arial", 11, "bold"))
-        self.model_name_label.grid(row=0, column=1, sticky=tk.W, padx=20)
-        
-        self.embedding_label = ttk.Label(voice_frame, text="", foreground="gray", 
-                                         font=("Arial", 10))
-        self.embedding_label.grid(row=2, column=0, sticky=tk.W, padx=5)
-        
-        # Checkbox für Rauschunterdrückung
-        self.denoise_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(
+        # Button zum Öffnen des Voice Cloning Menüs
+        self.voice_menu_button = tk.Button(
             voice_frame,
-            text="🔇 Rauschen entfernen",
-            variable=self.denoise_var,
-            style="Big.TCheckbutton"
-        ).grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
+            text="🎤  Stimme verwalten",
+            command=self.open_voice_cloning_menu,
+            font=("Arial", 12, "bold"),
+            width=20,
+            height=2,
+            cursor="hand2"
+        )
+        self.voice_menu_button.grid(row=0, column=0, padx=10, pady=5)
+        
+        # Anzeige der geladenen Stimme - immer sichtbar
+        voice_status_frame = ttk.Frame(voice_frame)
+        voice_status_frame.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=20)
+        
+        ttk.Label(voice_status_frame, text="Aktive Stimme:", 
+                  style="Big.TLabel").grid(row=0, column=0, sticky=tk.W)
+        
+        self.model_name_label = ttk.Label(voice_status_frame, text="Standard-Stimme", 
+                                          foreground="blue", font=("Arial", 14, "bold"))
+        self.model_name_label.grid(row=1, column=0, sticky=tk.W)
+        
+        # Interne Labels für Voice Cloning Status (werden im Menü genutzt)
+        self.files_label = None  # Wird im Menü erstellt
+        self.embedding_label = None  # Wird im Menü erstellt
+        self.denoise_var = tk.BooleanVar(value=True)
         
         # Qualitätseinstellungen Frame
         quality_frame = ttk.LabelFrame(main_frame, text="Qualität", 
@@ -386,33 +352,143 @@ class FastSpeakGUI:
             self.rep_var.set(p['rep'])
             self.update_quality_labels()
             self.status_var.set(f"Preset '{preset_name}' angewendet")
+    
+    def open_voice_cloning_menu(self):
+        """Öffnet das Voice Cloning Menü als separates Fenster"""
+        menu_window = tk.Toplevel(self.root)
+        menu_window.title("Stimme verwalten - Voice Cloning")
+        menu_window.geometry("600x500")
+        menu_window.transient(self.root)
+        menu_window.grab_set()
         
-    def load_last_model_on_startup(self):
-        """Lädt beim Start automatisch das zuletzt genutzte Voice-Modell"""
-        try:
-            if self.tts.load_last_model():
-                name = self.tts.current_voice_name
-                self.model_name_label.config(text=f"📢 Geladen: {name}")
-                self.embedding_label.config(
-                    text=f"✓ Voice-Modell '{name}' automatisch geladen",
-                    foreground="green"
-                )
-                self.files_label.config(
-                    text=f"Gespeicherte Stimme aktiv",
-                    foreground="blue"
-                )
-                self.status_var.set(f"Voice-Modell '{name}' automatisch geladen - bereit!")
-        except Exception as e:
-            print(f"Fehler beim automatischen Laden des Voice-Modells: {e}")
+        # Hauptcontainer
+        main_frame = ttk.Frame(menu_window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Titel
+        ttk.Label(main_frame, text="Voice Cloning Optionen", 
+                  font=("Arial", 16, "bold")).pack(pady=(0, 20))
+        
+        # === Neue Stimme erstellen ===
+        new_voice_frame = ttk.LabelFrame(main_frame, text="Neue Stimme erstellen", 
+                                          padding="15")
+        new_voice_frame.pack(fill=tk.X, pady=10)
+        
+        # Upload Button
+        upload_btn = tk.Button(
+            new_voice_frame,
+            text="📁  Audio-Samples hochladen",
+            command=lambda: self._upload_samples_in_menu(menu_window),
+            font=("Arial", 12, "bold"),
+            width=25,
+            height=2,
+            cursor="hand2"
+        )
+        upload_btn.pack(pady=10)
+        
+        # Status Labels im Menü
+        self.menu_files_label = ttk.Label(new_voice_frame, text="Keine Dateien ausgewählt", 
+                                          foreground="gray", font=("Arial", 11))
+        self.menu_files_label.pack(pady=5)
+        
+        self.menu_embedding_label = ttk.Label(new_voice_frame, text="", 
+                                              foreground="gray", font=("Arial", 10))
+        self.menu_embedding_label.pack(pady=5)
+        
+        # Rauschunterdrückung Checkbox
+        ttk.Checkbutton(
+            new_voice_frame,
+            text="🔇 Rauschen beim Hochladen entfernen",
+            variable=self.denoise_var,
+            style="Big.TCheckbutton"
+        ).pack(pady=10)
+        
+        # Buttons: Speichern und Löschen
+        btn_frame = ttk.Frame(new_voice_frame)
+        btn_frame.pack(pady=10)
+        
+        tk.Button(
+            btn_frame,
+            text="💾  Stimme speichern",
+            command=lambda: self._save_voice_in_menu(menu_window),
+            font=("Arial", 11, "bold"),
+            width=18,
+            height=2,
+            cursor="hand2"
+        ).pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(
+            btn_frame,
+            text="✕  Samples löschen",
+            command=lambda: self._clear_samples_in_menu(menu_window),
+            font=("Arial", 11, "bold"),
+            width=18,
+            height=2,
+            cursor="hand2"
+        ).pack(side=tk.LEFT, padx=10)
+        
+        # === Gespeicherte Stimmen laden ===
+        load_frame = ttk.LabelFrame(main_frame, text="Gespeicherte Stimmen", 
+                                    padding="15")
+        load_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        # Liste der gespeicherten Stimmen
+        models = self.tts.list_saved_voice_models()
+        
+        if models:
+            listbox_frame = ttk.Frame(load_frame)
+            listbox_frame.pack(fill=tk.BOTH, expand=True)
+            
+            self.voice_listbox = tk.Listbox(listbox_frame, font=("Arial", 12), height=6)
+            self.voice_listbox.pack(fill=tk.BOTH, expand=True, pady=5)
+            
+            for model in models:
+                self.voice_listbox.insert(tk.END, model['name'])
+            
+            if models:
+                self.voice_listbox.selection_set(0)
+            
+            list_btn_frame = ttk.Frame(load_frame)
+            list_btn_frame.pack(pady=10)
+            
+            tk.Button(
+                list_btn_frame,
+                text="📂  Laden",
+                command=lambda: self._load_voice_from_menu(menu_window, models),
+                font=("Arial", 12, "bold"),
+                width=12,
+                height=2,
+                bg="#4CAF50",
+                fg="white",
+                cursor="hand2"
+            ).pack(side=tk.LEFT, padx=10)
+            
+            tk.Button(
+                list_btn_frame,
+                text="🗑  Löschen",
+                command=lambda: self._delete_voice_from_menu(menu_window, models),
+                font=("Arial", 12, "bold"),
+                width=12,
+                height=2,
+                cursor="hand2"
+            ).pack(side=tk.LEFT, padx=10)
+        else:
+            ttk.Label(load_frame, text="Noch keine Stimmen gespeichert.", 
+                      font=("Arial", 11), foreground="gray").pack(pady=20)
+        
+        # Schließen Button
+        tk.Button(
+            main_frame,
+            text="Schließen",
+            command=menu_window.destroy,
+            font=("Arial", 12),
+            width=15,
+            height=2,
+            cursor="hand2"
+        ).pack(pady=15)
     
-    def clear_placeholder(self, event):
-        """Entfernt den Platzhalter-Text beim ersten Klick"""
-        current_text = self.text_input.get(1.0, tk.END).strip()
-        if current_text == "Geben Sie hier Ihren Text ein, der vorgelesen werden soll...":
-            self.text_input.delete(1.0, tk.END)
-    
-    def upload_samples(self):
-        """Lädt Audio-Samples für Voice Cloning hoch und verarbeitet sie"""
+    def _upload_samples_in_menu(self, menu_window):
+        """Lädt Samples im Voice Cloning Menü hoch"""
         files = filedialog.askopenfilenames(
             title="Audio-Samples auswählen",
             filetypes=[
@@ -424,14 +500,14 @@ class FastSpeakGUI:
         
         if files:
             file_count = len(files)
-            self.files_label.config(
+            self.menu_files_label.config(
                 text=f"{file_count} Datei(en) werden verarbeitet...",
                 foreground="orange"
             )
-            self.status_var.set("Verarbeite Audio-Samples (Rauschen entfernen, trimmen)...")
+            self.status_var.set("Verarbeite Audio-Samples...")
+            menu_window.update()
             self.root.update()
             
-            # Audio-Samples vorverarbeiten (Rauschen entfernen, trimmen, zusammenfügen)
             try:
                 processed_files = prepare_samples_for_cloning(
                     list(files),
@@ -448,55 +524,115 @@ class FastSpeakGUI:
                     if 'duration' in info:
                         total_duration += info['duration']
                 
-                self.files_label.config(
+                self.menu_files_label.config(
                     text=f"{file_count} → {len(processed_files)} Sample(s), {total_duration:.1f}s",
                     foreground="green"
                 )
                 
                 self.status_var.set("Berechne Speaker-Embeddings...")
+                menu_window.update()
                 self.root.update()
                 
-                # Setze Samples und berechne Embeddings
                 self.tts.set_speaker_wav(self.speaker_wav_files)
                 
-                # Zeige Embedding-Status
                 if hasattr(self.tts, 'gpt_cond_latent') and self.tts.gpt_cond_latent is not None:
-                    self.embedding_label.config(
-                        text="✓ Samples verarbeitet & Speaker-Embeddings berechnet",
+                    self.menu_embedding_label.config(
+                        text="✓ Speaker-Embeddings berechnet",
                         foreground="green"
                     )
-                    self.status_var.set(f"Voice Cloning bereit ({total_duration:.1f}s Audio, optimiert)")
+                    self.status_var.set(f"Voice Cloning bereit ({total_duration:.1f}s Audio)")
                 else:
-                    self.embedding_label.config(
-                        text="✓ Samples verarbeitet (Rauschen entfernt, getrimmt)",
+                    self.menu_embedding_label.config(
+                        text="✓ Samples verarbeitet",
                         foreground="green"
                     )
                     self.status_var.set(f"Voice Cloning aktiviert ({total_duration:.1f}s Audio)")
                     
             except Exception as e:
-                self.files_label.config(
-                    text=f"Fehler bei Verarbeitung",
-                    foreground="red"
-                )
-                self.embedding_label.config(
-                    text=f"Fehler: {str(e)[:50]}",
-                    foreground="red"
-                )
+                self.menu_files_label.config(text="Fehler bei Verarbeitung", foreground="red")
+                self.menu_embedding_label.config(text=str(e)[:50], foreground="red")
                 self.status_var.set("Fehler bei Audio-Verarbeitung")
-                print(f"Fehler bei Audio-Verarbeitung: {e}")
-                import traceback
-                traceback.print_exc()
     
-    def clear_samples(self):
-        """Entfernt die Voice Cloning Samples"""
+    def _save_voice_in_menu(self, menu_window):
+        """Speichert die aktuelle Stimme aus dem Menü"""
+        if not hasattr(self.tts, 'gpt_cond_latent') or self.tts.gpt_cond_latent is None:
+            messagebox.showwarning(
+                "Keine Stimme", 
+                "Bitte laden Sie zuerst Audio-Samples hoch!"
+            )
+            return
+        
+        from tkinter import simpledialog
+        name = simpledialog.askstring(
+            "Stimme speichern",
+            "Geben Sie einen Namen für die Stimme ein:",
+            initialvalue=self.tts.current_voice_name or "meine_stimme"
+        )
+        
+        if name:
+            result = self.tts.save_voice_model(name)
+            if result:
+                self.model_name_label.config(text=f"📢 {name}")
+                self.status_var.set(f"Voice-Modell '{name}' gespeichert")
+                messagebox.showinfo("Erfolg", f"Voice-Modell '{name}' wurde gespeichert!")
+                menu_window.destroy()
+                self.open_voice_cloning_menu()  # Menü neu öffnen
+            else:
+                messagebox.showerror("Fehler", "Konnte Voice-Modell nicht speichern!")
+    
+    def _clear_samples_in_menu(self, menu_window):
+        """Löscht die Samples aus dem Menü"""
         self.speaker_wav_files = []
         self.tts.set_speaker_wav(None)
-        self.files_label.config(
-            text="Keine Dateien ausgewählt",
-            foreground="gray"
-        )
-        self.embedding_label.config(text="", foreground="gray")
+        self.menu_files_label.config(text="Keine Dateien ausgewählt", foreground="gray")
+        self.menu_embedding_label.config(text="", foreground="gray")
+        self.model_name_label.config(text="Standard-Stimme")
         self.status_var.set("Voice Cloning deaktiviert")
+    
+    def _load_voice_from_menu(self, menu_window, models):
+        """Lädt eine Stimme aus der Liste im Menü"""
+        if hasattr(self, 'voice_listbox'):
+            selection = self.voice_listbox.curselection()
+            if selection:
+                model_name = models[selection[0]]['name']
+                menu_window.destroy()
+                
+                self.status_var.set(f"Lade Voice-Modell '{model_name}'...")
+                self.root.update()
+                
+                if self.tts.load_voice_model(model_name):
+                    self.model_name_label.config(text=f"📢 {model_name}")
+                    self.status_var.set(f"Stimme '{model_name}' geladen!")
+                else:
+                    messagebox.showerror("Fehler", f"Konnte '{model_name}' nicht laden!")
+    
+    def _delete_voice_from_menu(self, menu_window, models):
+        """Löscht eine Stimme aus dem Menü"""
+        if hasattr(self, 'voice_listbox'):
+            selection = self.voice_listbox.curselection()
+            if selection:
+                model_name = models[selection[0]]['name']
+                if messagebox.askyesno("Löschen", f"'{model_name}' wirklich löschen?"):
+                    if self.tts.delete_voice_model(model_name):
+                        self.voice_listbox.delete(selection[0])
+                        models.pop(selection[0])
+                        self.status_var.set(f"'{model_name}' gelöscht")
+        
+    def load_last_model_on_startup(self):
+        """Lädt beim Start automatisch das zuletzt genutzte Voice-Modell"""
+        try:
+            if self.tts.load_last_model():
+                name = self.tts.current_voice_name
+                self.model_name_label.config(text=f"📢 {name}")
+                self.status_var.set(f"Stimme '{name}' automatisch geladen - bereit!")
+        except Exception as e:
+            print(f"Fehler beim automatischen Laden des Voice-Modells: {e}")
+    
+    def clear_placeholder(self, event):
+        """Entfernt den Platzhalter-Text beim ersten Klick"""
+        current_text = self.text_input.get(1.0, tk.END).strip()
+        if current_text == "Geben Sie hier Ihren Text ein, der vorgelesen werden soll...":
+            self.text_input.delete(1.0, tk.END)
     
     def update_speed_label(self, value):
         """Aktualisiert das Geschwindigkeits-Label"""
@@ -559,114 +695,6 @@ class FastSpeakGUI:
         """Löscht den Text im Eingabefeld"""
         self.text_input.delete(1.0, tk.END)
         self.status_var.set("Text gelöscht")
-    
-    def save_voice_model(self):
-        """Speichert das aktuelle Voice-Modell"""
-        # Prüfe ob Embeddings vorhanden sind
-        if not hasattr(self.tts, 'gpt_cond_latent') or self.tts.gpt_cond_latent is None:
-            messagebox.showwarning(
-                "Keine Stimme", 
-                "Bitte laden Sie zuerst Audio-Samples hoch, um eine Stimme zu erstellen!"
-            )
-            return
-        
-        # Name für das Modell abfragen
-        from tkinter import simpledialog
-        name = simpledialog.askstring(
-            "Stimme speichern",
-            "Geben Sie einen Namen für die Stimme ein:",
-            initialvalue=self.tts.current_voice_name or "meine_stimme"
-        )
-        
-        if name:
-            result = self.tts.save_voice_model(name)
-            if result:
-                self.model_name_label.config(text=f"✓ Gespeichert: {name}")
-                self.status_var.set(f"Voice-Modell '{name}' gespeichert")
-                messagebox.showinfo(
-                    "Erfolg", 
-                    f"Voice-Modell '{name}' wurde gespeichert!\n\n"
-                    f"Es wird beim nächsten Start automatisch verfügbar sein."
-                )
-            else:
-                messagebox.showerror("Fehler", "Konnte Voice-Modell nicht speichern!")
-    
-    def load_voice_model(self):
-        """Lädt ein gespeichertes Voice-Modell"""
-        # Liste der verfügbaren Modelle abrufen
-        models = self.tts.list_saved_voice_models()
-        
-        if not models:
-            messagebox.showinfo(
-                "Keine Modelle",
-                "Es sind noch keine gespeicherten Stimmen vorhanden.\n\n"
-                "Laden Sie zuerst Audio-Samples hoch und speichern Sie die Stimme."
-            )
-            return
-        
-        # Auswahldialog erstellen
-        select_window = tk.Toplevel(self.root)
-        select_window.title("Stimme laden")
-        select_window.geometry("400x300")
-        select_window.transient(self.root)
-        select_window.grab_set()
-        
-        ttk.Label(
-            select_window, 
-            text="Wählen Sie eine gespeicherte Stimme:",
-            font=("Arial", 10, "bold")
-        ).pack(pady=10)
-        
-        # Listbox mit Modellen
-        listbox = tk.Listbox(select_window, font=("Arial", 11), height=10)
-        listbox.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
-        
-        for model in models:
-            listbox.insert(tk.END, model['name'])
-        
-        if models:
-            listbox.selection_set(0)
-        
-        def on_load():
-            selection = listbox.curselection()
-            if selection:
-                model_name = models[selection[0]]['name']
-                select_window.destroy()
-                
-                self.status_var.set(f"Lade Voice-Modell '{model_name}'...")
-                self.root.update()
-                
-                if self.tts.load_voice_model(model_name):
-                    self.model_name_label.config(text=f"📢 Geladen: {model_name}")
-                    self.embedding_label.config(
-                        text=f"✓ Voice-Modell '{model_name}' geladen (bereit zum Vorlesen)",
-                        foreground="green"
-                    )
-                    self.files_label.config(
-                        text=f"Gespeicherte Stimme aktiv",
-                        foreground="blue"
-                    )
-                    self.status_var.set(f"Voice-Modell '{model_name}' geladen und bereit!")
-                else:
-                    messagebox.showerror("Fehler", f"Konnte Voice-Modell '{model_name}' nicht laden!")
-                    self.status_var.set("Fehler beim Laden")
-        
-        def on_delete():
-            selection = listbox.curselection()
-            if selection:
-                model_name = models[selection[0]]['name']
-                if messagebox.askyesno("Löschen bestätigen", f"Voice-Modell '{model_name}' wirklich löschen?"):
-                    if self.tts.delete_voice_model(model_name):
-                        listbox.delete(selection[0])
-                        models.pop(selection[0])
-                        self.status_var.set(f"Voice-Modell '{model_name}' gelöscht")
-        
-        button_frame = ttk.Frame(select_window)
-        button_frame.pack(pady=10)
-        
-        ttk.Button(button_frame, text="✓ Laden", command=on_load, width=12).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="🗑 Löschen", command=on_delete, width=12).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Abbrechen", command=select_window.destroy, width=12).pack(side=tk.LEFT, padx=5)
     
     def download_audio(self):
         """Speichert die letzte Sprachausgabe als MP3"""
