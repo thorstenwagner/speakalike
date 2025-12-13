@@ -1032,7 +1032,7 @@ class SpeakAlikeGUI:
         # Dialog erstellen
         dialog = tk.Toplevel(self.root)
         dialog.title("Zum Katalog hinzufügen")
-        dialog.geometry("500x350")
+        dialog.geometry("500x480")
         dialog.configure(bg=self.COLOR_BG)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -1040,7 +1040,7 @@ class SpeakAlikeGUI:
         # Zentrieren
         dialog.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() - 500) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 350) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 480) // 2
         dialog.geometry(f"+{x}+{y}")
         
         # Content Frame
@@ -1169,7 +1169,8 @@ class SpeakAlikeGUI:
             
             # Sprache automatisch als Tag hinzufügen
             language = self.language_var.get()
-            lang_tag = f"sprache:{language}"
+            lang_names = {"de": "deutsch", "en": "englisch", "es": "spanisch", "fr": "französisch", "it": "italienisch", "pt": "portugiesisch", "pl": "polnisch", "tr": "türkisch", "ru": "russisch", "nl": "niederländisch", "cs": "tschechisch", "ar": "arabisch", "zh-cn": "chinesisch", "ja": "japanisch", "hu": "ungarisch", "ko": "koreanisch", "hi": "hindi"}
+            lang_tag = lang_names.get(language, language)
             if lang_tag not in [t.lower() for t in tags]:
                 tags.insert(0, lang_tag)
             
