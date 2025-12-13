@@ -13,6 +13,8 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
 from main import TextToSpeech
 from audio_processor import prepare_samples_for_cloning, get_audio_info
+from catalog import MessageCatalog
+from tag_generator import generate_tags
 
 # Icon als Base64 (Mikrofon/Lautsprecher Symbol - 32x32 PNG)
 ICON_BASE64 = """
@@ -91,6 +93,10 @@ class SpeakAlikeGUI:
         self.current_thread = None
         self.speaker_wav_files = []
         self.last_audio_path = None  # Pfad zur letzten generierten Audio-Datei
+        self.last_generated_text = None  # Text der letzten Generierung
+        
+        # Katalog initialisieren
+        self.catalog = MessageCatalog()
         
         # Style für Elemente
         self.setup_styles()
@@ -285,6 +291,42 @@ class SpeakAlikeGUI:
             bd=0
         )
         self.download_button.grid(row=1, column=0, pady=2)
+        
+        # Katalog-Buttons
+        self.catalog_add_button = tk.Button(
+            secondary_frame,
+            text="📁 Zum Katalog",
+            command=self.add_to_catalog,
+            state=tk.DISABLED,
+            font=self.FONT_SMALL,
+            bg="#dbeafe",
+            fg=self.COLOR_PRIMARY,
+            activebackground="#bfdbfe",
+            disabledforeground="#9ca3af",
+            width=14,
+            height=1,
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
+        )
+        self.catalog_add_button.grid(row=2, column=0, pady=2)
+        
+        # Katalog öffnen Button - immer aktiv
+        self.catalog_open_button = tk.Button(
+            secondary_frame,
+            text="📚 Katalog öffnen",
+            command=self.open_catalog,
+            font=self.FONT_SMALL,
+            bg="#e5e7eb",
+            fg=self.COLOR_TEXT,
+            activebackground="#d1d5db",
+            width=14,
+            height=1,
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
+        )
+        self.catalog_open_button.grid(row=3, column=0, pady=2)
         
         # ===== OPTIONEN - horizontale Leiste mit mehr Whitespace =====
         options_frame = ttk.Frame(main_frame)
@@ -863,6 +905,9 @@ class SpeakAlikeGUI:
             messagebox.showwarning("Kein Text", "Bitte geben Sie einen Text ein!")
             return
         
+        # Text für Katalog speichern
+        self.last_generated_text = text
+        
         # UI während des Sprechens aktualisieren
         self.speak_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
@@ -885,9 +930,10 @@ class SpeakAlikeGUI:
         """Wird aufgerufen, wenn das Sprechen beendet ist"""
         self.speak_button.config(state=tk.NORMAL)
         self.stop_button.config(state=tk.DISABLED)
-        # Download-Button aktivieren wenn Audio vorhanden
+        # Download- und Katalog-Button aktivieren wenn Audio vorhanden
         if self.last_audio_path and os.path.exists(self.last_audio_path):
             self.download_button.config(state=tk.NORMAL)
+            self.catalog_add_button.config(state=tk.NORMAL)
         self.status_var.set("Bereit - Audio kann gespeichert werden")
     
     def stop_speaking(self):
@@ -974,6 +1020,753 @@ class SpeakAlikeGUI:
         # MP3 speichern
         with open(mp3_path, 'wb') as f:
             f.write(mp3_data)
+    
+    # ========== KATALOG-FUNKTIONEN ==========
+    
+    def add_to_catalog(self):
+        """Öffnet Dialog zum Hinzufügen der Sprachnachricht zum Katalog"""
+        if not self.last_audio_path or not os.path.exists(self.last_audio_path):
+            messagebox.showwarning("Keine Audio", "Bitte erst einen Text vorlesen lassen!")
+            return
+        
+        # Dialog erstellen
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Zum Katalog hinzufügen")
+        dialog.geometry("500x350")
+        dialog.configure(bg=self.COLOR_BG)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Zentrieren
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 500) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 350) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Content Frame
+        content = ttk.Frame(dialog, padding=self.PADDING_LARGE)
+        content.pack(fill=tk.BOTH, expand=True)
+        
+        # Titel
+        ttk.Label(content, text="Sprachnachricht speichern", 
+                  font=self.FONT_LARGE).pack(anchor=tk.W)
+        
+        ttk.Label(content, text="Die generierte Sprachnachricht wird im Katalog gespeichert.",
+                  style="Muted.TLabel").pack(anchor=tk.W, pady=(5, 15))
+        
+        # Text-Vorschau
+        text_frame = ttk.Frame(content)
+        text_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(text_frame, text="Text:", style="Muted.TLabel").pack(anchor=tk.W)
+        
+        text_preview = tk.Text(text_frame, height=3, wrap=tk.WORD, 
+                               font=self.FONT_SMALL, bg="#ffffff",
+                               relief=tk.FLAT, bd=1)
+        text_preview.pack(fill=tk.X, pady=5)
+        text_preview.insert(1.0, self.last_generated_text or "")
+        text_preview.config(state=tk.DISABLED)
+        
+        # Tags-Eingabe
+        tags_frame = ttk.Frame(content)
+        tags_frame.pack(fill=tk.X, pady=10)
+        
+        tags_label_frame = ttk.Frame(tags_frame)
+        tags_label_frame.pack(fill=tk.X)
+        
+        ttk.Label(tags_label_frame, text="Schlagworte (mit Komma trennen):", 
+                  style="Muted.TLabel").pack(side=tk.LEFT)
+        
+        # Auto-Generate Button
+        def auto_generate_tags():
+            """Generiert Tags automatisch mit Claude"""
+            generate_btn.config(state=tk.DISABLED, text="⏳ Generiere...")
+            dialog.update()
+            
+            # Vorhandene Tags für Wiederverwendung
+            existing_tag_names = [t[0] for t in self.catalog.get_all_tags()]
+            
+            # Tags generieren
+            import threading
+            def generate():
+                try:
+                    generated = generate_tags(
+                        text=self.last_generated_text or "",
+                        existing_tags=existing_tag_names,
+                        num_tags=5
+                    )
+                    dialog.after(0, lambda: update_tags_entry(generated))
+                except Exception as e:
+                    print(f"Tag-Generierung fehlgeschlagen: {e}")
+                    dialog.after(0, lambda: generate_btn.config(state=tk.NORMAL, text="🤖 Auto-Tags"))
+            
+            def update_tags_entry(generated):
+                if generated:
+                    current = tags_entry.get().strip()
+                    if current:
+                        # Bestehende Tags behalten, neue hinzufügen
+                        existing = [t.strip().lower() for t in current.split(',')]
+                        new_tags = [t for t in generated if t.lower() not in existing]
+                        if new_tags:
+                            tags_entry.delete(0, tk.END)
+                            tags_entry.insert(0, current + ", " + ", ".join(new_tags))
+                    else:
+                        tags_entry.delete(0, tk.END)
+                        tags_entry.insert(0, ", ".join(generated))
+                generate_btn.config(state=tk.NORMAL, text="🤖 Auto-Tags")
+            
+            threading.Thread(target=generate, daemon=True).start()
+        
+        generate_btn = tk.Button(
+            tags_label_frame,
+            text="🤖 Auto-Tags",
+            command=auto_generate_tags,
+            font=self.FONT_TINY,
+            bg="#d1fae5",
+            fg="#065f46",
+            activebackground="#a7f3d0",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=8
+        )
+        generate_btn.pack(side=tk.RIGHT)
+        
+        tags_entry = tk.Entry(tags_frame, font=self.FONT_MEDIUM, 
+                              bg="#ffffff", relief=tk.FLAT, bd=1)
+        tags_entry.pack(fill=tk.X, pady=5, ipady=8)
+        tags_entry.focus_set()
+        
+        # Vorschläge basierend auf häufigen Tags
+        existing_tags = self.catalog.get_all_tags()
+        if existing_tags:
+            ttk.Label(tags_frame, text="Vorhandene Tags:", 
+                      style="Muted.TLabel").pack(anchor=tk.W, pady=(10, 5))
+            
+            tags_suggest_frame = ttk.Frame(tags_frame)
+            tags_suggest_frame.pack(fill=tk.X)
+            
+            for tag_name, count in existing_tags[:10]:
+                tag_btn = tk.Button(
+                    tags_suggest_frame,
+                    text=f"{tag_name} ({count})",
+                    command=lambda t=tag_name: self._add_tag_to_entry(tags_entry, t),
+                    font=self.FONT_TINY,
+                    bg="#e0e7ff",
+                    fg="#4338ca",
+                    relief=tk.FLAT,
+                    cursor="hand2",
+                    padx=8, pady=2
+                )
+                tag_btn.pack(side=tk.LEFT, padx=2, pady=2)
+        
+        # Buttons
+        button_frame = ttk.Frame(content)
+        button_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        def save_to_catalog():
+            tags_text = tags_entry.get().strip()
+            tags = [t.strip() for t in tags_text.split(',') if t.strip()]
+            
+            # Sprache automatisch als Tag hinzufügen
+            language = self.language_var.get()
+            lang_tag = f"sprache:{language}"
+            if lang_tag not in [t.lower() for t in tags]:
+                tags.insert(0, lang_tag)
+            
+            # Voice-Model Name holen
+            voice_model = self.model_name_label.cget("text")
+            if voice_model == "Standard":
+                voice_model = None
+            
+            # Audio-Länge berechnen
+            try:
+                import soundfile as sf
+                data, sr = sf.read(self.last_audio_path)
+                duration = len(data) / sr
+            except:
+                duration = None
+            
+            # Zum Katalog hinzufügen
+            message_id = self.catalog.add_message(
+                text=self.last_generated_text or "",
+                source_audio_path=self.last_audio_path,
+                tags=tags,
+                voice_model=voice_model,
+                duration_seconds=duration
+            )
+            
+            dialog.destroy()
+            self.status_var.set(f"Zum Katalog hinzugefügt (ID: {message_id})")
+            messagebox.showinfo("Gespeichert", 
+                              f"Sprachnachricht wurde zum Katalog hinzugefügt!\n\n"
+                              f"Tags: {', '.join(tags) if tags else 'keine'}")
+        
+        save_btn = tk.Button(
+            button_frame,
+            text="Speichern",
+            command=save_to_catalog,
+            font=self.FONT_BUTTON,
+            bg=self.COLOR_PRIMARY,
+            fg="white",
+            activebackground=self.COLOR_PRIMARY_HOVER,
+            width=15,
+            cursor="hand2",
+            relief=tk.FLAT
+        )
+        save_btn.pack(side=tk.LEFT, padx=5)
+        
+        cancel_btn = tk.Button(
+            button_frame,
+            text="Abbrechen",
+            command=dialog.destroy,
+            font=self.FONT_BUTTON,
+            bg="#e5e7eb",
+            fg=self.COLOR_TEXT,
+            width=15,
+            cursor="hand2",
+            relief=tk.FLAT
+        )
+        cancel_btn.pack(side=tk.LEFT, padx=5)
+    
+    def _add_tag_to_entry(self, entry, tag):
+        """Fügt einen Tag zur Entry hinzu"""
+        current = entry.get().strip()
+        if current:
+            if tag.lower() not in [t.strip().lower() for t in current.split(',')]:
+                entry.delete(0, tk.END)
+                entry.insert(0, f"{current}, {tag}")
+        else:
+            entry.insert(0, tag)
+    
+    def open_catalog(self):
+        """Öffnet das Katalog-Fenster"""
+        CatalogWindow(self.root, self.catalog, self.tts, self.speed_var, self.language_var)
+
+
+class CatalogWindow:
+    """Fenster zum Durchsuchen und Abspielen gespeicherter Sprachnachrichten"""
+    
+    def __init__(self, parent, catalog, tts, speed_var, language_var):
+        self.catalog = catalog
+        self.tts = tts
+        self.speed_var = speed_var
+        self.language_var = language_var
+        self.current_messages = []
+        
+        # Fenster erstellen
+        self.window = tk.Toplevel(parent)
+        self.window.title("SpeakAlike - Katalog")
+        self.window.geometry("900x600")
+        self.window.configure(bg=SpeakAlikeGUI.COLOR_BG)
+        
+        self.setup_ui()
+        self.refresh_messages()
+    
+    def setup_ui(self):
+        """Erstellt die Benutzeroberfläche"""
+        # Hauptframe
+        main_frame = ttk.Frame(self.window, padding=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Linke Seite: Suche und Filter
+        left_frame = ttk.Frame(main_frame, width=250)
+        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 15))
+        left_frame.pack_propagate(False)
+        
+        # Titel
+        ttk.Label(left_frame, text="📚 Katalog", 
+                  font=SpeakAlikeGUI.FONT_LARGE).pack(anchor=tk.W, pady=(0, 15))
+        
+        # Suchfeld
+        ttk.Label(left_frame, text="Suche:", 
+                  style="Muted.TLabel").pack(anchor=tk.W)
+        
+        self.search_entry = tk.Entry(left_frame, font=SpeakAlikeGUI.FONT_MEDIUM,
+                                     bg="#ffffff", relief=tk.FLAT, bd=1)
+        self.search_entry.pack(fill=tk.X, pady=5, ipady=5)
+        self.search_entry.bind('<Return>', lambda e: self.search())
+        self.search_entry.bind('<KeyRelease>', lambda e: self.search_delayed())
+        
+        # Such-Timer für verzögerte Suche
+        self.search_timer = None
+        
+        # Such-Button
+        search_btn = tk.Button(
+            left_frame,
+            text="🔍 Suchen",
+            command=self.search,
+            font=SpeakAlikeGUI.FONT_SMALL,
+            bg=SpeakAlikeGUI.COLOR_PRIMARY,
+            fg="white",
+            cursor="hand2",
+            relief=tk.FLAT
+        )
+        search_btn.pack(fill=tk.X, pady=5)
+        
+        # Filter: Favoriten
+        self.favorites_var = tk.BooleanVar(value=False)
+        favorites_cb = ttk.Checkbutton(
+            left_frame,
+            text="⭐ Nur Favoriten",
+            variable=self.favorites_var,
+            command=self.search
+        )
+        favorites_cb.pack(anchor=tk.W, pady=10)
+        
+        # Sortierung
+        ttk.Label(left_frame, text="Sortierung:", 
+                  style="Muted.TLabel").pack(anchor=tk.W, pady=(10, 5))
+        
+        self.sort_var = tk.StringVar(value="created_at")
+        sort_options = [
+            ("Neueste zuerst", "created_at"),
+            ("Häufig abgespielt", "play_count"),
+            ("Zuletzt abgespielt", "last_played_at")
+        ]
+        for text, value in sort_options:
+            rb = ttk.Radiobutton(
+                left_frame,
+                text=text,
+                variable=self.sort_var,
+                value=value,
+                command=self.search
+            )
+            rb.pack(anchor=tk.W)
+        
+        # Tags
+        ttk.Label(left_frame, text="Tags:", 
+                  style="Muted.TLabel").pack(anchor=tk.W, pady=(15, 5))
+        
+        self.tags_frame = ttk.Frame(left_frame)
+        self.tags_frame.pack(fill=tk.X)
+        
+        self.selected_tags = []
+        self.refresh_tags()
+        
+        # Alle anzeigen Button
+        show_all_btn = tk.Button(
+            left_frame,
+            text="Alle anzeigen",
+            command=self.show_all,
+            font=SpeakAlikeGUI.FONT_SMALL,
+            bg="#e5e7eb",
+            fg=SpeakAlikeGUI.COLOR_TEXT,
+            cursor="hand2",
+            relief=tk.FLAT
+        )
+        show_all_btn.pack(fill=tk.X, pady=15)
+        
+        # Statistiken
+        stats = self.catalog.get_stats()
+        stats_text = f"📊 {stats['total_messages']} Nachrichten\n"
+        stats_text += f"🏷️ {stats['total_tags']} Tags\n"
+        stats_text += f"▶️ {stats['total_plays']} Wiedergaben"
+        
+        ttk.Label(left_frame, text=stats_text, 
+                  style="Muted.TLabel").pack(anchor=tk.W, pady=10)
+        
+        # Rechte Seite: Nachrichten-Liste
+        right_frame = ttk.Frame(main_frame)
+        right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Scrollbare Liste
+        self.canvas = tk.Canvas(right_frame, bg=SpeakAlikeGUI.COLOR_BG, 
+                                highlightthickness=0)
+        scrollbar = ttk.Scrollbar(right_frame, orient=tk.VERTICAL, 
+                                  command=self.canvas.yview)
+        
+        self.messages_frame = ttk.Frame(self.canvas)
+        
+        self.canvas.create_window((0, 0), window=self.messages_frame, 
+                                  anchor=tk.NW, tags="messages")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Mausrad-Scrolling
+        self.canvas.bind('<MouseWheel>', self._on_mousewheel)
+        self.messages_frame.bind('<Configure>', 
+                                 lambda e: self.canvas.configure(
+                                     scrollregion=self.canvas.bbox("all")))
+        
+        # Canvas-Breite anpassen
+        right_frame.bind('<Configure>', self._on_canvas_configure)
+    
+    def _on_canvas_configure(self, event):
+        """Passt die Breite des inneren Frames an"""
+        self.canvas.itemconfig("messages", width=event.width - 20)
+    
+    def _on_mousewheel(self, event):
+        """Mausrad-Scrolling"""
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    
+    def refresh_tags(self):
+        """Aktualisiert die Tag-Liste"""
+        for widget in self.tags_frame.winfo_children():
+            widget.destroy()
+        
+        tags = self.catalog.get_all_tags()
+        for tag_name, count in tags[:15]:
+            is_selected = tag_name in self.selected_tags
+            bg = "#4338ca" if is_selected else "#e0e7ff"
+            fg = "white" if is_selected else "#4338ca"
+            
+            tag_btn = tk.Button(
+                self.tags_frame,
+                text=f"{tag_name}",
+                command=lambda t=tag_name: self.toggle_tag(t),
+                font=SpeakAlikeGUI.FONT_TINY,
+                bg=bg,
+                fg=fg,
+                relief=tk.FLAT,
+                cursor="hand2",
+                padx=6, pady=2
+            )
+            tag_btn.pack(side=tk.LEFT, padx=2, pady=2)
+    
+    def toggle_tag(self, tag):
+        """Tag an/abwählen"""
+        if tag in self.selected_tags:
+            self.selected_tags.remove(tag)
+        else:
+            self.selected_tags.append(tag)
+        self.refresh_tags()
+        self.search()
+    
+    def show_all(self):
+        """Zeigt alle Nachrichten"""
+        self.search_entry.delete(0, tk.END)
+        self.selected_tags.clear()
+        self.favorites_var.set(False)
+        self.sort_var.set("created_at")
+        self.refresh_tags()
+        self.search()
+    
+    def search_delayed(self):
+        """Verzögerte Suche für bessere Performance"""
+        if self.search_timer:
+            self.window.after_cancel(self.search_timer)
+        self.search_timer = self.window.after(300, self.search)
+    
+    def search(self):
+        """Führt die Suche aus"""
+        query = self.search_entry.get().strip() or None
+        
+        self.current_messages = self.catalog.search(
+            query=query,
+            tags=self.selected_tags if self.selected_tags else None,
+            favorites_only=self.favorites_var.get(),
+            order_by=self.sort_var.get()
+        )
+        
+        self.refresh_messages()
+    
+    def refresh_messages(self):
+        """Aktualisiert die Nachrichten-Anzeige"""
+        # Alte Widgets entfernen
+        for widget in self.messages_frame.winfo_children():
+            widget.destroy()
+        
+        if not self.current_messages:
+            ttk.Label(self.messages_frame, 
+                      text="Keine Nachrichten gefunden.",
+                      style="Muted.TLabel").pack(pady=20)
+            return
+        
+        # Nachrichten anzeigen
+        for msg in self.current_messages:
+            self.create_message_card(msg)
+    
+    def create_message_card(self, msg):
+        """Erstellt eine Karte für eine Nachricht"""
+        card = tk.Frame(self.messages_frame, bg="#ffffff", 
+                        relief=tk.FLAT, bd=1, padx=15, pady=12)
+        card.pack(fill=tk.X, pady=5, padx=5)
+        
+        # Obere Zeile: Text + Favorit
+        top_frame = tk.Frame(card, bg="#ffffff")
+        top_frame.pack(fill=tk.X)
+        
+        # Favorit-Stern
+        fav_text = "⭐" if msg['is_favorite'] else "☆"
+        fav_btn = tk.Button(
+            top_frame,
+            text=fav_text,
+            command=lambda m=msg: self.toggle_favorite(m),
+            font=SpeakAlikeGUI.FONT_MEDIUM,
+            bg="#ffffff",
+            fg="#f59e0b" if msg['is_favorite'] else "#9ca3af",
+            relief=tk.FLAT,
+            cursor="hand2",
+            bd=0
+        )
+        fav_btn.pack(side=tk.LEFT)
+        
+        # Text (gekürzt)
+        text = msg['text']
+        if len(text) > 100:
+            text = text[:100] + "..."
+        
+        text_label = tk.Label(top_frame, text=text, 
+                              font=SpeakAlikeGUI.FONT_MEDIUM,
+                              bg="#ffffff", fg=SpeakAlikeGUI.COLOR_TEXT,
+                              anchor=tk.W, justify=tk.LEFT)
+        text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Mittlere Zeile: Tags + Info
+        middle_frame = tk.Frame(card, bg="#ffffff")
+        middle_frame.pack(fill=tk.X, pady=(8, 0))
+        
+        # Tags
+        if msg['tags']:
+            for tag in msg['tags'][:5]:
+                tag_label = tk.Label(
+                    middle_frame,
+                    text=tag,
+                    font=SpeakAlikeGUI.FONT_TINY,
+                    bg="#e0e7ff",
+                    fg="#4338ca",
+                    padx=6, pady=2
+                )
+                tag_label.pack(side=tk.LEFT, padx=(0, 4))
+        
+        # Info (Datum, Wiedergaben)
+        created = msg['created_at'][:10] if msg['created_at'] else ""
+        plays = msg['play_count'] or 0
+        duration = f"{msg['duration_seconds']:.1f}s" if msg['duration_seconds'] else ""
+        
+        info_text = f"📅 {created}  ▶️ {plays}x"
+        if duration:
+            info_text += f"  ⏱️ {duration}"
+        
+        info_label = tk.Label(middle_frame, text=info_text,
+                              font=SpeakAlikeGUI.FONT_TINY,
+                              bg="#ffffff", fg=SpeakAlikeGUI.COLOR_TEXT_MUTED)
+        info_label.pack(side=tk.RIGHT)
+        
+        # Untere Zeile: Buttons
+        button_frame = tk.Frame(card, bg="#ffffff")
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # Abspielen
+        play_btn = tk.Button(
+            button_frame,
+            text="▶ Abspielen",
+            command=lambda m=msg: self.play_message(m),
+            font=SpeakAlikeGUI.FONT_SMALL,
+            bg=SpeakAlikeGUI.COLOR_SUCCESS,
+            fg="white",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=12
+        )
+        play_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # In Eingabe übernehmen
+        use_btn = tk.Button(
+            button_frame,
+            text="📝 Text verwenden",
+            command=lambda m=msg: self.use_text(m),
+            font=SpeakAlikeGUI.FONT_SMALL,
+            bg="#e5e7eb",
+            fg=SpeakAlikeGUI.COLOR_TEXT,
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=12
+        )
+        use_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Tags bearbeiten
+        edit_tags_btn = tk.Button(
+            button_frame,
+            text="🏷️ Tags",
+            command=lambda m=msg: self.edit_tags(m),
+            font=SpeakAlikeGUI.FONT_SMALL,
+            bg="#fef3c7",
+            fg="#92400e",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=8
+        )
+        edit_tags_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Löschen
+        delete_btn = tk.Button(
+            button_frame,
+            text="🗑️",
+            command=lambda m=msg: self.delete_message(m),
+            font=SpeakAlikeGUI.FONT_SMALL,
+            bg="#fee2e2",
+            fg=SpeakAlikeGUI.COLOR_DANGER,
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=8
+        )
+        delete_btn.pack(side=tk.RIGHT)
+    
+    def play_message(self, msg):
+        """Spielt eine gespeicherte Nachricht ab"""
+        if os.path.exists(msg['audio_path']):
+            # Play-Count erhöhen
+            self.catalog.update_play_count(msg['id'])
+            
+            # Audio abspielen
+            import threading
+            def play():
+                try:
+                    import sounddevice as sd
+                    import soundfile as sf
+                    data, sr = sf.read(msg['audio_path'])
+                    sd.play(data, sr)
+                    sd.wait()
+                except Exception as e:
+                    print(f"Fehler beim Abspielen: {e}")
+            
+            threading.Thread(target=play, daemon=True).start()
+        else:
+            messagebox.showerror("Fehler", "Audio-Datei nicht gefunden!")
+    
+    def use_text(self, msg):
+        """Übernimmt den Text in das Hauptfenster"""
+        # Finde das Hauptfenster
+        for widget in self.window.master.winfo_children():
+            if hasattr(widget, 'text_input'):
+                widget.text_input.delete(1.0, tk.END)
+                widget.text_input.insert(1.0, msg['text'])
+                break
+        
+        # Alternativ: Schließe Katalog und setze Text
+        self.window.destroy()
+    
+    def edit_tags(self, msg):
+        """Öffnet Dialog zum Bearbeiten der Tags einer Nachricht"""
+        dialog = tk.Toplevel(self.window)
+        dialog.title("Tags bearbeiten")
+        dialog.geometry("450x300")
+        dialog.configure(bg=SpeakAlikeGUI.COLOR_BG)
+        dialog.transient(self.window)
+        dialog.grab_set()
+        
+        # Zentrieren
+        dialog.update_idletasks()
+        x = self.window.winfo_x() + (self.window.winfo_width() - 450) // 2
+        y = self.window.winfo_y() + (self.window.winfo_height() - 300) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Content
+        content = ttk.Frame(dialog, padding=20)
+        content.pack(fill=tk.BOTH, expand=True)
+        
+        # Titel
+        ttk.Label(content, text="🏷️ Tags bearbeiten", 
+                  font=SpeakAlikeGUI.FONT_LARGE).pack(anchor=tk.W)
+        
+        # Text-Vorschau (gekürzt)
+        text_preview = msg['text'][:80] + "..." if len(msg['text']) > 80 else msg['text']
+        ttk.Label(content, text=text_preview, 
+                  style="Muted.TLabel", wraplength=400).pack(anchor=tk.W, pady=(5, 15))
+        
+        # Tags-Eingabe
+        ttk.Label(content, text="Schlagworte (mit Komma trennen):", 
+                  style="Muted.TLabel").pack(anchor=tk.W)
+        
+        tags_entry = tk.Entry(content, font=SpeakAlikeGUI.FONT_MEDIUM,
+                              bg="#ffffff", relief=tk.FLAT, bd=1)
+        tags_entry.pack(fill=tk.X, pady=5, ipady=8)
+        
+        # Aktuelle Tags einfügen
+        if msg['tags']:
+            tags_entry.insert(0, ', '.join(msg['tags']))
+        tags_entry.focus_set()
+        
+        # Vorhandene Tags als Vorschläge
+        existing_tags = self.catalog.get_all_tags()
+        if existing_tags:
+            ttk.Label(content, text="Vorhandene Tags:", 
+                      style="Muted.TLabel").pack(anchor=tk.W, pady=(10, 5))
+            
+            tags_suggest_frame = ttk.Frame(content)
+            tags_suggest_frame.pack(fill=tk.X)
+            
+            def add_tag(tag):
+                current = tags_entry.get().strip()
+                if current:
+                    existing = [t.strip().lower() for t in current.split(',')]
+                    if tag.lower() not in existing:
+                        tags_entry.delete(0, tk.END)
+                        tags_entry.insert(0, f"{current}, {tag}")
+                else:
+                    tags_entry.insert(0, tag)
+            
+            for tag_name, count in existing_tags[:12]:
+                tag_btn = tk.Button(
+                    tags_suggest_frame,
+                    text=f"{tag_name}",
+                    command=lambda t=tag_name: add_tag(t),
+                    font=SpeakAlikeGUI.FONT_TINY,
+                    bg="#e0e7ff",
+                    fg="#4338ca",
+                    relief=tk.FLAT,
+                    cursor="hand2",
+                    padx=6, pady=2
+                )
+                tag_btn.pack(side=tk.LEFT, padx=2, pady=2)
+        
+        # Buttons
+        button_frame = ttk.Frame(content)
+        button_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        def save_tags():
+            tags_text = tags_entry.get().strip()
+            tags = [t.strip() for t in tags_text.split(',') if t.strip()]
+            
+            self.catalog.update_tags(msg['id'], tags)
+            dialog.destroy()
+            
+            # Liste aktualisieren
+            self.search()
+            self.refresh_tags()
+        
+        save_btn = tk.Button(
+            button_frame,
+            text="Speichern",
+            command=save_tags,
+            font=SpeakAlikeGUI.FONT_BUTTON,
+            bg=SpeakAlikeGUI.COLOR_PRIMARY,
+            fg="white",
+            activebackground=SpeakAlikeGUI.COLOR_PRIMARY_HOVER,
+            width=12,
+            cursor="hand2",
+            relief=tk.FLAT
+        )
+        save_btn.pack(side=tk.LEFT, padx=5)
+        
+        cancel_btn = tk.Button(
+            button_frame,
+            text="Abbrechen",
+            command=dialog.destroy,
+            font=SpeakAlikeGUI.FONT_BUTTON,
+            bg="#e5e7eb",
+            fg=SpeakAlikeGUI.COLOR_TEXT,
+            width=12,
+            cursor="hand2",
+            relief=tk.FLAT
+        )
+        cancel_btn.pack(side=tk.LEFT, padx=5)
+    
+    def toggle_favorite(self, msg):
+        """Schaltet Favoriten-Status um"""
+        self.catalog.toggle_favorite(msg['id'])
+        self.search()  # Aktualisieren
+    
+    def delete_message(self, msg):
+        """Löscht eine Nachricht"""
+        if messagebox.askyesno("Löschen bestätigen", 
+                               "Möchten Sie diese Nachricht wirklich löschen?"):
+            self.catalog.delete_message(msg['id'])
+            self.search()  # Aktualisieren
+            self.refresh_tags()
 
 
 def main():

@@ -1,0 +1,379 @@
+"""
+SpeakAlike Katalog - Speicherung und Verwaltung von Sprachnachrichten
+"""
+import os
+import sqlite3
+import json
+from datetime import datetime
+from typing import List, Optional, Tuple
+import shutil
+
+
+class MessageCatalog:
+    """Verwaltet den Katalog gespeicherter Sprachnachrichten."""
+    
+    def __init__(self, db_path: str = None, audio_dir: str = None):
+        """
+        Initialisiert den Katalog.
+        
+        Args:
+            db_path: Pfad zur SQLite-Datenbank (Standard: catalog.db im App-Verzeichnis)
+            audio_dir: Verzeichnis für Audio-Dateien (Standard: catalog_audio/)
+        """
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        self.db_path = db_path or os.path.join(base_dir, "catalog.db")
+        self.audio_dir = audio_dir or os.path.join(base_dir, "catalog_audio")
+        
+        # Audio-Verzeichnis erstellen
+        os.makedirs(self.audio_dir, exist_ok=True)
+        
+        # Datenbank initialisieren
+        self._init_db()
+    
+    def _init_db(self):
+        """Erstellt die Datenbank-Tabellen falls nicht vorhanden."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Haupttabelle für Nachrichten
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    text TEXT NOT NULL,
+                    audio_path TEXT NOT NULL,
+                    voice_model TEXT,
+                    duration_seconds REAL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    play_count INTEGER DEFAULT 0,
+                    last_played_at TIMESTAMP,
+                    is_favorite INTEGER DEFAULT 0
+                )
+            ''')
+            
+            # Tags-Tabelle
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL
+                )
+            ''')
+            
+            # Verknüpfungstabelle Message <-> Tags
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS message_tags (
+                    message_id INTEGER,
+                    tag_id INTEGER,
+                    PRIMARY KEY (message_id, tag_id),
+                    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+                    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Volltextsuche-Index
+            cursor.execute('''
+                CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts 
+                USING fts5(text, content='messages', content_rowid='id')
+            ''')
+            
+            # Trigger für Volltextsuche-Sync
+            cursor.execute('''
+                CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+                    INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
+                END
+            ''')
+            
+            cursor.execute('''
+                CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+                    INSERT INTO messages_fts(messages_fts, rowid, text) VALUES('delete', old.id, old.text);
+                END
+            ''')
+            
+            cursor.execute('''
+                CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+                    INSERT INTO messages_fts(messages_fts, rowid, text) VALUES('delete', old.id, old.text);
+                    INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
+                END
+            ''')
+            
+            conn.commit()
+    
+    def add_message(self, text: str, source_audio_path: str, 
+                    tags: List[str] = None, voice_model: str = None,
+                    duration_seconds: float = None) -> int:
+        """
+        Fügt eine neue Nachricht zum Katalog hinzu.
+        
+        Args:
+            text: Der gesprochene Text
+            source_audio_path: Pfad zur Audio-Datei (wird in Katalog kopiert)
+            tags: Liste von Schlagworten
+            voice_model: Name des verwendeten Voice-Modells
+            duration_seconds: Länge der Audio-Datei in Sekunden
+            
+        Returns:
+            ID der neuen Nachricht
+        """
+        # Audio-Datei in Katalog-Verzeichnis kopieren
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"msg_{timestamp}.wav"
+        dest_path = os.path.join(self.audio_dir, filename)
+        shutil.copy2(source_audio_path, dest_path)
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Nachricht einfügen
+            cursor.execute('''
+                INSERT INTO messages (text, audio_path, voice_model, duration_seconds)
+                VALUES (?, ?, ?, ?)
+            ''', (text, dest_path, voice_model, duration_seconds))
+            
+            message_id = cursor.lastrowid
+            
+            # Tags hinzufügen
+            if tags:
+                for tag in tags:
+                    tag = tag.strip().lower()
+                    if tag:
+                        # Tag erstellen falls nicht vorhanden
+                        cursor.execute(
+                            'INSERT OR IGNORE INTO tags (name) VALUES (?)', 
+                            (tag,)
+                        )
+                        cursor.execute('SELECT id FROM tags WHERE name = ?', (tag,))
+                        tag_id = cursor.fetchone()[0]
+                        
+                        # Verknüpfung erstellen
+                        cursor.execute(
+                            'INSERT OR IGNORE INTO message_tags (message_id, tag_id) VALUES (?, ?)',
+                            (message_id, tag_id)
+                        )
+            
+            conn.commit()
+            return message_id
+    
+    def search(self, query: str = None, tags: List[str] = None,
+               favorites_only: bool = False, 
+               order_by: str = "created_at",
+               limit: int = 50) -> List[dict]:
+        """
+        Durchsucht den Katalog.
+        
+        Args:
+            query: Suchtext (durchsucht den Text)
+            tags: Filtere nach diesen Tags (AND-Verknüpfung)
+            favorites_only: Nur Favoriten anzeigen
+            order_by: Sortierung (created_at, play_count, last_played_at)
+            limit: Maximale Anzahl Ergebnisse
+            
+        Returns:
+            Liste von Nachrichten als Dictionaries
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Basis-Query
+            if query:
+                # Volltextsuche
+                sql = '''
+                    SELECT m.*, GROUP_CONCAT(t.name) as tags_str
+                    FROM messages m
+                    LEFT JOIN message_tags mt ON m.id = mt.message_id
+                    LEFT JOIN tags t ON mt.tag_id = t.id
+                    WHERE m.id IN (
+                        SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
+                    )
+                '''
+                params = [query + '*']  # Prefix-Suche
+            else:
+                sql = '''
+                    SELECT m.*, GROUP_CONCAT(t.name) as tags_str
+                    FROM messages m
+                    LEFT JOIN message_tags mt ON m.id = mt.message_id
+                    LEFT JOIN tags t ON mt.tag_id = t.id
+                    WHERE 1=1
+                '''
+                params = []
+            
+            # Filter: Favoriten
+            if favorites_only:
+                sql += ' AND m.is_favorite = 1'
+            
+            # Filter: Tags
+            if tags:
+                for tag in tags:
+                    sql += '''
+                        AND m.id IN (
+                            SELECT mt2.message_id FROM message_tags mt2
+                            JOIN tags t2 ON mt2.tag_id = t2.id
+                            WHERE t2.name = ?
+                        )
+                    '''
+                    params.append(tag.strip().lower())
+            
+            # Gruppierung und Sortierung
+            sql += f' GROUP BY m.id ORDER BY m.{order_by} DESC LIMIT ?'
+            params.append(limit)
+            
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            
+            # In Dictionaries umwandeln
+            results = []
+            for row in rows:
+                msg = dict(row)
+                msg['tags'] = msg['tags_str'].split(',') if msg['tags_str'] else []
+                del msg['tags_str']
+                results.append(msg)
+            
+            return results
+    
+    def get_message(self, message_id: int) -> Optional[dict]:
+        """Holt eine einzelne Nachricht."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT m.*, GROUP_CONCAT(t.name) as tags_str
+                FROM messages m
+                LEFT JOIN message_tags mt ON m.id = mt.message_id
+                LEFT JOIN tags t ON mt.tag_id = t.id
+                WHERE m.id = ?
+                GROUP BY m.id
+            ''', (message_id,))
+            
+            row = cursor.fetchone()
+            if row:
+                msg = dict(row)
+                msg['tags'] = msg['tags_str'].split(',') if msg['tags_str'] else []
+                del msg['tags_str']
+                return msg
+            return None
+    
+    def update_play_count(self, message_id: int):
+        """Erhöht den Abspiel-Zähler und setzt last_played_at."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE messages 
+                SET play_count = play_count + 1, last_played_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (message_id,))
+            conn.commit()
+    
+    def toggle_favorite(self, message_id: int) -> bool:
+        """Schaltet Favoriten-Status um. Gibt neuen Status zurück."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'UPDATE messages SET is_favorite = 1 - is_favorite WHERE id = ?',
+                (message_id,)
+            )
+            cursor.execute('SELECT is_favorite FROM messages WHERE id = ?', (message_id,))
+            result = cursor.fetchone()
+            conn.commit()
+            return bool(result[0]) if result else False
+    
+    def update_tags(self, message_id: int, tags: List[str]):
+        """Aktualisiert die Tags einer Nachricht."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Alte Tags entfernen
+            cursor.execute('DELETE FROM message_tags WHERE message_id = ?', (message_id,))
+            
+            # Neue Tags hinzufügen
+            for tag in tags:
+                tag = tag.strip().lower()
+                if tag:
+                    cursor.execute('INSERT OR IGNORE INTO tags (name) VALUES (?)', (tag,))
+                    cursor.execute('SELECT id FROM tags WHERE name = ?', (tag,))
+                    tag_id = cursor.fetchone()[0]
+                    cursor.execute(
+                        'INSERT INTO message_tags (message_id, tag_id) VALUES (?, ?)',
+                        (message_id, tag_id)
+                    )
+            
+            conn.commit()
+    
+    def delete_message(self, message_id: int):
+        """Löscht eine Nachricht und ihre Audio-Datei."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Audio-Pfad holen
+            cursor.execute('SELECT audio_path FROM messages WHERE id = ?', (message_id,))
+            result = cursor.fetchone()
+            
+            if result:
+                audio_path = result[0]
+                # Audio-Datei löschen
+                if os.path.exists(audio_path):
+                    os.remove(audio_path)
+                
+                # Datenbankeinträge löschen (CASCADE löscht auch message_tags)
+                cursor.execute('DELETE FROM messages WHERE id = ?', (message_id,))
+                conn.commit()
+    
+    def get_all_tags(self) -> List[Tuple[str, int]]:
+        """
+        Holt alle Tags mit Anzahl der Verwendungen.
+        
+        Returns:
+            Liste von (tag_name, count) Tupeln
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT t.name, COUNT(mt.message_id) as count
+                FROM tags t
+                LEFT JOIN message_tags mt ON t.id = mt.tag_id
+                GROUP BY t.id
+                ORDER BY count DESC, t.name ASC
+            ''')
+            return cursor.fetchall()
+    
+    def get_recent_messages(self, limit: int = 10) -> List[dict]:
+        """Holt die zuletzt erstellten Nachrichten."""
+        return self.search(order_by="created_at", limit=limit)
+    
+    def get_frequent_messages(self, limit: int = 10) -> List[dict]:
+        """Holt die am häufigsten abgespielten Nachrichten."""
+        return self.search(order_by="play_count", limit=limit)
+    
+    def get_stats(self) -> dict:
+        """Gibt Statistiken zum Katalog zurück."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT COUNT(*) FROM messages')
+            total_messages = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT COUNT(*) FROM tags')
+            total_tags = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT SUM(play_count) FROM messages')
+            total_plays = cursor.fetchone()[0] or 0
+            
+            cursor.execute('SELECT SUM(duration_seconds) FROM messages')
+            total_duration = cursor.fetchone()[0] or 0
+            
+            return {
+                'total_messages': total_messages,
+                'total_tags': total_tags,
+                'total_plays': total_plays,
+                'total_duration_seconds': total_duration
+            }
+
+
+# Test
+if __name__ == "__main__":
+    catalog = MessageCatalog()
+    
+    print("Katalog initialisiert!")
+    print(f"Datenbank: {catalog.db_path}")
+    print(f"Audio-Ordner: {catalog.audio_dir}")
+    print(f"Stats: {catalog.get_stats()}")
