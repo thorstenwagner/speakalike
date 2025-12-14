@@ -58,7 +58,7 @@ class TextToSpeech:
         self.temperature = 0.3  # Niedrig für klare, konsistente Ausgabe
         self.top_k = 30  # Eingeschränktere Token-Auswahl
         self.top_p = 0.75  # Nucleus Sampling
-        self.repetition_penalty = 5.0  # Gegen Stottern/Wiederholungen
+        self.repetition_penalty = 2.0  # Gegen Stottern/Wiederholungen (max 2.0)
         self.speed = 1.0  # Sprechgeschwindigkeit
         self.length_penalty = 1.0  # Ausgeglichene Länge
         
@@ -277,7 +277,8 @@ class TextToSpeech:
             if 'top_p' in data:
                 self.top_p = data['top_p']
             if 'repetition_penalty' in data:
-                self.repetition_penalty = data['repetition_penalty']
+                # Begrenze auf gültigen Bereich (1.0 - 2.0)
+                self.repetition_penalty = min(data['repetition_penalty'], 2.0)
             if 'speed' in data:
                 self.speed = data['speed']
             if 'seed' in data:
@@ -922,7 +923,7 @@ class TextToSpeech:
             split_sentences=True,
             temperature=0.4,  # Niedrigere Temperatur für Konsistenz
             length_penalty=1.0,
-            repetition_penalty=5.0,
+            repetition_penalty=2.0,
             top_k=30,
             top_p=0.75
         )

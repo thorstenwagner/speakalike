@@ -759,13 +759,29 @@ async function init() {
     }
     
     if (connected) {
-        loadVoiceModels();
+        // Katalog kann sofort geladen werden
         loadCatalogTags();
         loadCatalogPreview();
+        
+        // Voice-Models erst laden wenn TTS bereit ist
+        await waitForTTSAndLoadModels();
     }
     
     // Periodic status check
     setInterval(checkStatus, 5000);
+}
+
+async function waitForTTSAndLoadModels() {
+    // Warte bis TTS geladen ist (max 60 Sekunden)
+    for (let i = 0; i < 60; i++) {
+        const status = await api('/api/status');
+        if (!status.loading) {
+            loadVoiceModels();
+            return;
+        }
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    console.error('TTS loading timeout');
 }
 
 // Start
