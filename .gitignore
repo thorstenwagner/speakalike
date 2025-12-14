@@ -39,3 +39,21 @@ temp/
 .models/
 tts_models/
 vocoder_models/
+# Electron
+electron-app/node_modules/
+electron-app/dist/
+electron-app/out/
+
+# Database and catalog
+catalog.db
+catalog_audio/
+
+# Environment variables
+.env
+
+# Voice models (user-specific)
+voice_models/
+
+# Temp files
+*.tmp
+*.temp

@@ -454,10 +454,11 @@ class TextToSpeech:
         else:
             self._inference_api_default(text, language, output_path)
         
-        # Audio abspielen
-        data, samplerate = sf.read(output_path)
-        sd.play(data, samplerate)
-        sd.wait()
+        # Audio abspielen (nur wenn nicht headless/API-Modus)
+        if not getattr(self, 'headless_mode', False):
+            data, samplerate = sf.read(output_path)
+            sd.play(data, samplerate)
+            sd.wait()
         
         return output_path
     
@@ -711,7 +712,7 @@ class TextToSpeech:
                 trimmed_duration = len(trimmed) / sample_rate
                 
                 if original_duration - trimmed_duration > 0.05:
-                    print(f"  → Whisper-Trimming: {original_duration:.2f}s → {trimmed_duration:.2f}s "
+                    print(f"  -> Whisper-Trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
                           f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
                     print(f"    Letztes Wort: '{last_valid_word}'")
                 
@@ -906,7 +907,7 @@ class TextToSpeech:
         trimmed_duration = len(trimmed) / sample_rate
         
         if original_duration - trimmed_duration > 0.1:
-            print(f"  → Audio getrimmt: {original_duration:.2f}s → {trimmed_duration:.2f}s "
+            print(f"  -> Audio getrimmt: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
                   f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
         
         return trimmed

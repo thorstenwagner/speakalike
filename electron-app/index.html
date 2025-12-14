@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://127.0.0.1:8765; media-src http://127.0.0.1:8765 blob:;">
+    <title>SpeakAlike</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="logo">🎙️ SpeakAlike</h1>
+            </div>
+            <div class="header-right">
+                <div class="status" id="status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Verbinde...</span>
+                </div>
+                <button class="btn btn-icon" id="settingsBtn" title="Einstellungen">⚙️</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Voice Model Section -->
+            <section class="card voice-section">
+                <div class="card-header">
+                    <h2>🎤 Stimme</h2>
+                    <div class="voice-actions">
+                        <button class="btn btn-secondary" id="newVoiceBtn">+ Neue Stimme</button>
+                    </div>
+                </div>
+                <div class="voice-info">
+                    <div class="current-voice" id="currentVoice">
+                        <span class="voice-label">Aktuelle Stimme:</span>
+                        <span class="voice-name">Standard</span>
+                    </div>
+                    <select class="select" id="voiceSelect">
+                        <option value="">Standard (XTTS)</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Text Input Section -->
+            <section class="card text-section">
+                <div class="card-header">
+                    <h2>📝 Text</h2>
+                    <div class="language-select">
+                        <label for="languageSelect">Sprache:</label>
+                        <select class="select" id="languageSelect">
+                            <option value="de">Deutsch</option>
+                            <option value="en">English</option>
+                            <option value="es">Español</option>
+                            <option value="fr">Français</option>
+                            <option value="it">Italiano</option>
+                            <option value="pt">Português</option>
+                            <option value="pl">Polski</option>
+                            <option value="tr">Türkçe</option>
+                            <option value="ru">Русский</option>
+                            <option value="nl">Nederlands</option>
+                            <option value="ja">日本語</option>
+                            <option value="zh-cn">中文</option>
+                            <option value="ko">한국어</option>
+                            <option value="ar">العربية</option>
+                        </select>
+                    </div>
+                </div>
+                <textarea 
+                    class="text-input" 
+                    id="textInput" 
+                    placeholder="Geben Sie hier den Text ein, der vorgelesen werden soll..."
+                    rows="6"
+                ></textarea>
+                <div class="text-actions">
+                    <span class="char-count" id="charCount">0 Zeichen</span>
+                    <div class="action-buttons">
+                        <button class="btn btn-large btn-success" id="speakBtn">
+                            ▶️ Vorlesen
+                        </button>
+                        <button class="btn btn-large btn-danger" id="stopBtn" disabled>
+                            ⏹️ Stopp
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Audio Player Section -->
+            <section class="card audio-section" id="audioSection" style="display: none;">
+                <div class="card-header">
+                    <h2>🔊 Audio</h2>
+                    <div class="audio-actions">
+                        <button class="btn btn-secondary" id="saveAudioBtn">💾 Speichern</button>
+                        <button class="btn btn-secondary" id="catalogBtn">📁 Zum Katalog</button>
+                    </div>
+                </div>
+                <div class="audio-player">
+                    <audio id="audioPlayer" controls></audio>
+                </div>
+            </section>
+
+            <!-- Catalog Section -->
+            <section class="card catalog-section">
+                <div class="card-header">
+                    <h2>📚 Katalog</h2>
+                    <button class="btn btn-secondary" id="openCatalogBtn">Öffnen</button>
+                </div>
+                <div class="catalog-preview" id="catalogPreview">
+                    <p class="muted">Noch keine Einträge im Katalog</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Einstellungen</h2>
+                <button class="btn btn-icon modal-close" id="closeSettingsBtn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label>Geschwindigkeit</label>
+                    <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.1" value="1.0">
+                    <span id="speedValue">1.0x</span>
+                </div>
+                <div class="setting-group">
+                    <label>Temperatur</label>
+                    <input type="range" id="temperatureSlider" min="0.1" max="1.0" step="0.05" value="0.3">
+                    <span id="temperatureValue">0.3</span>
+                </div>
+                <div class="setting-group">
+                    <label>Wiederholungsstrafe</label>
+                    <input type="range" id="repetitionSlider" min="1.0" max="10.0" step="0.5" value="5.0">
+                    <span id="repetitionValue">5.0</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="saveSettingsBtn">Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Voice Modal -->
+    <div class="modal" id="newVoiceModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>🎤 Neue Stimme erstellen</h2>
+                <button class="btn btn-icon modal-close" id="closeNewVoiceBtn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="voiceName">Name der Stimme</label>
+                    <input type="text" class="input" id="voiceName" placeholder="z.B. Meine Stimme">
+                </div>
+                <div class="form-group">
+                    <label>Audio-Samples (WAV, MP3, OGG)</label>
+                    <div class="file-drop-zone" id="fileDropZone">
+                        <p>📂 Dateien hierher ziehen oder klicken zum Auswählen</p>
+                        <p class="muted">5-30 Sekunden pro Sample empfohlen</p>
+                    </div>
+                    <div class="file-list" id="fileList"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelNewVoiceBtn">Abbrechen</button>
+                <button class="btn btn-primary" id="createVoiceBtn" disabled>Stimme erstellen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Catalog Modal -->
+    <div class="modal" id="catalogModal">
+        <div class="modal-content modal-fullscreen">
+            <div class="modal-header">
+                <h2>📚 Nachrichtenkatalog</h2>
+                <button class="btn btn-icon modal-close" id="closeCatalogBtn">✕</button>
+            </div>
+            <div class="catalog-toolbar">
+                <input type="search" class="input search-input" id="catalogSearch" placeholder="🔍 Suchen...">
+                <select class="select" id="catalogTagFilter">
+                    <option value="">Alle Tags</option>
+                </select>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="favoritesOnly">
+                    ⭐ Nur Favoriten
+                </label>
+            </div>
+            <div class="catalog-grid" id="catalogGrid">
+                <!-- Catalog items will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Save to Catalog Modal -->
+    <div class="modal" id="saveCatalogModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📁 Zum Katalog hinzufügen</h2>
+                <button class="btn btn-icon modal-close" id="closeSaveCatalogBtn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Text</label>
+                    <div class="text-preview" id="saveTextPreview"></div>
+                </div>
+                <div class="form-group">
+                    <div class="label-row">
+                        <label for="tagsInput">Schlagworte</label>
+                        <button class="btn btn-small" id="autoTagsBtn">🤖 Auto-Tags</button>
+                    </div>
+                    <input type="text" class="input" id="tagsInput" placeholder="Tags mit Komma trennen...">
+                </div>
+                <div class="existing-tags" id="existingTags">
+                    <!-- Existing tags will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelSaveCatalogBtn">Abbrechen</button>
+                <button class="btn btn-primary" id="confirmSaveCatalogBtn">💾 Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
