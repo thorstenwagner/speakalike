@@ -104,3 +104,33 @@ ipcMain.handle('save-file-dialog', async (event, options) => {
     });
     return result;
 });
+
+ipcMain.handle('read-file-as-buffer', async (event, filePath) => {
+    const fs = require('fs');
+    const path = require('path');
+    
+    try {
+        const buffer = fs.readFileSync(filePath);
+        const fileName = path.basename(filePath);
+        const ext = path.extname(filePath).toLowerCase();
+        
+        // Determine MIME type
+        const mimeTypes = {
+            '.wav': 'audio/wav',
+            '.mp3': 'audio/mpeg',
+            '.ogg': 'audio/ogg',
+            '.flac': 'audio/flac',
+            '.m4a': 'audio/mp4'
+        };
+        const mimeType = mimeTypes[ext] || 'audio/wav';
+        
+        return {
+            data: buffer.toString('base64'),
+            fileName: fileName,
+            mimeType: mimeType
+        };
+    } catch (error) {
+        console.error('Error reading file:', error);
+        throw error;
+    }
+});

@@ -166,6 +166,7 @@ class MessageCatalog:
             return message_id
     
     def search(self, query: str = None, tags: List[str] = None,
+               tag_mode: str = "and",
                favorites_only: bool = False, 
                order_by: str = "created_at",
                limit: int = 50) -> List[dict]:
@@ -174,7 +175,8 @@ class MessageCatalog:
         
         Args:
             query: Suchtext (durchsucht den Text)
-            tags: Filtere nach diesen Tags (AND-Verknüpfung)
+            tags: Filtere nach diesen Tags
+            tag_mode: "and" = alle Tags müssen vorhanden sein, "or" = mindestens ein Tag
             favorites_only: Nur Favoriten anzeigen
             order_by: Sortierung (created_at, play_count, last_played_at)
             limit: Maximale Anzahl Ergebnisse
@@ -213,17 +215,30 @@ class MessageCatalog:
             if favorites_only:
                 sql += ' AND m.is_favorite = 1'
             
-            # Filter: Tags
+            # Filter: Tags mit AND oder OR Verknüpfung
             if tags:
-                for tag in tags:
-                    sql += '''
+                if tag_mode == "or":
+                    # OR-Verknüpfung: mindestens ein Tag muss vorhanden sein
+                    placeholders = ','.join(['?' for _ in tags])
+                    sql += f'''
                         AND m.id IN (
                             SELECT mt2.message_id FROM message_tags mt2
                             JOIN tags t2 ON mt2.tag_id = t2.id
-                            WHERE t2.name = ?
+                            WHERE t2.name IN ({placeholders})
                         )
                     '''
-                    params.append(tag.strip().lower())
+                    params.extend([tag.strip().lower() for tag in tags])
+                else:
+                    # AND-Verknüpfung: alle Tags müssen vorhanden sein
+                    for tag in tags:
+                        sql += '''
+                            AND m.id IN (
+                                SELECT mt2.message_id FROM message_tags mt2
+                                JOIN tags t2 ON mt2.tag_id = t2.id
+                                WHERE t2.name = ?
+                            )
+                        '''
+                        params.append(tag.strip().lower())
             
             # Gruppierung und Sortierung
             sql += f' GROUP BY m.id ORDER BY m.{order_by} DESC LIMIT ?'

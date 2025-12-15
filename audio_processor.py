@@ -5,10 +5,19 @@ Audio-Vorverarbeitung für Voice Cloning
 - Kurze Samples zusammenfügen
 """
 import os
+import sys
 import tempfile
 import numpy as np
 import soundfile as sf
 from pathlib import Path
+
+# Windows Konsole auf UTF-8 setzen, um Unicode-Fehler zu vermeiden
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass  # Falls reconfigure nicht verfügbar ist
 
 
 def reduce_noise(audio_data, sample_rate, prop_decrease=0.8, use_spectral_gating=True):
@@ -336,10 +345,10 @@ def prepare_samples_for_cloning(file_paths, min_total_duration=10,
             processed_files.append(processed_path)
             total_duration += processed_duration
             
-            print(f"    → Verarbeitet: {processed_duration:.1f}s (Rauschen entfernt, getrimmt)")
+            print(f"    -> Verarbeitet: {processed_duration:.1f}s (Rauschen entfernt, getrimmt)")
             
         except Exception as e:
-            print(f"  ✗ Fehler bei {file_path}: {e}")
+            print(f"  [X] Fehler bei {file_path}: {e}")
     
     print(f"\nGesamtdauer: {total_duration:.1f}s")
     

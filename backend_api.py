@@ -6,6 +6,14 @@ import sys
 import tempfile
 import shutil
 from pathlib import Path
+
+# Windows Konsole auf UTF-8 setzen, um Unicode-Fehler zu vermeiden
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass  # Falls reconfigure nicht verfügbar ist
 from typing import Optional, List
 from datetime import datetime
 
@@ -38,6 +46,7 @@ app.add_middleware(
 # Globale Instanzen
 tts: Optional[TextToSpeech] = None
 catalog: Optional[MessageCatalog] = None
+_whisper_model = None  # Lazy-loaded für Transkription
 
 # Temporäre Audio-Dateien
 TEMP_DIR = Path(tempfile.gettempdir()) / "speakalike"
@@ -316,13 +325,30 @@ async def create_voice_model(
         
         # Optimiere Samples
         current_status["message"] = "Optimiere Audio-Samples..."
-        optimized = prepare_samples_for_cloning(saved_files, str(model_dir))
+        optimized = prepare_samples_for_cloning(saved_files, min_total_duration=10)
+        
+        # Berechne Speaker-Embeddings
+        current_status["message"] = "Berechne Speaker-Embeddings..."
+        tts.set_speaker_wav(optimized)
+        
+        # Speichere als .pt Voice-Modell
+        current_status["message"] = "Speichere Voice-Modell..."
+        model_path = tts.save_voice_model(name)
+        
+        if not model_path:
+            raise Exception("Konnte Voice-Modell nicht speichern")
+        
+        # Aufräumen: Lösche den temporären Ordner mit den Samples
+        if model_dir.exists():
+            shutil.rmtree(model_dir)
+        
+        current_status["message"] = f"Voice-Modell '{name}' erstellt"
         
         return {
             "success": True,
             "name": name,
             "samples": len(optimized),
-            "path": str(model_dir)
+            "path": model_path
         }
         
     except Exception as e:
@@ -356,21 +382,25 @@ async def delete_voice_model(name: str):
 @app.get("/api/catalog")
 async def list_catalog(
     search: Optional[str] = None,
-    tag: Optional[str] = None,
+    tags: Optional[str] = None,
+    tag_mode: str = "and",
     favorites_only: bool = False,
+    order_by: str = "created_at",
     limit: int = 50
 ):
     """Listet Katalog-Einträge"""
     if not catalog:
         return []
     
-    # tags Parameter ist eine Liste
-    tags_list = [tag] if tag else None
+    # tags Parameter ist eine komma-separierte Liste
+    tags_list = [t.strip() for t in tags.split(',')] if tags else None
     
     messages = catalog.search(
         query=search,
         tags=tags_list,
+        tag_mode=tag_mode,
         favorites_only=favorites_only,
+        order_by=order_by,
         limit=limit
     )
     
@@ -468,6 +498,123 @@ async def delete_message(message_id: int):
     
     catalog.delete_message(message_id)
     return {"success": True}
+
+
+@app.post("/api/catalog/import")
+async def import_audio(
+    audio: UploadFile = File(...),
+    text: str = Form(...),
+    tags: str = Form("")
+):
+    """Importiert eine Audio-Datei in den Katalog"""
+    if not catalog:
+        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+    
+    # Temporäre Datei erstellen
+    suffix = Path(audio.filename).suffix.lower()
+    if suffix not in ['.mp3', '.wav', '.ogg', '.m4a']:
+        raise HTTPException(status_code=400, detail="Ungültiges Audio-Format")
+    
+    temp_path = TEMP_DIR / f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
+    
+    try:
+        # Audio speichern
+        with open(temp_path, 'wb') as f:
+            content = await audio.read()
+            f.write(content)
+        
+        # Audio-Info holen
+        try:
+            audio_info = get_audio_info(str(temp_path))
+            duration = audio_info.get('duration', 0)
+        except:
+            duration = 0
+        
+        # Tags parsen
+        tags_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
+        
+        # Zum Katalog hinzufügen
+        message_id = catalog.add_message(
+            text=text,
+            source_audio_path=str(temp_path),
+            tags=tags_list,
+            voice_model="import",
+            duration_seconds=duration
+        )
+        
+        return {"success": True, "message_id": message_id}
+        
+    finally:
+        # Temporäre Datei löschen
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+@app.post("/api/transcribe")
+async def transcribe_audio(audio: UploadFile = File(...)):
+    """Transkribiert eine Audio-Datei mit Whisper"""
+    import torch
+    import torchaudio
+    import numpy as np
+    
+    # Temporäre Datei erstellen
+    suffix = Path(audio.filename).suffix.lower()
+    if suffix not in ['.mp3', '.wav', '.ogg', '.m4a']:
+        raise HTTPException(status_code=400, detail="Ungültiges Audio-Format")
+    
+    temp_path = TEMP_DIR / f"transcribe_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
+    
+    try:
+        # Audio speichern
+        with open(temp_path, 'wb') as f:
+            content = await audio.read()
+            f.write(content)
+        
+        # Audio laden
+        waveform, sample_rate = torchaudio.load(str(temp_path))
+        
+        # Mono konvertieren
+        if waveform.shape[0] > 1:
+            waveform = waveform.mean(dim=0, keepdim=True)
+        
+        # Resample zu 16kHz für Whisper
+        if sample_rate != 16000:
+            resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
+            waveform = resampler(waveform)
+        
+        audio_np = waveform.squeeze().numpy().astype(np.float32)
+        
+        # Normalisieren
+        max_val = np.max(np.abs(audio_np))
+        if max_val > 0:
+            audio_np = audio_np / max_val
+        
+        # Whisper laden (lazy)
+        try:
+            import whisper
+        except ImportError:
+            raise HTTPException(status_code=503, detail="Whisper nicht installiert")
+        
+        # Globales Whisper-Modell
+        global _whisper_model
+        if '_whisper_model' not in globals() or _whisper_model is None:
+            print("Lade Whisper-Modell für Transkription...")
+            _whisper_model = whisper.load_model("base", device="cuda" if torch.cuda.is_available() else "cpu")
+            print("Whisper-Modell geladen.")
+        
+        # Transkribieren
+        result = _whisper_model.transcribe(
+            audio_np,
+            language="de",
+            fp16=torch.cuda.is_available(),
+            verbose=False
+        )
+        
+        return {"text": result.get("text", "").strip()}
+        
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 @app.get("/api/catalog/tags")

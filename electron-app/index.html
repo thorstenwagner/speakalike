@@ -93,6 +93,21 @@
                         <span>📚 Katalog</span>
                         <button class="btn btn-secondary" id="openCatalogBtn">Öffnen</button>
                     </div>
+                    <div class="main-tag-filter">
+                        <div class="tag-filter-container small" id="mainTagFilterContainer">
+                            <div class="tag-filter-selected" id="mainSelectedTags">
+                                <span class="tag-filter-placeholder">Tags...</span>
+                            </div>
+                            <div class="tag-filter-dropdown" id="mainTagDropdown">
+                                <input type="text" class="input" id="mainTagSearch" placeholder="Tag suchen...">
+                                <div class="tag-filter-list" id="mainTagList"></div>
+                            </div>
+                        </div>
+                        <div class="tag-mode-toggle small">
+                            <button class="btn btn-small tag-mode-btn active" id="mainTagModeAnd" data-mode="and">∩</button>
+                            <button class="btn btn-small tag-mode-btn" id="mainTagModeOr" data-mode="or">∪</button>
+                        </div>
+                    </div>
                     <div class="catalog-preview" id="catalogPreview">
                         <p class="muted">Noch keine Einträge</p>
                     </div>
@@ -168,13 +183,24 @@
             </div>
             <div class="catalog-toolbar">
                 <input type="search" class="input search-input" id="catalogSearch" placeholder="🔍 Suchen...">
-                <select class="select" id="catalogTagFilter">
-                    <option value="">Alle Tags</option>
-                </select>
+                <div class="tag-filter-container">
+                    <div class="tag-filter-selected" id="catalogSelectedTags">
+                        <span class="tag-filter-placeholder">Tags filtern...</span>
+                    </div>
+                    <div class="tag-filter-dropdown" id="catalogTagDropdown">
+                        <input type="text" class="input" id="catalogTagSearch" placeholder="Tag suchen...">
+                        <div class="tag-filter-list" id="catalogTagList"></div>
+                    </div>
+                </div>
+                <div class="tag-mode-toggle">
+                    <button class="btn btn-small tag-mode-btn active" id="tagModeAnd" data-mode="and">UND</button>
+                    <button class="btn btn-small tag-mode-btn" id="tagModeOr" data-mode="or">ODER</button>
+                </div>
                 <label class="checkbox-label">
                     <input type="checkbox" id="favoritesOnly">
                     ⭐ Nur Favoriten
                 </label>
+                <button class="btn btn-secondary" id="importMp3Btn">📥 MP3 importieren</button>
             </div>
             <div class="catalog-grid" id="catalogGrid">
                 <!-- Catalog items will be inserted here -->
@@ -249,6 +275,53 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancelEditTagsBtn">Abbrechen</button>
                 <button class="btn btn-primary" id="confirmEditTagsBtn">💾 Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import MP3 Modal -->
+    <div class="modal" id="importMp3Modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📥 MP3 importieren</h2>
+                <button class="btn btn-icon modal-close" id="closeImportMp3Btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Audio-Datei (MP3, WAV, OGG)</label>
+                    <div class="file-drop-zone" id="importDropZone">
+                        <p>📂 Datei hierher ziehen oder klicken</p>
+                    </div>
+                    <div class="import-file-info">
+                        <span id="importFileName" class="muted"></span>
+                        <div class="import-file-actions">
+                            <button class="btn btn-small btn-icon" id="playImportAudioBtn" title="Abspielen" disabled>▶️</button>
+                            <button class="btn btn-small" id="transcribeImportBtn" title="Text erkennen" disabled>🎤 Erkennen</button>
+                        </div>
+                    </div>
+                    <audio id="importAudioPlayer" style="display: none;"></audio>
+                </div>
+                <div class="form-group">
+                    <label for="importText">Text (Inhalt der Nachricht)</label>
+                    <textarea class="input" id="importText" rows="3" placeholder="Was wird in der Audio gesagt?"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Schlagworte</label>
+                    <div class="tag-list-container" id="importTagListContainer"></div>
+                    <div class="tag-input-row">
+                        <input type="text" class="input" id="importTagInputField" placeholder="Tag eingeben...">
+                        <button class="btn btn-small" id="addImportTagBtn">+</button>
+                        <button class="btn btn-small" id="importAutoTagsBtn" title="Tags automatisch generieren">🤖</button>
+                    </div>
+                    <div class="existing-tags">
+                        <label class="muted">Vorhandene Tags:</label>
+                        <div id="importExistingTagsList" class="existing-tags-list"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelImportMp3Btn">Abbrechen</button>
+                <button class="btn btn-primary" id="confirmImportMp3Btn">📥 Importieren</button>
             </div>
         </div>
     </div>

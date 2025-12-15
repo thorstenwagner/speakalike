@@ -61,9 +61,23 @@ const elements = {
     catalogModal: document.getElementById('catalogModal'),
     closeCatalogBtn: document.getElementById('closeCatalogBtn'),
     catalogSearch: document.getElementById('catalogSearch'),
-    catalogTagFilter: document.getElementById('catalogTagFilter'),
+    catalogSelectedTags: document.getElementById('catalogSelectedTags'),
+    catalogTagDropdown: document.getElementById('catalogTagDropdown'),
+    catalogTagSearch: document.getElementById('catalogTagSearch'),
+    catalogTagList: document.getElementById('catalogTagList'),
+    tagModeAnd: document.getElementById('tagModeAnd'),
+    tagModeOr: document.getElementById('tagModeOr'),
     favoritesOnly: document.getElementById('favoritesOnly'),
     catalogGrid: document.getElementById('catalogGrid'),
+    
+    // Main Tag Filter
+    mainTagFilterContainer: document.getElementById('mainTagFilterContainer'),
+    mainSelectedTags: document.getElementById('mainSelectedTags'),
+    mainTagDropdown: document.getElementById('mainTagDropdown'),
+    mainTagSearch: document.getElementById('mainTagSearch'),
+    mainTagList: document.getElementById('mainTagList'),
+    mainTagModeAnd: document.getElementById('mainTagModeAnd'),
+    mainTagModeOr: document.getElementById('mainTagModeOr'),
     
     // Save to Catalog Modal
     saveCatalogModal: document.getElementById('saveCatalogModal'),
@@ -89,9 +103,33 @@ const elements = {
     cancelEditTagsBtn: document.getElementById('cancelEditTagsBtn'),
     confirmEditTagsBtn: document.getElementById('confirmEditTagsBtn'),
     
+    // Import MP3 Modal
+    importMp3Btn: document.getElementById('importMp3Btn'),
+    importMp3Modal: document.getElementById('importMp3Modal'),
+    closeImportMp3Btn: document.getElementById('closeImportMp3Btn'),
+    importDropZone: document.getElementById('importDropZone'),
+    importFileName: document.getElementById('importFileName'),
+    importText: document.getElementById('importText'),
+    importTagListContainer: document.getElementById('importTagListContainer'),
+    importTagInputField: document.getElementById('importTagInputField'),
+    addImportTagBtn: document.getElementById('addImportTagBtn'),
+    cancelImportMp3Btn: document.getElementById('cancelImportMp3Btn'),
+    confirmImportMp3Btn: document.getElementById('confirmImportMp3Btn'),
+    importExistingTagsList: document.getElementById('importExistingTagsList'),
+    playImportAudioBtn: document.getElementById('playImportAudioBtn'),
+    transcribeImportBtn: document.getElementById('transcribeImportBtn'),
+    importAudioPlayer: document.getElementById('importAudioPlayer'),
+    importAutoTagsBtn: document.getElementById('importAutoTagsBtn'),
+    
     // History
     historyList: document.getElementById('historyList')
 };
+
+// === Tag Filter State ===
+let catalogSelectedTagsList = [];
+let catalogTagMode = 'and';
+let mainSelectedTagsList = [];
+let mainTagMode = 'and';
 
 // === API Functions ===
 
@@ -134,7 +172,8 @@ async function addToPlaybackHistory(text, audioUrl, catalogId) {
 let currentTags = [];
 let editCurrentTags = [];
 
-function renderTagList(tags, container, isEdit = false) {
+function renderTagList(tags, container, mode = 'save') {
+    // mode: 'save', 'edit', or 'import'
     container.innerHTML = '';
     tags.forEach((tag, index) => {
         const tagEl = document.createElement('span');
@@ -144,37 +183,69 @@ function renderTagList(tags, container, isEdit = false) {
             <button class="remove-tag" data-index="${index}">×</button>
         `;
         tagEl.querySelector('.remove-tag').onclick = () => {
-            if (isEdit) {
+            if (mode === 'edit') {
                 editCurrentTags.splice(index, 1);
-                renderTagList(editCurrentTags, container, true);
+                renderTagList(editCurrentTags, container, 'edit');
+            } else if (mode === 'import') {
+                importCurrentTags.splice(index, 1);
+                renderTagList(importCurrentTags, container, 'import');
             } else {
                 currentTags.splice(index, 1);
-                renderTagList(currentTags, container, false);
+                renderTagList(currentTags, container, 'save');
             }
         };
         container.appendChild(tagEl);
     });
 }
 
-function addTagFromInput(inputField, container, isEdit = false) {
+function addTagFromInput(inputField, container, mode = 'save') {
     const tag = inputField.value.trim().toLowerCase();
     if (tag) {
-        const tagList = isEdit ? editCurrentTags : currentTags;
+        const tagList = mode === 'edit' ? editCurrentTags : (mode === 'import' ? importCurrentTags : currentTags);
         if (!tagList.includes(tag)) {
             tagList.push(tag);
-            renderTagList(tagList, container, isEdit);
+            renderTagList(tagList, container, mode);
         }
         inputField.value = '';
     }
 }
 
-function addExistingTag(tag, isEdit = false) {
-    const tagList = isEdit ? editCurrentTags : currentTags;
-    const container = isEdit ? elements.editTagListContainer : elements.tagListContainer;
+function addExistingTag(tag, mode = 'save') {
+    const tagList = mode === 'edit' ? editCurrentTags : (mode === 'import' ? importCurrentTags : currentTags);
+    const container = mode === 'edit' ? elements.editTagListContainer : (mode === 'import' ? elements.importTagListContainer : elements.tagListContainer);
     if (!tagList.includes(tag)) {
         tagList.push(tag);
-        renderTagList(tagList, container, isEdit);
+        renderTagList(tagList, container, mode);
     }
+    // Clear filter input after adding tag
+    const inputField = mode === 'edit' ? elements.editTagInputField : (mode === 'import' ? elements.importTagInputField : elements.tagInputField);
+    inputField.value = '';
+    filterExistingTags('', mode);
+}
+
+function filterExistingTags(filter, mode = 'save') {
+    const container = mode === 'edit' ? elements.editExistingTagsList : (mode === 'import' ? elements.importExistingTagsList : elements.existingTagsList);
+    const currentTagList = mode === 'edit' ? editCurrentTags : (mode === 'import' ? importCurrentTags : currentTags);
+    const filterLower = filter.toLowerCase();
+    
+    container.innerHTML = '';
+    catalogTags
+        .filter(tag => tag.name.toLowerCase().includes(filterLower))
+        .forEach(tag => {
+            const tagBtn = document.createElement('button');
+            tagBtn.className = 'tag clickable';
+            // Highlight already added tags
+            if (currentTagList.includes(tag.name)) {
+                tagBtn.classList.add('disabled');
+            }
+            tagBtn.textContent = tag.name;
+            tagBtn.onclick = () => {
+                if (!currentTagList.includes(tag.name)) {
+                    addExistingTag(tag.name, mode);
+                }
+            };
+            container.appendChild(tagBtn);
+        });
 }
 
 // === Status ===
@@ -320,13 +391,9 @@ async function loadCatalogTags() {
     try {
         catalogTags = await api('/api/catalog/tags');
         
-        elements.catalogTagFilter.innerHTML = '<option value="">Alle Tags</option>';
-        catalogTags.forEach(tag => {
-            const option = document.createElement('option');
-            option.value = tag.name;
-            option.textContent = `${tag.name} (${tag.count})`;
-            elements.catalogTagFilter.appendChild(option);
-        });
+        // Render tag filter lists
+        renderTagFilterList(elements.catalogTagList, 'catalog');
+        renderTagFilterList(elements.mainTagList, 'main');
         
         // Update existing tags in save dialog
         elements.existingTags.innerHTML = '';
@@ -342,11 +409,103 @@ async function loadCatalogTags() {
     }
 }
 
+function renderTagFilterList(container, context, filter = '') {
+    if (!container) return;
+    
+    const selectedList = context === 'catalog' ? catalogSelectedTagsList : mainSelectedTagsList;
+    const filterLower = filter.toLowerCase();
+    
+    container.innerHTML = '';
+    catalogTags
+        .filter(tag => tag.name.toLowerCase().includes(filterLower))
+        .forEach(tag => {
+            const isSelected = selectedList.includes(tag.name);
+            const tagEl = document.createElement('div');
+            tagEl.className = `tag-filter-item ${isSelected ? 'selected' : ''}`;
+            tagEl.innerHTML = `
+                <span class="tag-name">${tag.name}</span>
+                <span class="tag-count">${tag.count}</span>
+                ${isSelected ? '<span class="tag-check">✓</span>' : ''}
+            `;
+            tagEl.onclick = () => toggleTagFilter(tag.name, context);
+            container.appendChild(tagEl);
+        });
+}
+
+function toggleTagFilter(tagName, context) {
+    const selectedList = context === 'catalog' ? catalogSelectedTagsList : mainSelectedTagsList;
+    const index = selectedList.indexOf(tagName);
+    
+    if (index > -1) {
+        selectedList.splice(index, 1);
+    } else {
+        selectedList.push(tagName);
+    }
+    
+    // Update lists
+    if (context === 'catalog') {
+        catalogSelectedTagsList = selectedList;
+        renderSelectedTags(elements.catalogSelectedTags, catalogSelectedTagsList, 'catalog');
+        renderTagFilterList(elements.catalogTagList, 'catalog', elements.catalogTagSearch.value);
+        loadCatalog();
+    } else {
+        mainSelectedTagsList = selectedList;
+        renderSelectedTags(elements.mainSelectedTags, mainSelectedTagsList, 'main');
+        renderTagFilterList(elements.mainTagList, 'main', elements.mainTagSearch.value);
+        loadCatalogPreview();
+    }
+}
+
+function renderSelectedTags(container, tags, context) {
+    if (!container) return;
+    
+    if (tags.length === 0) {
+        container.innerHTML = '<span class="tag-filter-placeholder">Tags filtern...</span>';
+        return;
+    }
+    
+    container.innerHTML = tags.map(tag => `
+        <span class="tag selected-tag">
+            ${tag}
+            <span class="tag-remove" onclick="event.stopPropagation(); removeTagFilter('${tag}', '${context}')">×</span>
+        </span>
+    `).join('');
+}
+
+function removeTagFilter(tagName, context) {
+    toggleTagFilter(tagName, context);
+}
+
+function setTagMode(mode, context) {
+    if (context === 'catalog') {
+        catalogTagMode = mode;
+        elements.tagModeAnd.classList.toggle('active', mode === 'and');
+        elements.tagModeOr.classList.toggle('active', mode === 'or');
+        loadCatalog();
+    } else {
+        mainTagMode = mode;
+        elements.mainTagModeAnd.classList.toggle('active', mode === 'and');
+        elements.mainTagModeOr.classList.toggle('active', mode === 'or');
+        loadCatalogPreview();
+    }
+}
+
+function toggleTagDropdown(dropdown, show) {
+    if (show) {
+        dropdown.classList.add('active');
+    } else {
+        dropdown.classList.remove('active');
+    }
+}
+
 async function loadCatalog() {
     try {
         const params = new URLSearchParams();
         if (elements.catalogSearch.value) params.set('search', elements.catalogSearch.value);
-        if (elements.catalogTagFilter.value) params.set('tag', elements.catalogTagFilter.value);
+        if (catalogSelectedTagsList.length > 0) {
+            params.set('tags', catalogSelectedTagsList.join(','));
+            params.set('tag_mode', catalogTagMode);
+        }
         if (elements.favoritesOnly.checked) params.set('favorites_only', 'true');
         
         const messages = await api(`/api/catalog?${params}`);
@@ -369,8 +528,17 @@ async function loadCatalog() {
 
 async function loadCatalogPreview() {
     try {
-        // Lade die neuesten 5 Einträge für die Vorschau
-        const messages = await api('/api/catalog?limit=5');
+        // Lade Einträge für die Vorschau, optional gefiltert nach Tags
+        const params = new URLSearchParams();
+        params.set('order_by', 'play_count');
+        params.set('limit', '50');
+        
+        if (mainSelectedTagsList.length > 0) {
+            params.set('tags', mainSelectedTagsList.join(','));
+            params.set('tag_mode', mainTagMode);
+        }
+        
+        const messages = await api(`/api/catalog?${params}`);
         
         if (messages.length === 0) {
             elements.catalogPreview.innerHTML = '<p class="muted">Noch keine Einträge im Katalog</p>';
@@ -382,7 +550,7 @@ async function loadCatalogPreview() {
             const item = document.createElement('div');
             item.className = 'catalog-preview-item';
             item.innerHTML = `
-                <span class="preview-text">${escapeHtml(msg.text.substring(0, 50))}${msg.text.length > 50 ? '...' : ''}</span>
+                <span class="preview-text">${escapeHtml(msg.text.substring(0, 40))}${msg.text.length > 40 ? '...' : ''}</span>
                 <button class="btn btn-small play-btn" data-id="${msg.id}">▶️</button>
             `;
             item.querySelector('.play-btn').onclick = () => playCatalogAudio(msg.id, msg.text);
@@ -480,17 +648,11 @@ function openSaveCatalogModalForHistory(item) {
     
     // Reset current tags
     currentTags = [];
-    renderTagList(currentTags, elements.tagListContainer, false);
+    renderTagList(currentTags, elements.tagListContainer, 'save');
     
-    // Existing tags anzeigen
-    elements.existingTagsList.innerHTML = '';
-    catalogTags.forEach(tag => {
-        const tagBtn = document.createElement('button');
-        tagBtn.className = 'tag clickable';
-        tagBtn.textContent = tag.name;
-        tagBtn.onclick = () => addExistingTag(tag.name, false);
-        elements.existingTagsList.appendChild(tagBtn);
-    });
+    // Existing tags anzeigen (mit Filter)
+    loadCatalogTags();
+    filterExistingTags('', 'save');
     
     elements.saveCatalogModal.classList.add('active');
 }
@@ -567,17 +729,10 @@ function openEditTagsModal(msg) {
     
     // Set current tags from message
     editCurrentTags = [...msg.tags];
-    renderTagList(editCurrentTags, elements.editTagListContainer, true);
+    renderTagList(editCurrentTags, elements.editTagListContainer, 'edit');
     
-    // Show existing tags
-    elements.editExistingTagsList.innerHTML = '';
-    catalogTags.forEach(tag => {
-        const tagBtn = document.createElement('button');
-        tagBtn.className = 'tag clickable';
-        tagBtn.textContent = tag.name;
-        tagBtn.onclick = () => addExistingTag(tag.name, true);
-        elements.editExistingTagsList.appendChild(tagBtn);
-    });
+    // Show existing tags (mit Filter)
+    filterExistingTags('', 'edit');
     
     elements.editTagsModal.classList.add('active');
 }
@@ -654,13 +809,241 @@ async function generateAutoTags() {
                     currentTags.push(tag);
                 }
             });
-            renderTagList(currentTags, elements.tagListContainer, false);
+            renderTagList(currentTags, elements.tagListContainer, 'save');
         }
     } catch (error) {
         console.error('Auto-tags error:', error);
     } finally {
         elements.autoTagsBtn.disabled = false;
         elements.autoTagsBtn.textContent = '🤖 Auto-Tags';
+    }
+}
+
+// === Import MP3 ===
+
+let importCurrentTags = [];
+let importFile = null;
+
+function openImportMp3Modal() {
+    importCurrentTags = [];
+    importFile = null;
+    elements.importFileName.textContent = '';
+    elements.importText.value = '';
+    elements.playImportAudioBtn.disabled = true;
+    elements.playImportAudioBtn.textContent = '▶️';
+    elements.transcribeImportBtn.disabled = true;
+    elements.importAudioPlayer.src = '';
+    elements.importTagInputField.value = '';
+    renderTagList(importCurrentTags, elements.importTagListContainer, 'import');
+    
+    // Load existing tags (mit Filter)
+    loadCatalogTags();
+    filterExistingTags('', 'import');
+    
+    elements.importMp3Modal.classList.add('active');
+}
+
+function closeImportMp3Modal() {
+    elements.importMp3Modal.classList.remove('active');
+    importCurrentTags = [];
+    importFile = null;
+    elements.importAudioPlayer.pause();
+    elements.importAudioPlayer.src = '';
+}
+
+function setupImportDropZone() {
+    const dropZone = elements.importDropZone;
+    
+    // Prevent default drag behaviors
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    // Highlight drop zone when item is dragged over it
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false);
+    });
+    
+    // Handle dropped files
+    dropZone.addEventListener('drop', handleImportDrop, false);
+    
+    // Handle click to select file
+    dropZone.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'audio/mp3,audio/wav,audio/ogg,audio/m4a,.mp3,.wav,.ogg,.m4a';
+        input.onchange = (e) => {
+            if (e.target.files.length > 0) {
+                setImportFile(e.target.files[0]);
+            }
+        };
+        input.click();
+    });
+}
+
+function handleImportDrop(e) {
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        setImportFile(files[0]);
+    }
+}
+
+function setImportFile(file) {
+    const validTypes = ['audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/x-m4a'];
+    const validExtensions = ['.mp3', '.wav', '.ogg', '.m4a'];
+    
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!validTypes.includes(file.type) && !validExtensions.includes(ext)) {
+        alert('Bitte wählen Sie eine Audio-Datei (MP3, WAV, OGG, M4A)');
+        return;
+    }
+    
+    importFile = file;
+    elements.importFileName.textContent = `📄 ${file.name}`;
+    
+    // Enable playback and transcription buttons
+    elements.playImportAudioBtn.disabled = false;
+    elements.transcribeImportBtn.disabled = false;
+    
+    // Set up audio player
+    const objectUrl = URL.createObjectURL(file);
+    elements.importAudioPlayer.src = objectUrl;
+}
+
+function playImportAudio() {
+    if (!importFile) return;
+    
+    const player = elements.importAudioPlayer;
+    if (player.paused) {
+        player.play();
+        elements.playImportAudioBtn.textContent = '⏸️';
+    } else {
+        player.pause();
+        elements.playImportAudioBtn.textContent = '▶️';
+    }
+}
+
+async function transcribeImportAudio() {
+    if (!importFile) return;
+    
+    elements.transcribeImportBtn.disabled = true;
+    elements.transcribeImportBtn.textContent = '⏳ Erkenne...';
+    
+    try {
+        const formData = new FormData();
+        formData.append('audio', importFile);
+        
+        const response = await fetch(`${window.API_URL}/api/transcribe`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error('Transkription fehlgeschlagen');
+        }
+        
+        const result = await response.json();
+        if (result.text) {
+            elements.importText.value = result.text;
+        }
+    } catch (error) {
+        console.error('Transcription error:', error);
+        alert('Fehler bei der Spracherkennung: ' + error.message);
+    } finally {
+        elements.transcribeImportBtn.disabled = false;
+        elements.transcribeImportBtn.textContent = '🎤 Erkennen';
+    }
+}
+
+async function generateImportAutoTags() {
+    const text = elements.importText.value.trim();
+    if (!text) {
+        alert('Bitte geben Sie zuerst den Text ein oder nutzen Sie die Spracherkennung.');
+        return;
+    }
+    
+    elements.importAutoTagsBtn.disabled = true;
+    elements.importAutoTagsBtn.textContent = '⏳';
+    
+    try {
+        const response = await api('/api/tags/generate', {
+            method: 'POST',
+            body: JSON.stringify({ text: text, num_tags: 3 })
+        });
+        
+        if (response.tags && response.tags.length > 0) {
+            response.tags.forEach(tag => {
+                if (!importCurrentTags.includes(tag)) {
+                    importCurrentTags.push(tag);
+                }
+            });
+            renderTagList(importCurrentTags, elements.importTagListContainer, 'import');
+        }
+    } catch (error) {
+        console.error('Auto-tags error:', error);
+    } finally {
+        elements.importAutoTagsBtn.disabled = false;
+        elements.importAutoTagsBtn.textContent = '🤖';
+    }
+}
+
+function addImportTag(tag) {
+    if (tag && !importCurrentTags.includes(tag)) {
+        importCurrentTags.push(tag);
+        renderTagList(importCurrentTags, elements.importTagListContainer, 'import');
+    }
+}
+
+async function importMp3() {
+    if (!importFile) {
+        alert('Bitte wählen Sie eine Audio-Datei aus.');
+        return;
+    }
+    
+    const text = elements.importText.value.trim();
+    if (!text) {
+        alert('Bitte geben Sie den Text der Nachricht ein.');
+        return;
+    }
+    
+    elements.confirmImportMp3Btn.disabled = true;
+    elements.confirmImportMp3Btn.textContent = '⏳ Importiere...';
+    
+    try {
+        const formData = new FormData();
+        formData.append('audio', importFile);
+        formData.append('text', text);
+        formData.append('tags', importCurrentTags.join(','));
+        
+        const response = await fetch(`${window.API_URL}/api/catalog/import`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Import fehlgeschlagen');
+        }
+        
+        closeImportMp3Modal();
+        loadCatalog();
+        loadCatalogPreview();
+        alert('Audio erfolgreich importiert!');
+        
+    } catch (error) {
+        alert(`Fehler beim Import: ${error.message}`);
+    } finally {
+        elements.confirmImportMp3Btn.disabled = false;
+        elements.confirmImportMp3Btn.textContent = '📥 Importieren';
     }
 }
 
@@ -818,18 +1201,12 @@ function openSaveCatalogModal() {
     
     // Reset current tags
     currentTags = [];
-    renderTagList(currentTags, elements.tagListContainer, false);
+    elements.tagInputField.value = '';
+    renderTagList(currentTags, elements.tagListContainer, 'save');
     
-    // Load existing tags
+    // Load existing tags (mit Filter)
     loadCatalogTags();
-    elements.existingTagsList.innerHTML = '';
-    catalogTags.forEach(tag => {
-        const tagBtn = document.createElement('button');
-        tagBtn.className = 'tag clickable';
-        tagBtn.textContent = tag.name;
-        tagBtn.onclick = () => addExistingTag(tag.name, false);
-        elements.existingTagsList.appendChild(tagBtn);
-    });
+    filterExistingTags('', 'save');
     
     elements.saveCatalogModal.classList.add('active');
 }
@@ -911,9 +1288,18 @@ function setupEventListeners() {
     elements.fileDropZone.addEventListener('click', async () => {
         const result = await window.electronAPI.openFileDialog();
         if (!result.canceled && result.filePaths.length > 0) {
-            // Convert file paths to File objects
-            // Note: This is simplified - in real app need proper file handling
-            console.log('Selected files:', result.filePaths);
+            // Read files via IPC and convert to File objects
+            const files = await Promise.all(result.filePaths.map(async (filePath) => {
+                const fileData = await window.electronAPI.readFileAsBuffer(filePath);
+                const binaryString = atob(fileData.data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: fileData.mimeType });
+                return new File([blob], fileData.fileName, { type: fileData.mimeType });
+            }));
+            handleFileSelect(files);
         }
     });
     
@@ -937,8 +1323,35 @@ function setupEventListeners() {
     elements.closeCatalogBtn.addEventListener('click', closeCatalogModal);
     
     elements.catalogSearch.addEventListener('input', debounce(loadCatalog, 300));
-    elements.catalogTagFilter.addEventListener('change', loadCatalog);
     elements.favoritesOnly.addEventListener('change', loadCatalog);
+    
+    // Catalog Tag Filter
+    elements.catalogSelectedTags.addEventListener('click', () => {
+        toggleTagDropdown(elements.catalogTagDropdown, !elements.catalogTagDropdown.classList.contains('active'));
+    });
+    elements.catalogTagSearch.addEventListener('input', (e) => {
+        renderTagFilterList(elements.catalogTagList, 'catalog', e.target.value);
+    });
+    elements.tagModeAnd.addEventListener('click', () => setTagMode('and', 'catalog'));
+    elements.tagModeOr.addEventListener('click', () => setTagMode('or', 'catalog'));
+    
+    // Main Tag Filter
+    elements.mainSelectedTags.addEventListener('click', () => {
+        toggleTagDropdown(elements.mainTagDropdown, !elements.mainTagDropdown.classList.contains('active'));
+    });
+    elements.mainTagSearch.addEventListener('input', (e) => {
+        renderTagFilterList(elements.mainTagList, 'main', e.target.value);
+    });
+    elements.mainTagModeAnd.addEventListener('click', () => setTagMode('and', 'main'));
+    elements.mainTagModeOr.addEventListener('click', () => setTagMode('or', 'main'));
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.tag-filter-container')) {
+            toggleTagDropdown(elements.catalogTagDropdown, false);
+            toggleTagDropdown(elements.mainTagDropdown, false);
+        }
+    });
     
     // Save to Catalog
     elements.closeSaveCatalogBtn.addEventListener('click', closeSaveCatalogModal);
@@ -948,13 +1361,16 @@ function setupEventListeners() {
     
     // Tag input for Save Catalog Modal
     elements.addTagBtn.addEventListener('click', () => {
-        addTagFromInput(elements.tagInputField, elements.tagListContainer, false);
+        addTagFromInput(elements.tagInputField, elements.tagListContainer, 'save');
     });
     elements.tagInputField.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            addTagFromInput(elements.tagInputField, elements.tagListContainer, false);
+            addTagFromInput(elements.tagInputField, elements.tagListContainer, 'save');
         }
+    });
+    elements.tagInputField.addEventListener('input', (e) => {
+        filterExistingTags(e.target.value, 'save');
     });
     
     // Edit Tags Modal
@@ -964,13 +1380,49 @@ function setupEventListeners() {
     
     // Tag input for Edit Tags Modal
     elements.addEditTagBtn.addEventListener('click', () => {
-        addTagFromInput(elements.editTagInputField, elements.editTagListContainer, true);
+        addTagFromInput(elements.editTagInputField, elements.editTagListContainer, 'edit');
     });
     elements.editTagInputField.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            addTagFromInput(elements.editTagInputField, elements.editTagListContainer, true);
+            addTagFromInput(elements.editTagInputField, elements.editTagListContainer, 'edit');
         }
+    });
+    elements.editTagInputField.addEventListener('input', (e) => {
+        filterExistingTags(e.target.value, 'edit');
+    });
+    
+    // Import MP3 Modal
+    elements.importMp3Btn.addEventListener('click', openImportMp3Modal);
+    elements.closeImportMp3Btn.addEventListener('click', closeImportMp3Modal);
+    elements.cancelImportMp3Btn.addEventListener('click', closeImportMp3Modal);
+    elements.confirmImportMp3Btn.addEventListener('click', importMp3);
+    elements.playImportAudioBtn.addEventListener('click', playImportAudio);
+    elements.transcribeImportBtn.addEventListener('click', transcribeImportAudio);
+    elements.importAutoTagsBtn.addEventListener('click', generateImportAutoTags);
+    elements.importAudioPlayer.addEventListener('ended', () => {
+        elements.playImportAudioBtn.textContent = '▶️';
+    });
+    setupImportDropZone();
+    
+    // Tag input for Import Modal
+    elements.addImportTagBtn.addEventListener('click', () => {
+        const tag = elements.importTagInputField.value.trim().toLowerCase();
+        addImportTag(tag);
+        elements.importTagInputField.value = '';
+        filterExistingTags('', 'import');
+    });
+    elements.importTagInputField.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const tag = elements.importTagInputField.value.trim().toLowerCase();
+            addImportTag(tag);
+            elements.importTagInputField.value = '';
+            filterExistingTags('', 'import');
+        }
+    });
+    elements.importTagInputField.addEventListener('input', (e) => {
+        filterExistingTags(e.target.value, 'import');
     });
     
     // Close modals on backdrop click
