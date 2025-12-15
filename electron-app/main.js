@@ -55,9 +55,6 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
     
-    // DevTools für Debugging öffnen
-    mainWindow.webContents.openDevTools();
-    
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
     });

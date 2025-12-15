@@ -96,6 +96,18 @@ class MessageCatalog:
                 END
             ''')
             
+            # Wiedergabe-Verlauf Tabelle (speichert jeden Wiedergabe-Vorgang)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS playback_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    text TEXT NOT NULL,
+                    audio_url TEXT NOT NULL,
+                    catalog_id INTEGER,
+                    played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (catalog_id) REFERENCES messages(id) ON DELETE SET NULL
+                )
+            ''')
+            
             conn.commit()
     
     def add_message(self, text: str, source_audio_path: str, 
@@ -343,6 +355,70 @@ class MessageCatalog:
     def get_frequent_messages(self, limit: int = 10) -> List[dict]:
         """Holt die am häufigsten abgespielten Nachrichten."""
         return self.search(order_by="play_count", limit=limit)
+    
+    def get_played_messages(self, limit: int = 10) -> List[dict]:
+        """Holt die zuletzt abgespielten Nachrichten (nur die, die auch abgespielt wurden)."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT m.*, GROUP_CONCAT(t.name) as tags_str
+                FROM messages m
+                LEFT JOIN message_tags mt ON m.id = mt.message_id
+                LEFT JOIN tags t ON mt.tag_id = t.id
+                WHERE m.play_count > 0
+                GROUP BY m.id
+                ORDER BY m.last_played_at DESC
+                LIMIT ?
+            ''', (limit,))
+            
+            rows = cursor.fetchall()
+            results = []
+            for row in rows:
+                msg = dict(row)
+                msg['tags'] = msg['tags_str'].split(',') if msg['tags_str'] else []
+                del msg['tags_str']
+                results.append(msg)
+            
+            return results
+    
+    def add_to_playback_history(self, text: str, audio_url: str, catalog_id: int = None):
+        """
+        Fügt einen Eintrag zum Wiedergabe-Verlauf hinzu.
+        
+        Args:
+            text: Der abgespielte Text
+            audio_url: URL zur Audio-Datei
+            catalog_id: Optional - ID der Katalog-Nachricht falls vorhanden
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO playback_history (text, audio_url, catalog_id)
+                VALUES (?, ?, ?)
+            ''', (text, audio_url, catalog_id))
+            conn.commit()
+    
+    def get_playback_history(self, limit: int = 10) -> List[dict]:
+        """
+        Holt den Wiedergabe-Verlauf.
+        
+        Returns:
+            Liste der zuletzt abgespielten Nachrichten
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, text, audio_url, catalog_id, played_at
+                FROM playback_history
+                ORDER BY played_at DESC
+                LIMIT ?
+            ''', (limit,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
     
     def get_stats(self) -> dict:
         """Gibt Statistiken zum Katalog zurück."""

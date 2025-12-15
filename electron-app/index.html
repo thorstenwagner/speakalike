@@ -27,91 +27,77 @@
         <!-- Main Content -->
         <main class="main">
             <!-- Voice Model Section -->
-            <section class="card voice-section">
-                <div class="card-header">
-                    <h2>🎤 Stimme</h2>
-                    <div class="voice-actions">
-                        <button class="btn btn-secondary" id="newVoiceBtn">+ Neue Stimme</button>
+            <!-- Voice & Text kombiniert -->
+            <section class="card main-section">
+                <div class="main-row">
+                    <!-- Voice Selection -->
+                    <div class="voice-compact">
+                        <label>🎤 Stimme:</label>
+                        <select class="select" id="voiceSelect">
+                            <option value="">Standard (XTTS)</option>
+                        </select>
+                        <button class="btn btn-secondary btn-icon" id="newVoiceBtn" title="Neue Stimme">+</button>
                     </div>
-                </div>
-                <div class="voice-info">
-                    <div class="current-voice" id="currentVoice">
-                        <span class="voice-label">Aktuelle Stimme:</span>
-                        <span class="voice-name">Standard</span>
-                    </div>
-                    <select class="select" id="voiceSelect">
-                        <option value="">Standard (XTTS)</option>
-                    </select>
-                </div>
-            </section>
-
-            <!-- Text Input Section -->
-            <section class="card text-section">
-                <div class="card-header">
-                    <h2>📝 Text</h2>
-                    <div class="language-select">
-                        <label for="languageSelect">Sprache:</label>
+                    
+                    <!-- Language Selection -->
+                    <div class="language-compact">
+                        <label>🌍 Sprache:</label>
                         <select class="select" id="languageSelect">
                             <option value="de">Deutsch</option>
                             <option value="en">English</option>
                             <option value="es">Español</option>
                             <option value="fr">Français</option>
-                            <option value="it">Italiano</option>
-                            <option value="pt">Português</option>
-                            <option value="pl">Polski</option>
-                            <option value="tr">Türkçe</option>
-                            <option value="ru">Русский</option>
-                            <option value="nl">Nederlands</option>
-                            <option value="ja">日本語</option>
-                            <option value="zh-cn">中文</option>
-                            <option value="ko">한국어</option>
-                            <option value="ar">العربية</option>
                         </select>
                     </div>
-                </div>
-                <textarea 
-                    class="text-input" 
-                    id="textInput" 
-                    placeholder="Geben Sie hier den Text ein, der vorgelesen werden soll..."
-                    rows="6"
-                ></textarea>
-                <div class="text-actions">
-                    <span class="char-count" id="charCount">0 Zeichen</span>
-                    <div class="action-buttons">
-                        <button class="btn btn-large btn-success" id="speakBtn">
-                            ▶️ Vorlesen
-                        </button>
-                        <button class="btn btn-large btn-danger" id="stopBtn" disabled>
-                            ⏹️ Stopp
-                        </button>
+                    
+                    <!-- Current Voice Info -->
+                    <div class="current-voice" id="currentVoice">
+                        <span class="voice-name">Standard</span>
                     </div>
                 </div>
+                
+                <!-- Text Input -->
+                <div class="text-row">
+                    <textarea 
+                        class="text-input" 
+                        id="textInput" 
+                        placeholder="Text eingeben..."
+                        rows="2"
+                    ></textarea>
+                    <button class="btn btn-success btn-speak" id="speakBtn">
+                        🔊 Sprechen
+                    </button>
+                    <button class="btn btn-danger btn-stop" id="stopBtn" disabled>
+                        ⏹️ Stopp
+                    </button>
+                </div>
+                <!-- Versteckter Audio Player für Wiedergabe -->
+                <audio id="audioPlayer" style="display: none;"></audio>
             </section>
 
-            <!-- Audio Player Section -->
-            <section class="card audio-section" id="audioSection" style="display: none;">
-                <div class="card-header">
-                    <h2>🔊 Audio</h2>
-                    <div class="audio-actions">
-                        <button class="btn btn-secondary" id="saveAudioBtn">💾 Speichern</button>
-                        <button class="btn btn-secondary" id="catalogBtn">📁 Zum Katalog</button>
+            <!-- History & Catalog nebeneinander -->
+            <div class="bottom-row">
+                <!-- History Section -->
+                <section class="card history-section">
+                    <div class="history-header">
+                        <span>🕐 Verlauf</span>
                     </div>
-                </div>
-                <div class="audio-player">
-                    <audio id="audioPlayer" controls></audio>
-                </div>
-            </section>
+                    <div class="history-list" id="historyList">
+                        <p class="muted">Noch keine Nachrichten</p>
+                    </div>
+                </section>
 
-            <!-- Catalog Section -->
-            <section class="card catalog-section">
-                <div class="card-header">
-                    <h2>📚 Katalog</h2>
-                    <button class="btn btn-secondary" id="openCatalogBtn">Öffnen</button>
-                </div>
-                <div class="catalog-preview" id="catalogPreview">
-                    <p class="muted">Noch keine Einträge im Katalog</p>
-                </div>
-            </section>
+                <!-- Catalog Section -->
+                <section class="card catalog-section">
+                    <div class="catalog-header">
+                        <span>📚 Katalog</span>
+                        <button class="btn btn-secondary" id="openCatalogBtn">Öffnen</button>
+                    </div>
+                    <div class="catalog-preview" id="catalogPreview">
+                        <p class="muted">Noch keine Einträge</p>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
 
@@ -135,8 +121,8 @@
                 </div>
                 <div class="setting-group">
                     <label>Wiederholungsstrafe</label>
-                    <input type="range" id="repetitionSlider" min="1.0" max="10.0" step="0.5" value="5.0">
-                    <span id="repetitionValue">5.0</span>
+                    <input type="range" id="repetitionSlider" min="1.0" max="1.9" step="0.1" value="1.5">
+                    <span id="repetitionValue">1.5</span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -213,15 +199,56 @@
                         <label for="tagsInput">Schlagworte</label>
                         <button class="btn btn-small" id="autoTagsBtn">🤖 Auto-Tags</button>
                     </div>
-                    <input type="text" class="input" id="tagsInput" placeholder="Tags mit Komma trennen...">
+                    <div class="tag-list-container" id="tagListContainer">
+                        <!-- Selected tags will be shown here -->
+                    </div>
+                    <div class="tag-input-row">
+                        <input type="text" class="input" id="tagInputField" placeholder="Tag eingeben...">
+                        <button class="btn btn-small" id="addTagBtn">+</button>
+                    </div>
                 </div>
                 <div class="existing-tags" id="existingTags">
-                    <!-- Existing tags will be inserted here -->
+                    <label>Vorhandene Tags:</label>
+                    <div class="existing-tags-list" id="existingTagsList"></div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancelSaveCatalogBtn">Abbrechen</button>
                 <button class="btn btn-primary" id="confirmSaveCatalogBtn">💾 Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Tags Modal -->
+    <div class="modal" id="editTagsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🏷️ Tags bearbeiten</h2>
+                <button class="btn btn-icon modal-close" id="closeEditTagsBtn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Text</label>
+                    <div class="text-preview" id="editTextPreview"></div>
+                </div>
+                <div class="form-group">
+                    <label>Schlagworte</label>
+                    <div class="tag-list-container" id="editTagListContainer">
+                        <!-- Selected tags will be shown here -->
+                    </div>
+                    <div class="tag-input-row">
+                        <input type="text" class="input" id="editTagInputField" placeholder="Tag eingeben...">
+                        <button class="btn btn-small" id="addEditTagBtn">+</button>
+                    </div>
+                </div>
+                <div class="existing-tags" id="editExistingTags">
+                    <label>Vorhandene Tags:</label>
+                    <div class="existing-tags-list" id="editExistingTagsList"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelEditTagsBtn">Abbrechen</button>
+                <button class="btn btn-primary" id="confirmEditTagsBtn">💾 Speichern</button>
             </div>
         </div>
     </div>

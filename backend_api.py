@@ -53,6 +53,9 @@ current_status = {
     "last_text": None
 }
 
+# History der letzten Nachrichten (unabhängig vom Katalog)
+audio_history = []  # Liste von {"id": str, "text": str, "audio_path": str, "timestamp": str}
+
 
 # === Models ===
 
@@ -169,6 +172,19 @@ async def speak(request: TTSRequest, background_tasks: BackgroundTasks):
             current_status["message"] = "Fertig"
             current_status["is_speaking"] = False
             
+            # Zur History hinzufügen
+            history_entry = {
+                "id": timestamp,
+                "text": request.text,
+                "audio_path": str(dest_path),
+                "audio_url": f"/api/audio/{dest_path.name}",
+                "timestamp": datetime.now().isoformat()
+            }
+            audio_history.insert(0, history_entry)
+            # Nur die letzten 10 behalten
+            while len(audio_history) > 10:
+                audio_history.pop()
+            
             return {
                 "success": True,
                 "audio_path": str(dest_path),
@@ -200,6 +216,33 @@ async def get_audio(filename: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio nicht gefunden")
     return FileResponse(file_path, media_type="audio/wav")
+
+
+@app.get("/api/history")
+async def get_history():
+    """Gibt den Wiedergabe-Verlauf zurück (alle abgespielten Nachrichten in zeitlicher Reihenfolge)"""
+    if catalog:
+        history = catalog.get_playback_history(limit=10)
+        result = []
+        for item in history:
+            result.append({
+                "id": f"history_{item['id']}",
+                "text": item["text"],
+                "audio_url": item["audio_url"],
+                "timestamp": item["played_at"],
+                "in_catalog": item["catalog_id"] is not None,
+                "catalog_id": item["catalog_id"]
+            })
+        return result
+    return []
+
+
+@app.post("/api/history/add")
+async def add_to_history(text: str, audio_url: str, catalog_id: int = None):
+    """Fügt einen Eintrag zum Wiedergabe-Verlauf hinzu"""
+    if catalog:
+        catalog.add_to_playback_history(text, audio_url, catalog_id)
+    return {"status": "ok"}
 
 
 # === Voice Model Endpoints ===
@@ -489,7 +532,9 @@ async def update_settings(settings: dict):
     if "top_p" in settings:
         tts.top_p = settings["top_p"]
     if "repetition_penalty" in settings:
-        tts.repetition_penalty = settings["repetition_penalty"]
+        # XTTS erfordert penalty > 1.0 und < 2.0
+        penalty = min(max(float(settings["repetition_penalty"]), 1.01), 1.99)
+        tts.repetition_penalty = penalty
     
     return {"success": True}
 

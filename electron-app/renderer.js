@@ -30,10 +30,7 @@ const elements = {
     stopBtn: document.getElementById('stopBtn'),
     
     // Audio
-    audioSection: document.getElementById('audioSection'),
     audioPlayer: document.getElementById('audioPlayer'),
-    saveAudioBtn: document.getElementById('saveAudioBtn'),
-    catalogBtn: document.getElementById('catalogBtn'),
     
     // Catalog Preview
     catalogPreview: document.getElementById('catalogPreview'),
@@ -72,11 +69,28 @@ const elements = {
     saveCatalogModal: document.getElementById('saveCatalogModal'),
     closeSaveCatalogBtn: document.getElementById('closeSaveCatalogBtn'),
     saveTextPreview: document.getElementById('saveTextPreview'),
-    tagsInput: document.getElementById('tagsInput'),
     autoTagsBtn: document.getElementById('autoTagsBtn'),
     existingTags: document.getElementById('existingTags'),
     cancelSaveCatalogBtn: document.getElementById('cancelSaveCatalogBtn'),
-    confirmSaveCatalogBtn: document.getElementById('confirmSaveCatalogBtn')
+    confirmSaveCatalogBtn: document.getElementById('confirmSaveCatalogBtn'),
+    tagListContainer: document.getElementById('tagListContainer'),
+    tagInputField: document.getElementById('tagInputField'),
+    addTagBtn: document.getElementById('addTagBtn'),
+    existingTagsList: document.getElementById('existingTagsList'),
+    
+    // Edit Tags Modal
+    editTagsModal: document.getElementById('editTagsModal'),
+    closeEditTagsBtn: document.getElementById('closeEditTagsBtn'),
+    editTextPreview: document.getElementById('editTextPreview'),
+    editTagListContainer: document.getElementById('editTagListContainer'),
+    editTagInputField: document.getElementById('editTagInputField'),
+    addEditTagBtn: document.getElementById('addEditTagBtn'),
+    editExistingTagsList: document.getElementById('editExistingTagsList'),
+    cancelEditTagsBtn: document.getElementById('cancelEditTagsBtn'),
+    confirmEditTagsBtn: document.getElementById('confirmEditTagsBtn'),
+    
+    // History
+    historyList: document.getElementById('historyList')
 };
 
 // === API Functions ===
@@ -100,6 +114,66 @@ async function api(endpoint, options = {}) {
     } catch (error) {
         console.error('API Error:', error);
         throw error;
+    }
+}
+
+// === Playback History ===
+
+async function addToPlaybackHistory(text, audioUrl, catalogId) {
+    try {
+        const params = new URLSearchParams({ text, audio_url: audioUrl });
+        if (catalogId) params.append('catalog_id', catalogId);
+        await api(`/api/history/add?${params}`, { method: 'POST' });
+    } catch (error) {
+        console.error('Failed to add to playback history:', error);
+    }
+}
+
+// === Tag List Management ===
+
+let currentTags = [];
+let editCurrentTags = [];
+
+function renderTagList(tags, container, isEdit = false) {
+    container.innerHTML = '';
+    tags.forEach((tag, index) => {
+        const tagEl = document.createElement('span');
+        tagEl.className = 'tag';
+        tagEl.innerHTML = `
+            ${escapeHtml(tag)}
+            <button class="remove-tag" data-index="${index}">×</button>
+        `;
+        tagEl.querySelector('.remove-tag').onclick = () => {
+            if (isEdit) {
+                editCurrentTags.splice(index, 1);
+                renderTagList(editCurrentTags, container, true);
+            } else {
+                currentTags.splice(index, 1);
+                renderTagList(currentTags, container, false);
+            }
+        };
+        container.appendChild(tagEl);
+    });
+}
+
+function addTagFromInput(inputField, container, isEdit = false) {
+    const tag = inputField.value.trim().toLowerCase();
+    if (tag) {
+        const tagList = isEdit ? editCurrentTags : currentTags;
+        if (!tagList.includes(tag)) {
+            tagList.push(tag);
+            renderTagList(tagList, container, isEdit);
+        }
+        inputField.value = '';
+    }
+}
+
+function addExistingTag(tag, isEdit = false) {
+    const tagList = isEdit ? editCurrentTags : currentTags;
+    const container = isEdit ? elements.editTagListContainer : elements.tagListContainer;
+    if (!tagList.includes(tag)) {
+        tagList.push(tag);
+        renderTagList(tagList, container, isEdit);
     }
 }
 
@@ -143,6 +217,8 @@ async function loadVoiceModels() {
         voiceModels = await api('/api/voice-models');
         
         elements.voiceSelect.innerHTML = '<option value="">Standard (XTTS)</option>';
+        
+        let hasActiveVoice = false;
         voiceModels.forEach(model => {
             const option = document.createElement('option');
             option.value = model.name;
@@ -150,9 +226,17 @@ async function loadVoiceModels() {
             if (model.is_active) {
                 option.selected = true;
                 elements.currentVoice.querySelector('.voice-name').textContent = model.name;
+                hasActiveVoice = true;
             }
             elements.voiceSelect.appendChild(option);
         });
+        
+        // Falls keine aktive Stimme, aber Stimmen vorhanden sind, wähle die erste
+        if (!hasActiveVoice && voiceModels.length > 0) {
+            const firstVoice = voiceModels[0].name;
+            elements.voiceSelect.value = firstVoice;
+            await loadVoiceModel(firstVoice);
+        }
     } catch (error) {
         console.error('Failed to load voice models:', error);
     }
@@ -200,8 +284,13 @@ async function speak() {
         if (result.success) {
             currentAudioUrl = `${window.API_URL}${result.audio_url}`;
             elements.audioPlayer.src = currentAudioUrl;
-            elements.audioSection.style.display = 'block';
             elements.audioPlayer.play();
+            
+            // Zum Wiedergabe-Verlauf hinzufügen
+            await addToPlaybackHistory(text, result.audio_url, null);
+            
+            // History aktualisieren
+            loadHistory();
         }
     } catch (error) {
         alert(`Fehler: ${error.message}`);
@@ -296,12 +385,114 @@ async function loadCatalogPreview() {
                 <span class="preview-text">${escapeHtml(msg.text.substring(0, 50))}${msg.text.length > 50 ? '...' : ''}</span>
                 <button class="btn btn-small play-btn" data-id="${msg.id}">▶️</button>
             `;
-            item.querySelector('.play-btn').onclick = () => playCatalogAudio(msg.id);
+            item.querySelector('.play-btn').onclick = () => playCatalogAudio(msg.id, msg.text);
             elements.catalogPreview.appendChild(item);
         });
     } catch (error) {
         console.error('Failed to load catalog preview:', error);
     }
+}
+
+async function loadHistory() {
+    try {
+        const history = await api('/api/history');
+        
+        if (!history || history.length === 0) {
+            elements.historyList.innerHTML = '<p class="muted">Noch keine Nachrichten</p>';
+            return;
+        }
+        
+        elements.historyList.innerHTML = '';
+        history.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            
+            // Zeit formatieren (nur Uhrzeit)
+            const time = new Date(item.timestamp);
+            const timeStr = time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            
+            // Katalog-Status-Indikator (✓ wenn im Katalog)
+            const catalogIndicator = item.in_catalog ? '✓ ' : '';
+            
+            div.innerHTML = `
+                <span class="history-text">${catalogIndicator}${escapeHtml(item.text.substring(0, 40))}${item.text.length > 40 ? '...' : ''}</span>
+                <span class="history-time">${timeStr}</span>
+                <div class="history-actions">
+                    <button class="btn btn-small play-btn" title="Abspielen">▶️</button>
+                    <button class="btn btn-small save-btn" title="Speichern">💾</button>
+                    ${!item.in_catalog ? '<button class="btn btn-small catalog-btn" title="Zum Katalog">📁</button>' : ''}
+                </div>
+            `;
+            div.querySelector('.play-btn').onclick = () => playHistoryAudio(item.audio_url, item.text, item.catalog_id);
+            div.querySelector('.save-btn').onclick = () => saveHistoryAudio(item.audio_url, item.text);
+            const catalogBtn = div.querySelector('.catalog-btn');
+            if (catalogBtn) {
+                catalogBtn.onclick = () => openSaveCatalogModalForHistory(item);
+            }
+            elements.historyList.appendChild(div);
+        });
+    } catch (error) {
+        console.error('Failed to load history:', error);
+    }
+}
+
+async function playHistoryAudio(audioUrl, text, catalogId) {
+    elements.audioPlayer.src = `${window.API_URL}${audioUrl}`;
+    elements.audioPlayer.play();
+    
+    // Zum Wiedergabe-Verlauf hinzufügen
+    await addToPlaybackHistory(text, audioUrl, catalogId);
+    loadHistory();
+}
+
+async function saveHistoryAudio(audioUrl, text) {
+    try {
+        // Audio herunterladen und speichern
+        const response = await fetch(`${window.API_URL}${audioUrl}`);
+        const blob = await response.blob();
+        
+        // Dateiname aus Text erstellen (erste 30 Zeichen)
+        const safeName = text.substring(0, 30).replace(/[^a-zA-Z0-9äöüÄÖÜß\s]/g, '').trim().replace(/\s+/g, '_');
+        const filename = `${safeName}.wav`;
+        
+        // Download-Link erstellen
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        alert(`Fehler beim Speichern: ${error.message}`);
+    }
+}
+
+let currentHistoryItem = null;
+
+function openSaveCatalogModalForHistory(item) {
+    currentHistoryItem = item;
+    currentText = item.text;
+    currentAudioUrl = `${window.API_URL}${item.audio_url}`;
+    
+    elements.saveTextPreview.textContent = item.text;
+    
+    // Reset current tags
+    currentTags = [];
+    renderTagList(currentTags, elements.tagListContainer, false);
+    
+    // Existing tags anzeigen
+    elements.existingTagsList.innerHTML = '';
+    catalogTags.forEach(tag => {
+        const tagBtn = document.createElement('button');
+        tagBtn.className = 'tag clickable';
+        tagBtn.textContent = tag.name;
+        tagBtn.onclick = () => addExistingTag(tag.name, false);
+        elements.existingTagsList.appendChild(tagBtn);
+    });
+    
+    elements.saveCatalogModal.classList.add('active');
 }
 
 function createCatalogItem(msg) {
@@ -314,6 +505,7 @@ function createCatalogItem(msg) {
             </button>
             <div class="catalog-item-actions">
                 <button class="btn btn-small play-btn" data-id="${msg.id}">▶️</button>
+                <button class="btn btn-small edit-btn" data-id="${msg.id}">🏷️</button>
                 <button class="btn btn-small delete-btn" data-id="${msg.id}">🗑️</button>
             </div>
         </div>
@@ -329,7 +521,8 @@ function createCatalogItem(msg) {
     
     // Event handlers
     div.querySelector('.favorite-btn').onclick = () => toggleFavorite(msg.id);
-    div.querySelector('.play-btn').onclick = () => playCatalogAudio(msg.id);
+    div.querySelector('.play-btn').onclick = () => playCatalogAudio(msg.id, msg.text);
+    div.querySelector('.edit-btn').onclick = () => openEditTagsModal(msg);
     div.querySelector('.delete-btn').onclick = () => deleteCatalogMessage(msg.id);
     
     return div;
@@ -344,10 +537,14 @@ async function toggleFavorite(id) {
     }
 }
 
-async function playCatalogAudio(id) {
-    elements.audioPlayer.src = `${window.API_URL}/api/catalog/${id}/audio`;
-    elements.audioSection.style.display = 'block';
+async function playCatalogAudio(id, text) {
+    const audioUrl = `/api/catalog/${id}/audio`;
+    elements.audioPlayer.src = `${window.API_URL}${audioUrl}`;
     elements.audioPlayer.play();
+    
+    // Zum Wiedergabe-Verlauf hinzufügen
+    await addToPlaybackHistory(text, audioUrl, id);
+    loadHistory();
 }
 
 async function deleteCatalogMessage(id) {
@@ -361,9 +558,54 @@ async function deleteCatalogMessage(id) {
     }
 }
 
+// === Edit Tags ===
+let currentEditMessageId = null;
+
+function openEditTagsModal(msg) {
+    currentEditMessageId = msg.id;
+    elements.editTextPreview.textContent = msg.text;
+    
+    // Set current tags from message
+    editCurrentTags = [...msg.tags];
+    renderTagList(editCurrentTags, elements.editTagListContainer, true);
+    
+    // Show existing tags
+    elements.editExistingTagsList.innerHTML = '';
+    catalogTags.forEach(tag => {
+        const tagBtn = document.createElement('button');
+        tagBtn.className = 'tag clickable';
+        tagBtn.textContent = tag.name;
+        tagBtn.onclick = () => addExistingTag(tag.name, true);
+        elements.editExistingTagsList.appendChild(tagBtn);
+    });
+    
+    elements.editTagsModal.classList.add('active');
+}
+
+function closeEditTagsModal() {
+    elements.editTagsModal.classList.remove('active');
+    currentEditMessageId = null;
+    editCurrentTags = [];
+}
+
+async function saveEditedTags() {
+    if (!currentEditMessageId) return;
+    
+    try {
+        await api(`/api/catalog/${currentEditMessageId}/tags`, {
+            method: 'PUT',
+            body: JSON.stringify(editCurrentTags)
+        });
+        closeEditTagsModal();
+        loadCatalog();
+        loadCatalogTags();
+    } catch (error) {
+        alert(`Fehler beim Speichern: ${error.message}`);
+    }
+}
+
 async function saveToCatalog() {
-    const tagsText = elements.tagsInput.value.trim();
-    const tags = tagsText ? tagsText.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const tags = [...currentTags];
     
     // Add language tag
     const langNames = {
@@ -406,28 +648,19 @@ async function generateAutoTags() {
         });
         
         if (result.tags && result.tags.length > 0) {
-            const currentTags = elements.tagsInput.value.trim();
-            if (currentTags) {
-                elements.tagsInput.value = currentTags + ', ' + result.tags.join(', ');
-            } else {
-                elements.tagsInput.value = result.tags.join(', ');
-            }
+            // Add each generated tag to the list
+            result.tags.forEach(tag => {
+                if (!currentTags.includes(tag)) {
+                    currentTags.push(tag);
+                }
+            });
+            renderTagList(currentTags, elements.tagListContainer, false);
         }
     } catch (error) {
         console.error('Auto-tags error:', error);
     } finally {
         elements.autoTagsBtn.disabled = false;
         elements.autoTagsBtn.textContent = '🤖 Auto-Tags';
-    }
-}
-
-function addTagToInput(tag) {
-    const current = elements.tagsInput.value.trim();
-    const tags = current ? current.split(',').map(t => t.trim()) : [];
-    
-    if (!tags.includes(tag)) {
-        tags.push(tag);
-        elements.tagsInput.value = tags.join(', ');
     }
 }
 
@@ -582,13 +815,28 @@ function openSaveCatalogModal() {
     }
     
     elements.saveTextPreview.textContent = currentText;
-    elements.tagsInput.value = '';
+    
+    // Reset current tags
+    currentTags = [];
+    renderTagList(currentTags, elements.tagListContainer, false);
+    
+    // Load existing tags
     loadCatalogTags();
+    elements.existingTagsList.innerHTML = '';
+    catalogTags.forEach(tag => {
+        const tagBtn = document.createElement('button');
+        tagBtn.className = 'tag clickable';
+        tagBtn.textContent = tag.name;
+        tagBtn.onclick = () => addExistingTag(tag.name, false);
+        elements.existingTagsList.appendChild(tagBtn);
+    });
+    
     elements.saveCatalogModal.classList.add('active');
 }
 
 function closeSaveCatalogModal() {
     elements.saveCatalogModal.classList.remove('active');
+    currentTags = [];
 }
 
 // === Utility Functions ===
@@ -622,6 +870,14 @@ function setupEventListeners() {
         elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
     });
     
+    // Enter key to speak
+    elements.textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            speak();
+        }
+    });
+    
     // Voice select
     elements.voiceSelect.addEventListener('change', (e) => {
         loadVoiceModel(e.target.value);
@@ -630,23 +886,6 @@ function setupEventListeners() {
     // TTS buttons
     elements.speakBtn.addEventListener('click', speak);
     elements.stopBtn.addEventListener('click', stopSpeaking);
-    
-    // Audio buttons
-    elements.saveAudioBtn.addEventListener('click', async () => {
-        if (currentAudioUrl) {
-            const result = await window.electronAPI.saveFileDialog({
-                defaultPath: 'speech.wav'
-            });
-            if (!result.canceled && result.filePath) {
-                // Download and save file
-                const response = await fetch(currentAudioUrl);
-                const blob = await response.blob();
-                // Note: In real app, use IPC to save file
-                alert('Audio gespeichert!');
-            }
-        }
-    });
-    elements.catalogBtn.addEventListener('click', openSaveCatalogModal);
     
     // Settings
     elements.settingsBtn.addEventListener('click', openSettingsModal);
@@ -707,6 +946,33 @@ function setupEventListeners() {
     elements.confirmSaveCatalogBtn.addEventListener('click', saveToCatalog);
     elements.autoTagsBtn.addEventListener('click', generateAutoTags);
     
+    // Tag input for Save Catalog Modal
+    elements.addTagBtn.addEventListener('click', () => {
+        addTagFromInput(elements.tagInputField, elements.tagListContainer, false);
+    });
+    elements.tagInputField.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addTagFromInput(elements.tagInputField, elements.tagListContainer, false);
+        }
+    });
+    
+    // Edit Tags Modal
+    elements.closeEditTagsBtn.addEventListener('click', closeEditTagsModal);
+    elements.cancelEditTagsBtn.addEventListener('click', closeEditTagsModal);
+    elements.confirmEditTagsBtn.addEventListener('click', saveEditedTags);
+    
+    // Tag input for Edit Tags Modal
+    elements.addEditTagBtn.addEventListener('click', () => {
+        addTagFromInput(elements.editTagInputField, elements.editTagListContainer, true);
+    });
+    elements.editTagInputField.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addTagFromInput(elements.editTagInputField, elements.editTagListContainer, true);
+        }
+    });
+    
     // Close modals on backdrop click
     document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', (e) => {
@@ -759,9 +1025,10 @@ async function init() {
     }
     
     if (connected) {
-        // Katalog kann sofort geladen werden
+        // Katalog und History können sofort geladen werden
         loadCatalogTags();
         loadCatalogPreview();
+        loadHistory();
         
         // Voice-Models erst laden wenn TTS bereit ist
         await waitForTTSAndLoadModels();
