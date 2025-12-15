@@ -1241,10 +1241,49 @@ function formatDate(dateStr) {
 
 // === Event Listeners ===
 
+// Tastatur API URL
+const KEYBOARD_API_URL = 'http://127.0.0.1:3847';
+
+async function startKeyboard() {
+    try {
+        console.log('Starte Tastatur...');
+        const response = await fetch(`${KEYBOARD_API_URL}/start`, { 
+            method: 'POST',
+            mode: 'no-cors'
+        });
+        console.log('Tastatur gestartet');
+    } catch (error) {
+        console.log('Tastatur-API nicht erreichbar:', error.message);
+    }
+}
+
+async function stopKeyboard() {
+    try {
+        console.log('Stoppe Tastatur...');
+        await fetch(`${KEYBOARD_API_URL}/stop`, { 
+            method: 'POST',
+            mode: 'no-cors'
+        });
+        console.log('Tastatur gestoppt');
+    } catch (error) {
+        console.log('Tastatur-API nicht erreichbar:', error.message);
+    }
+}
+
 function setupEventListeners() {
     // Text input
     elements.textInput.addEventListener('input', () => {
         elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
+    });
+    
+    // Tastatur starten bei Fokus
+    elements.textInput.addEventListener('focus', () => {
+        startKeyboard();
+    });
+    
+    // Tastatur stoppen bei Fokusverlust
+    elements.textInput.addEventListener('blur', () => {
+        stopKeyboard();
     });
     
     // Enter key to speak

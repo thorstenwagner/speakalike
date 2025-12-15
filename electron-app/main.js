@@ -55,6 +55,13 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
     
+    // DevTools mit F12 öffnen
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'F12') {
+            mainWindow.webContents.toggleDevTools();
+        }
+    });
+    
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
     });
