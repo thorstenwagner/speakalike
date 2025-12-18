@@ -122,7 +122,10 @@ const elements = {
     importAutoTagsBtn: document.getElementById('importAutoTagsBtn'),
     
     // History
-    historyList: document.getElementById('historyList')
+    historyList: document.getElementById('historyList'),
+    
+    // Favorites
+    favoritesList: document.getElementById('favoritesList')
 };
 
 // === Tag Filter State ===
@@ -334,7 +337,7 @@ async function loadVoiceModel(name) {
 async function speak() {
     const text = elements.textInput.value.trim();
     if (!text) {
-        alert('Bitte geben Sie einen Text ein.');
+        showToast('Bitte geben Sie einen Text ein.', 'error');
         return;
     }
     
@@ -364,7 +367,7 @@ async function speak() {
             loadHistory();
         }
     } catch (error) {
-        alert(`Fehler: ${error.message}`);
+        showToast(`Fehler: ${error.message}`, 'error');
     } finally {
         elements.speakBtn.disabled = false;
         elements.stopBtn.disabled = true;
@@ -637,6 +640,51 @@ async function saveHistoryAudio(audioUrl, text) {
     }
 }
 
+// === Favorites ===
+
+async function loadFavorites() {
+    try {
+        const favorites = await api('/api/catalog?favorites_only=true&limit=20');
+        
+        if (!favorites || favorites.length === 0) {
+            elements.favoritesList.innerHTML = '<p class="muted">Noch keine Favoriten</p>';
+            return;
+        }
+        
+        elements.favoritesList.innerHTML = '';
+        favorites.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            
+            div.innerHTML = `
+                <span class="history-text">${escapeHtml(item.text.substring(0, 40))}${item.text.length > 40 ? '...' : ''}</span>
+                <span class="history-time">${item.play_count || 0}×</span>
+                <div class="history-actions">
+                    <button class="btn btn-small play-btn" title="Abspielen">▶️</button>
+                    <button class="btn btn-small unfav-btn" title="Entfernen">⭐</button>
+                </div>
+            `;
+            div.querySelector('.play-btn').onclick = () => playCatalogItem(item);
+            div.querySelector('.unfav-btn').onclick = () => toggleFavorite(item.id, false);
+            elements.favoritesList.appendChild(div);
+        });
+    } catch (error) {
+        console.error('Failed to load favorites:', error);
+    }
+}
+
+async function playCatalogItem(item) {
+    if (item.audio_url) {
+        elements.audioPlayer.src = `${window.API_URL}${item.audio_url}`;
+        elements.audioPlayer.play();
+        
+        // Play count erhöhen
+        await api(`/api/catalog/${item.id}/play`, { method: 'POST' });
+        loadFavorites();
+        loadCatalogPreview();
+    }
+}
+
 let currentHistoryItem = null;
 
 function openSaveCatalogModalForHistory(item) {
@@ -690,10 +738,21 @@ function createCatalogItem(msg) {
     return div;
 }
 
-async function toggleFavorite(id) {
+async function toggleFavorite(id, setTo = null) {
     try {
-        await api(`/api/catalog/${id}/favorite`, { method: 'PUT' });
+        if (setTo !== null) {
+            // Direkt auf Wert setzen
+            await api(`/api/catalog/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ is_favorite: setTo })
+            });
+        } else {
+            // Toggle
+            await api(`/api/catalog/${id}/favorite`, { method: 'PUT' });
+        }
         loadCatalog();
+        loadFavorites();
+        loadCatalogPreview();
     } catch (error) {
         console.error('Toggle favorite error:', error);
     }
@@ -715,6 +774,7 @@ async function deleteCatalogMessage(id) {
     try {
         await api(`/api/catalog/${id}`, { method: 'DELETE' });
         loadCatalog();
+        loadFavorites();
     } catch (error) {
         alert(`Fehler: ${error.message}`);
     }
@@ -780,10 +840,15 @@ async function saveToCatalog() {
         });
         
         closeSaveCatalogModal();
-        alert('Zum Katalog hinzugefügt!');
+        
+        // Toast statt alert, um Fokus-Probleme zu vermeiden
+        showToast('Zum Katalog hinzugefügt!', 'success');
+        
         loadCatalogTags();
+        loadFavorites();
+        loadCatalogPreview();
     } catch (error) {
-        alert(`Fehler: ${error.message}`);
+        showToast(`Fehler: ${error.message}`, 'error');
     }
 }
 
@@ -1037,10 +1102,10 @@ async function importMp3() {
         closeImportMp3Modal();
         loadCatalog();
         loadCatalogPreview();
-        alert('Audio erfolgreich importiert!');
+        showToast('Audio erfolgreich importiert!', 'success');
         
     } catch (error) {
-        alert(`Fehler beim Import: ${error.message}`);
+        showToast(`Fehler beim Import: ${error.message}`, 'error');
     } finally {
         elements.confirmImportMp3Btn.disabled = false;
         elements.confirmImportMp3Btn.textContent = '📥 Importieren';
@@ -1082,10 +1147,10 @@ async function createVoice() {
         }
         
         closeNewVoiceModal();
-        alert(`Stimme "${name}" erfolgreich erstellt!`);
+        showToast(`Stimme "${name}" erfolgreich erstellt!`, 'success');
         loadVoiceModels();
     } catch (error) {
-        alert(`Fehler: ${error.message}`);
+        showToast(`Fehler: ${error.message}`, 'error');
     } finally {
         elements.createVoiceBtn.disabled = false;
         elements.createVoiceBtn.textContent = 'Stimme erstellen';
@@ -1217,6 +1282,24 @@ function closeSaveCatalogModal() {
 }
 
 // === Utility Functions ===
+
+function showToast(message, type = 'info') {
+    // Bestehenden Toast entfernen
+    const existingToast = document.querySelector('.toast');
+    if (existingToast) existingToast.remove();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    // Animation
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
 
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -1520,6 +1603,7 @@ async function init() {
         loadCatalogTags();
         loadCatalogPreview();
         loadHistory();
+        loadFavorites();
         
         // Voice-Models erst laden wenn TTS bereit ist
         await waitForTTSAndLoadModels();

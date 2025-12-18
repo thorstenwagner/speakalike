@@ -189,18 +189,33 @@ class MessageCatalog:
             cursor = conn.cursor()
             
             # Basis-Query
-            if query:
-                # Volltextsuche
-                sql = '''
-                    SELECT m.*, GROUP_CONCAT(t.name) as tags_str
-                    FROM messages m
-                    LEFT JOIN message_tags mt ON m.id = mt.message_id
-                    LEFT JOIN tags t ON mt.tag_id = t.id
-                    WHERE m.id IN (
-                        SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
-                    )
-                '''
-                params = [query + '*']  # Prefix-Suche
+            if query and query.strip():
+                # Bereinige Suchbegriff von FTS-Sonderzeichen
+                clean_query = ''.join(c for c in query if c.isalnum() or c.isspace())
+                clean_query = clean_query.strip()
+                
+                if clean_query:
+                    # Volltextsuche mit Prefix
+                    sql = '''
+                        SELECT m.*, GROUP_CONCAT(t.name) as tags_str
+                        FROM messages m
+                        LEFT JOIN message_tags mt ON m.id = mt.message_id
+                        LEFT JOIN tags t ON mt.tag_id = t.id
+                        WHERE m.id IN (
+                            SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
+                        )
+                    '''
+                    params = [clean_query + '*']  # Prefix-Suche
+                else:
+                    # Fallback auf LIKE wenn keine gültigen Zeichen übrig
+                    sql = '''
+                        SELECT m.*, GROUP_CONCAT(t.name) as tags_str
+                        FROM messages m
+                        LEFT JOIN message_tags mt ON m.id = mt.message_id
+                        LEFT JOIN tags t ON mt.tag_id = t.id
+                        WHERE m.text LIKE ?
+                    '''
+                    params = [f'%{query}%']
             else:
                 sql = '''
                     SELECT m.*, GROUP_CONCAT(t.name) as tags_str
@@ -303,6 +318,16 @@ class MessageCatalog:
             result = cursor.fetchone()
             conn.commit()
             return bool(result[0]) if result else False
+    
+    def set_favorite(self, message_id: int, is_favorite: bool):
+        """Setzt den Favoriten-Status direkt."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'UPDATE messages SET is_favorite = ? WHERE id = ?',
+                (1 if is_favorite else 0, message_id)
+            )
+            conn.commit()
     
     def update_tags(self, message_id: int, tags: List[str]):
         """Aktualisiert die Tags einer Nachricht."""

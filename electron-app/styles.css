@@ -386,7 +386,7 @@ body {
     cursor: pointer;
 }
 
-/* Bottom Row - History & Catalog nebeneinander */
+/* Bottom Row - History & Favorites & Catalog nebeneinander */
 .bottom-row {
     display: flex;
     gap: var(--spacing-md);
@@ -396,6 +396,7 @@ body {
 }
 
 .bottom-row .history-section,
+.bottom-row .favorites-section,
 .bottom-row .catalog-section {
     flex: 1;
     min-width: 0;
@@ -421,6 +422,38 @@ body {
     background: var(--color-bg);
     border-radius: var(--radius);
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    overflow-y: auto;
+    min-height: 100px;
+}
+
+/* Favorites Section */
+.favorites-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.favorites-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 600;
+}
+
+.favorites-list {
+    padding: var(--spacing-sm);
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    overflow-y: auto;
+    min-height: 100px;
+}
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
@@ -1010,11 +1043,11 @@ body {
     top: 100%;
     left: 0;
     right: 0;
-    background: var(--color-bg-secondary);
+    background: var(--color-white);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     margin-top: 4px;
-    z-index: 100;
+    z-index: 1000;
     max-height: 250px;
     overflow: hidden;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -1033,6 +1066,7 @@ body {
 .tag-filter-list {
     max-height: 200px;
     overflow-y: auto;
+    background: var(--color-white);
 }
 
 .tag-filter-item {
@@ -1041,6 +1075,7 @@ body {
     padding: 8px 12px;
     cursor: pointer;
     transition: background 0.15s;
+    background: var(--color-white);
 }
 
 .tag-filter-item:hover {
@@ -1106,4 +1141,37 @@ body {
 
 .catalog-toolbar .tag-filter-container {
     flex: 0 0 auto;
+}
+
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    padding: 12px 24px;
+    border-radius: var(--radius);
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    box-shadow: var(--shadow-lg);
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.toast-success {
+    background: var(--color-success);
+}
+
+.toast-error {
+    background: var(--color-danger);
+}
+
+.toast-info {
+    background: var(--color-primary);
 }

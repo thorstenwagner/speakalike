@@ -231,7 +231,7 @@ async def get_audio(filename: str):
 async def get_history():
     """Gibt den Wiedergabe-Verlauf zurück (alle abgespielten Nachrichten in zeitlicher Reihenfolge)"""
     if catalog:
-        history = catalog.get_playback_history(limit=10)
+        history = catalog.get_playback_history(limit=50)
         result = []
         for item in history:
             result.append({
@@ -409,10 +409,12 @@ async def list_catalog(
             "id": m["id"],
             "text": m["text"],
             "audio_path": m["audio_path"],
+            "audio_url": f"/api/catalog/{m['id']}/audio" if m.get("audio_path") else None,
             "duration": m.get("duration_seconds", 0),
             "voice_model": m.get("voice_model", ""),
             "language": "de",
             "is_favorite": bool(m.get("is_favorite", 0)),
+            "play_count": m.get("play_count", 0),
             "created_at": m.get("created_at", ""),
             "tags": m.get("tags", [])
         }
@@ -487,6 +489,28 @@ async def update_tags(message_id: int, tags: List[str]):
         raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
     
     catalog.update_tags(message_id, tags)
+    return {"success": True}
+
+
+@app.post("/api/catalog/{message_id}/play")
+async def increment_play_count(message_id: int):
+    """Erhöht den Play-Count einer Katalog-Nachricht"""
+    if not catalog:
+        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+    
+    catalog.update_play_count(message_id)
+    return {"success": True}
+
+
+@app.put("/api/catalog/{message_id}")
+async def update_catalog_message(message_id: int, request: dict):
+    """Aktualisiert eine Katalog-Nachricht (z.B. is_favorite)"""
+    if not catalog:
+        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+    
+    if "is_favorite" in request:
+        catalog.set_favorite(message_id, request["is_favorite"])
+    
     return {"success": True}
 
 
