@@ -63,12 +63,12 @@ class TextToSpeech:
         self.max_ref_len = 30  # Reduziert für Performance (Standard: 10)
         
         # Erweiterte Qualitätseinstellungen
-        self.temperature = 0.3  # Niedrig für klare, konsistente Ausgabe
-        self.top_k = 30  # Eingeschränktere Token-Auswahl
-        self.top_p = 0.75  # Nucleus Sampling
-        self.repetition_penalty = 2.0  # Gegen Stottern/Wiederholungen (max 2.0)
+        self.temperature = 0.65  # Standard-Wert für bessere Generierung
+        self.top_k = 50  # Standard-Wert
+        self.top_p = 0.8  # Standard-Wert
+        self.repetition_penalty = 2.0  # Gegen Stottern/Wiederholungen
         self.speed = 1.0  # Sprechgeschwindigkeit
-        self.length_penalty = 1.0  # Ausgeglichene Länge
+        self.length_penalty = 1.0  # Standard-Wert
         
         # Erstelle Voice-Modell-Verzeichnis falls nicht vorhanden
         self.VOICE_MODELS_DIR.mkdir(exist_ok=True)
@@ -515,8 +515,8 @@ class TextToSpeech:
     def _inference_direct(self, text, language, output_path):
         """Direkte XTTS-Inference mit optimierten Parametern"""
         import torch
-        import torchaudio
         import numpy as np
+        import scipy.io.wavfile as wavfile
         import time
         
         start_time = time.time()
@@ -528,27 +528,39 @@ class TextToSpeech:
             print(f"  Generierung abgeschlossen in {time.time() - start_time:.2f}s (Streaming)")
             return
         
+        # Generiere den gesamten Text in einem Stück
         out = self.model.inference(
             text=text,
             language=language,
             gpt_cond_latent=self.gpt_cond_latent,
             speaker_embedding=self.speaker_embedding,
-            # Dynamische Parameter aus Klassenattributen
             temperature=self.temperature,
             length_penalty=self.length_penalty,
             repetition_penalty=self.repetition_penalty,
             top_k=self.top_k,
             top_p=self.top_p,
             speed=self.speed,
-            enable_text_splitting=True  # Satzweise Verarbeitung
+            enable_text_splitting=True
         )
         
-        # Audio-Nachbearbeitung: Entferne Artefakte am Ende basierend auf Transkription
         wav = np.array(out["wav"])
+        
+        # DEBUG: Speichere Audio VOR dem Trimming auf Desktop
+        import os
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        debug_path = os.path.join(desktop, "DEBUG_vor_trim.wav")
+        wav_debug = np.clip(wav, -1.0, 1.0)
+        wav_debug_int16 = (wav_debug * 32767).astype(np.int16)
+        wavfile.write(debug_path, 24000, wav_debug_int16)
+        print(f"  DEBUG: Audio vor Trimming gespeichert: {debug_path}")
+        
+        # Artefakte am Ende entfernen
         wav = self._remove_artifacts_with_transcription(wav, text, sample_rate=24000)
         
-        # Speichern mit korrekter Sample-Rate (24kHz für XTTS)
-        torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
+        # Speichern als Standard-PCM WAV (16-bit) für maximale Kompatibilität
+        wav = np.clip(wav, -1.0, 1.0)
+        wav_int16 = (wav * 32767).astype(np.int16)
+        wavfile.write(output_path, 24000, wav_int16)
         print(f"  Generierung abgeschlossen in {time.time() - start_time:.2f}s")
     
     def _inference_direct_streaming(self, text, language, output_path):
@@ -676,34 +688,33 @@ class TextToSpeech:
                 return self._remove_trailing_artifacts(audio, sample_rate)
             
             # Debug: Zeige erkannte Wörter
-            print(f"  Erkannte Wörter: {[w['word'] for w in recognized_words[:10]]}...")
-            print(f"  Erwartete Wörter: {expected_words[:10]}...")
+            print(f"  Erkannte Wörter ({len(recognized_words)}): {[w['word'] for w in recognized_words]}")
+            print(f"  Erwartete Wörter ({len(expected_words)}): {expected_words}")
             
             # Strategie: Einfach zählen!
             # Der erwartete Text hat N Wörter → nimm das Ende des N-ten erkannten Wortes
-            # Das ist robust gegenüber Schreibweisen (bizeps/biceps) und Whisper-Varianten
             num_expected = len(expected_words)
             
             if len(recognized_words) >= num_expected:
-                # Nimm das Ende des letzten erwarteten Wortes
+                # Alle Wörter erkannt - schneide nach dem letzten erwarteten Wort
                 last_valid_word_info = recognized_words[num_expected - 1]
                 last_valid_end = last_valid_word_info["end"]
                 last_valid_word = last_valid_word_info["word"]
                 
-                print(f"  Erwarte {num_expected} Wörter, schneide nach Wort {num_expected}: '{last_valid_word}'")
+                print(f"  Erwarte {num_expected} Wörter, schneide nach Wort {num_expected}: '{last_valid_word}' bei {last_valid_end:.2f}s")
             else:
                 # Weniger erkannte Wörter als erwartet - nimm alles
                 last_valid_word_info = recognized_words[-1]
                 last_valid_end = last_valid_word_info["end"]
                 last_valid_word = last_valid_word_info["word"]
                 
-                print(f"  Nur {len(recognized_words)} von {num_expected} Wörtern erkannt, verwende alle")
+                print(f"  Nur {len(recognized_words)} von {num_expected} Wörtern erkannt, verwende alle bis '{last_valid_word}' bei {last_valid_end:.2f}s")
             
             if last_valid_end > 0:
                 # Konvertiere Zeit zurück zu Sample-Position (bei Original-Samplerate)
                 end_sample = int(last_valid_end * sample_rate)
-                # Füge 200ms Puffer hinzu für natürliches Ausklingen
-                end_sample = min(end_sample + int(0.20 * sample_rate), len(audio))
+                # Füge 350ms Puffer hinzu für natürliches Ausklingen
+                end_sample = min(end_sample + int(0.35 * sample_rate), len(audio))
                 
                 # Sanftes Fade-Out (150ms) für natürlichen Übergang
                 fade_duration = 0.15  # 150ms
@@ -920,6 +931,58 @@ class TextToSpeech:
                   f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
         
         return trimmed
+    
+    def _remove_trailing_silence(self, audio, sample_rate=24000, silence_threshold_db=-40):
+        """
+        Entfernt nur echte Stille am Ende des Audios (weniger aggressiv).
+        
+        Behält mehr Audio als _remove_trailing_artifacts, gut wenn
+        Whisper nicht alles erkannt hat aber das Audio komplett ist.
+        """
+        import numpy as np
+        
+        if len(audio) == 0:
+            return audio
+        
+        # Berechne RMS-Energie in kleinen Fenstern
+        window_size = int(0.05 * sample_rate)  # 50ms Fenster
+        hop_size = window_size // 2
+        
+        num_windows = (len(audio) - window_size) // hop_size + 1
+        if num_windows <= 0:
+            return audio
+        
+        # Finde von hinten nach vorne die erste Stelle mit echtem Audio
+        for i in range(num_windows - 1, -1, -1):
+            start = i * hop_size
+            end = start + window_size
+            window = audio[start:end]
+            rms = np.sqrt(np.mean(window ** 2))
+            rms_db = 20 * np.log10(rms + 1e-10)
+            
+            if rms_db > silence_threshold_db:
+                # Hier ist noch Audio - schneide 300ms danach ab
+                end_sample = min(end + int(0.3 * sample_rate), len(audio))
+                
+                # Fade-Out (100ms)
+                fade_samples = int(0.1 * sample_rate)
+                if end_sample > fade_samples:
+                    fade_start = end_sample - fade_samples
+                    fade_curve = np.linspace(1.0, 0.0, fade_samples)
+                    audio = audio.copy()
+                    audio[fade_start:end_sample] *= fade_curve[:end_sample - fade_start]
+                
+                trimmed = audio[:end_sample]
+                
+                original_duration = len(audio) / sample_rate
+                trimmed_duration = len(trimmed) / sample_rate
+                
+                if original_duration - trimmed_duration > 0.1:
+                    print(f"  -> Silence-Trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s")
+                
+                return trimmed
+        
+        return audio
     
     def _inference_api_cloning(self, text, language, output_path):
         """TTS API Inference mit Voice Cloning"""

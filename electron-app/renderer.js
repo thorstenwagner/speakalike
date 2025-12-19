@@ -357,8 +357,26 @@ async function speak() {
         
         if (result.success) {
             currentAudioUrl = `${window.API_URL}${result.audio_url}`;
+            console.log('Audio URL:', currentAudioUrl);
             elements.audioPlayer.src = currentAudioUrl;
-            elements.audioPlayer.play();
+            
+            // Event-Listener für Debugging
+            elements.audioPlayer.onerror = (e) => {
+                console.error('Audio Fehler:', e, elements.audioPlayer.error);
+                showToast('Audio-Fehler beim Abspielen', 'error');
+            };
+            
+            elements.audioPlayer.oncanplay = () => {
+                console.log('Audio kann abgespielt werden');
+            };
+            
+            try {
+                await elements.audioPlayer.play();
+                console.log('Audio wird abgespielt');
+            } catch (playError) {
+                console.error('Play Fehler:', playError);
+                showToast('Konnte Audio nicht abspielen', 'error');
+            }
             
             // Zum Wiedergabe-Verlauf hinzufügen
             await addToPlaybackHistory(text, result.audio_url, null);
@@ -529,19 +547,74 @@ async function loadCatalog() {
     }
 }
 
+// Sprach-Tag Mapping (global verfügbar)
+const langNames = {
+    'de': 'deutsch', 'en': 'englisch', 'es': 'spanisch', 'fr': 'französisch',
+    'it': 'italienisch', 'pt': 'portugiesisch', 'pl': 'polnisch', 'tr': 'türkisch',
+    'ru': 'russisch', 'nl': 'niederländisch', 'ja': 'japanisch', 'zh-cn': 'chinesisch'
+};
+
+// Alle Sprach-Tags als Set für schnelle Prüfung
+const allLangTags = new Set(Object.values(langNames));
+
+// Prüft ob ein Eintrag zur aktuellen Sprache passt (oder kein Sprach-Tag hat)
+function matchesLanguageFilter(item, currentLangTag) {
+    const itemTags = item.tags || [];
+    const hasAnyLangTag = itemTags.some(tag => allLangTags.has(tag));
+    
+    // Zeige an wenn: kein Sprach-Tag vorhanden ODER das aktuelle Sprach-Tag vorhanden
+    return !hasAnyLangTag || itemTags.includes(currentLangTag);
+}
+
 async function loadCatalogPreview() {
     try {
-        // Lade Einträge für die Vorschau, optional gefiltert nach Tags
+        // Lade Einträge für die Vorschau
         const params = new URLSearchParams();
         params.set('order_by', 'play_count');
-        params.set('limit', '50');
+        params.set('limit', '100');  // Mehr laden, da wir im Frontend filtern
         
+        // Nur die manuell ausgewählten Tags an Backend senden
         if (mainSelectedTagsList.length > 0) {
             params.set('tags', mainSelectedTagsList.join(','));
             params.set('tag_mode', mainTagMode);
         }
         
-        const messages = await api(`/api/catalog?${params}`);
+        let messages = await api(`/api/catalog?${params}`);
+        
+        // Im Frontend nach Sprache filtern
+        const currentLang = elements.languageSelect.value;
+        const langTag = langNames[currentLang] || currentLang;
+        
+        console.log(`\n=== Katalog-Vorschau Filter ===`);
+        console.log(`Aktuelle Sprache: ${currentLang} → Tag: "${langTag}"`);
+        console.log(`Einträge vom Backend: ${messages.length}`);
+        
+        const beforeFilter = messages.length;
+        messages = messages.filter(msg => {
+            const itemTags = msg.tags || [];
+            const hasAnyLangTag = itemTags.some(tag => allLangTags.has(tag));
+            const matches = matchesLanguageFilter(msg, langTag);
+            
+            if (!matches) {
+                console.log(`  ✗ Gefiltert: "${msg.text.substring(0, 30)}..." | Tags: [${itemTags.join(', ')}]`);
+            }
+            return matches;
+        });
+        
+        console.log(`Nach Sprachfilter: ${messages.length} (${beforeFilter - messages.length} entfernt)`);
+        
+        // Auf 50 begrenzen nach Filterung
+        if (messages.length > 50) {
+            console.log(`Abgeschnitten bei 50 (${messages.length - 50} weitere nicht angezeigt)`);
+        }
+        messages = messages.slice(0, 50);
+        
+        console.log(`Angezeigte Einträge: ${messages.length}`);
+        messages.slice(0, 5).forEach(msg => {
+            const tags = msg.tags || [];
+            console.log(`  ✓ "${msg.text.substring(0, 30)}..." | Tags: [${tags.join(', ')}]`);
+        });
+        if (messages.length > 5) console.log(`  ... und ${messages.length - 5} weitere`);
         
         if (messages.length === 0) {
             elements.catalogPreview.innerHTML = '<p class="muted">Noch keine Einträge im Katalog</p>';
@@ -644,10 +717,45 @@ async function saveHistoryAudio(audioUrl, text) {
 
 async function loadFavorites() {
     try {
-        const favorites = await api('/api/catalog?favorites_only=true&limit=20');
+        const allFavorites = await api('/api/catalog?favorites_only=true&limit=50');
         
-        if (!favorites || favorites.length === 0) {
+        if (!allFavorites || allFavorites.length === 0) {
             elements.favoritesList.innerHTML = '<p class="muted">Noch keine Favoriten</p>';
+            return;
+        }
+        
+        // Nach aktueller Sprache filtern (oder wenn kein Sprach-Tag vorhanden)
+        const currentLang = elements.languageSelect.value;
+        const langTag = langNames[currentLang] || currentLang;
+        
+        console.log(`\n=== Favoriten Filter ===`);
+        console.log(`Aktuelle Sprache: ${currentLang} → Tag: "${langTag}"`);
+        console.log(`Favoriten vom Backend: ${allFavorites.length}`);
+        
+        const filtered = allFavorites.filter(item => {
+            const itemTags = item.tags || [];
+            const matches = matchesLanguageFilter(item, langTag);
+            
+            if (!matches) {
+                console.log(`  ✗ Gefiltert: "${item.text.substring(0, 30)}..." | Tags: [${itemTags.join(', ')}]`);
+            }
+            return matches;
+        });
+        
+        console.log(`Nach Sprachfilter: ${filtered.length} (${allFavorites.length - filtered.length} entfernt)`);
+        
+        const favorites = filtered.slice(0, 20);
+        if (filtered.length > 20) {
+            console.log(`Abgeschnitten bei 20 (${filtered.length - 20} weitere nicht angezeigt)`);
+        }
+        
+        favorites.forEach(item => {
+            const tags = item.tags || [];
+            console.log(`  ✓ "${item.text.substring(0, 30)}..." | Tags: [${tags.join(', ')}]`);
+        });
+        
+        if (favorites.length === 0) {
+            elements.favoritesList.innerHTML = '<p class="muted">Keine Favoriten für diese Sprache</p>';
             return;
         }
         
@@ -822,12 +930,7 @@ async function saveEditedTags() {
 async function saveToCatalog() {
     const tags = [...currentTags];
     
-    // Add language tag
-    const langNames = {
-        'de': 'deutsch', 'en': 'englisch', 'es': 'spanisch', 'fr': 'französisch',
-        'it': 'italienisch', 'pt': 'portugiesisch', 'pl': 'polnisch', 'tr': 'türkisch',
-        'ru': 'russisch', 'nl': 'niederländisch', 'ja': 'japanisch', 'zh-cn': 'chinesisch'
-    };
+    // Add language tag (nutzt globale langNames)
     const langTag = langNames[elements.languageSelect.value] || elements.languageSelect.value;
     if (!tags.includes(langTag)) {
         tags.unshift(langTag);
@@ -1356,7 +1459,9 @@ async function stopKeyboard() {
 function setupEventListeners() {
     // Text input
     elements.textInput.addEventListener('input', () => {
-        elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
+        if (elements.charCount) {
+            elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
+        }
     });
     
     // Tastatur starten bei Fokus
@@ -1380,6 +1485,12 @@ function setupEventListeners() {
     // Voice select
     elements.voiceSelect.addEventListener('change', (e) => {
         loadVoiceModel(e.target.value);
+    });
+    
+    // Language select - aktualisiert Katalog-Vorschau und Favoriten
+    elements.languageSelect.addEventListener('change', () => {
+        loadCatalogPreview();
+        loadFavorites();
     });
     
     // TTS buttons
