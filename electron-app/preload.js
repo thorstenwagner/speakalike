@@ -4,7 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     openFileDialog: (options) => ipcRenderer.invoke('open-file-dialog', options),
     saveFileDialog: (options) => ipcRenderer.invoke('save-file-dialog', options),
-    readFileAsBuffer: (filePath) => ipcRenderer.invoke('read-file-as-buffer', filePath)
+    readFileAsBuffer: (filePath) => ipcRenderer.invoke('read-file-as-buffer', filePath),
+    onStatusUpdate: (callback) => ipcRenderer.on('status-update', (event, status) => callback(status))
 });
 
 // Backend API URL

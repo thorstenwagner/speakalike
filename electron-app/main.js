@@ -1,9 +1,119 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
+const http = require('http');
 
 let mainWindow;
+let splashWindow;
 let pythonProcess;
+
+const BACKEND_URL = 'http://127.0.0.1:8765';
+
+// Prüft ob das Backend erreichbar ist
+function checkBackend() {
+    return new Promise((resolve) => {
+        const req = http.get(`${BACKEND_URL}/api/status`, (res) => {
+            resolve(res.statusCode === 200);
+        });
+        req.on('error', () => resolve(false));
+        req.setTimeout(1000, () => {
+            req.destroy();
+            resolve(false);
+        });
+    });
+}
+
+// Wartet bis Backend erreichbar ist
+async function waitForBackend(maxAttempts = 60, interval = 1000) {
+    for (let i = 0; i < maxAttempts; i++) {
+        const isReady = await checkBackend();
+        if (isReady) {
+            console.log('Backend ist bereit!');
+            return true;
+        }
+        if (splashWindow && !splashWindow.isDestroyed()) {
+            splashWindow.webContents.send('status-update', `Backend wird gestartet... (${i + 1}s)`);
+        }
+        await new Promise(resolve => setTimeout(resolve, interval));
+    }
+    return false;
+}
+
+// Splash-Fenster mit Ladeanimation
+function createSplashWindow() {
+    splashWindow = new BrowserWindow({
+        width: 400,
+        height: 200,
+        frame: false,
+        transparent: false,
+        alwaysOnTop: true,
+        resizable: false,
+        backgroundColor: '#1a1a2e',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
+    
+    // Inline HTML für Splash-Screen
+    const splashHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {
+                    margin: 0;
+                    padding: 20px;
+                    font-family: 'Segoe UI', sans-serif;
+                    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    box-sizing: border-box;
+                }
+                h1 {
+                    margin: 0 0 10px 0;
+                    font-size: 28px;
+                    font-weight: 300;
+                }
+                .spinner {
+                    width: 40px;
+                    height: 40px;
+                    border: 3px solid rgba(255,255,255,0.2);
+                    border-top-color: #4ecca3;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                    margin: 20px 0;
+                }
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+                #status {
+                    font-size: 14px;
+                    color: rgba(255,255,255,0.7);
+                }
+            </style>
+        </head>
+        <body>
+            <h1>SpeakAlike</h1>
+            <div class="spinner"></div>
+            <div id="status">Backend wird gestartet...</div>
+            <script>
+                window.electronAPI.onStatusUpdate((status) => {
+                    document.getElementById('status').textContent = status;
+                });
+            </script>
+        </body>
+        </html>
+    `;
+    
+    splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`);
+    splashWindow.center();
+}
 
 // Python Backend starten
 function startBackend() {
@@ -31,9 +141,6 @@ function startBackend() {
     pythonProcess.on('close', (code) => {
         console.log(`Backend beendet mit Code ${code}`);
     });
-    
-    // Nur kurz warten bis Server antwortet, TTS lädt im Hintergrund
-    return new Promise(resolve => setTimeout(resolve, 2000));
 }
 
 function createWindow() {
@@ -73,7 +180,28 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-    await startBackend();
+    // Splash-Fenster zeigen
+    createSplashWindow();
+    
+    // Backend starten
+    startBackend();
+    
+    // Warten bis Backend erreichbar ist
+    const backendReady = await waitForBackend(60, 1000);
+    
+    if (!backendReady) {
+        if (splashWindow && !splashWindow.isDestroyed()) {
+            splashWindow.webContents.send('status-update', 'Backend konnte nicht gestartet werden!');
+        }
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        app.quit();
+        return;
+    }
+    
+    // Splash schließen und Hauptfenster öffnen
+    if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.close();
+    }
     createWindow();
 });
 
