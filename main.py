@@ -42,11 +42,54 @@ class TextToSpeech:
     # Verzeichnis für gespeicherte Voice-Modelle
     VOICE_MODELS_DIR = Path(__file__).parent / "voice_models"
     LAST_MODEL_FILE = Path(__file__).parent / "voice_models" / ".last_model"
+    LAST_TTS_MODEL_FILE = Path(__file__).parent / "voice_models" / ".last_tts_model"
     
-    def __init__(self):
+    # Verfügbare TTS-Modelle für Voice Cloning
+    AVAILABLE_TTS_MODELS = {
+        "xtts_v2": {
+            "name": "XTTS v2 (Standard)",
+            "model_name": "tts_models/multilingual/multi-dataset/xtts_v2",
+            "supports_cloning": True,
+            "languages": ["de", "en", "es", "fr", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh-cn", "ja", "ko", "hu", "hi"],
+            "description": "Beste Qualität, 17 Sprachen, Voice Cloning"
+        },
+        "xtts_v1.1": {
+            "name": "XTTS v1.1",
+            "model_name": "tts_models/multilingual/multi-dataset/xtts_v1.1",
+            "supports_cloning": True,
+            "languages": ["de", "en", "es", "fr", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh-cn", "ja", "ko", "hu", "hi"],
+            "description": "Ältere Version, etwas schneller"
+        },
+        "bark": {
+            "name": "Bark (Kreativ)",
+            "model_name": "tts_models/multilingual/multi-dataset/bark",
+            "supports_cloning": True,
+            "languages": ["de", "en", "es", "fr", "it", "pt", "pl", "zh", "ja", "ko", "ru", "tr", "hi", "ar"],
+            "description": "Kreative Stimme, unterstützt Emotionen"
+        },
+        "tortoise_v2": {
+            "name": "Tortoise v2 (Langsam, HQ)",
+            "model_name": "tts_models/en/multi-dataset/tortoise-v2",
+            "supports_cloning": True,
+            "languages": ["en"],
+            "description": "Sehr hohe Qualität, nur Englisch, langsam"
+        },
+        "vits_de": {
+            "name": "VITS Deutsch (Schnell)",
+            "model_name": "tts_models/de/thorsten/vits",
+            "supports_cloning": False,
+            "languages": ["de"],
+            "description": "Schnell, kein Voice Cloning, deutsche Stimme"
+        }
+    }
+    
+    def __init__(self, model_id="xtts_v2"):
         self.is_speaking = False
         self.speaker_wav = None
         self.seed = 42  # Fester Seed für konsistente Ausgabe
+        
+        # Aktuelles TTS-Modell
+        self.current_tts_model_id = model_id
         
         # Speaker Embedding Cache für bessere Qualität und Performance
         self.gpt_cond_latent = None
@@ -58,7 +101,7 @@ class TextToSpeech:
         self.use_streaming = False  # Streaming für schnellere erste Ausgabe
         
         # Optimierte Inference-Parameter (Balance zwischen Qualität und Geschwindigkeit)
-        self.gpt_cond_len = 6  # Reduziert für schnellere Generierung (Standard: 12, war 30)
+        self.gpt_cond_len = 6  # Reduziert für schnellere Generierung (Standard: 12)
         self.gpt_cond_chunk_len = 3  # Kleinere Chunks = schneller (Standard: 4)
         self.max_ref_len = 30  # Reduziert für Performance (Standard: 10)
         
@@ -78,7 +121,12 @@ class TextToSpeech:
                 import torch
                 self.gpu_available = torch.cuda.is_available()
                 
-                if XTTS_DIRECT and self.gpu_available:
+                # Lade zuletzt genutztes TTS-Modell
+                saved_model_id = self._get_last_tts_model()
+                if saved_model_id and saved_model_id in self.AVAILABLE_TTS_MODELS:
+                    self.current_tts_model_id = saved_model_id
+                
+                if XTTS_DIRECT and self.gpu_available and self.current_tts_model_id.startswith("xtts"):
                     # Direkter XTTS-Zugriff für beste Kontrolle
                     self._init_xtts_direct()
                 else:
@@ -91,12 +139,20 @@ class TextToSpeech:
         else:
             self._init_pyttsx3()
     
+    def _get_model_name(self):
+        """Gibt den model_name für das aktuelle TTS-Modell zurück"""
+        if self.current_tts_model_id in self.AVAILABLE_TTS_MODELS:
+            return self.AVAILABLE_TTS_MODELS[self.current_tts_model_id]["model_name"]
+        return "tts_models/multilingual/multi-dataset/xtts_v2"
+    
     def _init_xtts_direct(self):
         """Initialisiert XTTS mit direktem Modell-Zugriff für beste Qualität"""
         import torch
         
+        model_name = self._get_model_name()
+        
         # Lade Modell über TTS API (lädt automatisch herunter)
-        self.tts_api = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=True)
+        self.tts_api = TTS(model_name=model_name, gpu=True)
         
         # Direkter Zugriff auf das XTTS-Modell für erweiterte Kontrolle
         self.model = self.tts_api.synthesizer.tts_model
@@ -104,7 +160,8 @@ class TextToSpeech:
         self.use_direct = True
         
         gpu_name = torch.cuda.get_device_name(0)
-        print(f"XTTS v2 initialisiert (Direkter Zugriff) mit GPU: {gpu_name}")
+        model_info = self.AVAILABLE_TTS_MODELS.get(self.current_tts_model_id, {})
+        print(f"{model_info.get('name', 'TTS')} initialisiert (Direkter Zugriff) mit GPU: {gpu_name}")
         print(f"  - gpt_cond_len: {self.gpt_cond_len}s (mehr Kontext)")
         print(f"  - gpt_cond_chunk_len: {self.gpt_cond_chunk_len}s (stabilere Latents)")
         print(f"  - max_ref_len: {self.max_ref_len}s (längere Referenz)")
@@ -112,16 +169,18 @@ class TextToSpeech:
     def _init_tts_api(self):
         """Fallback auf TTS API"""
         import torch
-        self.tts_api = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=self.gpu_available)
+        model_name = self._get_model_name()
+        self.tts_api = TTS(model_name=model_name, gpu=self.gpu_available)
         self.model = None
         self.use_coqui = True
         self.use_direct = False
         
+        model_info = self.AVAILABLE_TTS_MODELS.get(self.current_tts_model_id, {})
         if self.gpu_available:
             gpu_name = torch.cuda.get_device_name(0)
-            print(f"XTTS v2 initialisiert (API-Modus) mit GPU: {gpu_name}")
+            print(f"{model_info.get('name', 'TTS')} initialisiert (API-Modus) mit GPU: {gpu_name}")
         else:
-            print("XTTS v2 initialisiert (API-Modus) mit CPU")
+            print(f"{model_info.get('name', 'TTS')} initialisiert (API-Modus) mit CPU")
     
     def _init_fallback(self):
         """Fallback auf einfacheres Modell"""
@@ -129,6 +188,7 @@ class TextToSpeech:
         self.model = None
         self.use_coqui = True
         self.use_direct = False
+        self.current_tts_model_id = "fallback"
         print("Coqui TTS initialisiert (Thorsten Fallback)")
     
     def _init_pyttsx3(self):
@@ -138,6 +198,7 @@ class TextToSpeech:
         self.model = None
         self.use_coqui = False
         self.use_direct = False
+        self.current_tts_model_id = "pyttsx3"
         print("pyttsx3 TTS initialisiert (Fallback)")
     
     def set_speaker_wav(self, wav_files):
@@ -214,6 +275,7 @@ class TextToSpeech:
             model_path = self.VOICE_MODELS_DIR / f"{safe_name}.pt"
             
             # Speichere die Embeddings und alle Parameter
+            sample_count = len(self.speaker_wav) if self.speaker_wav else 1
             torch.save({
                 'gpt_cond_latent': self.gpt_cond_latent,
                 'speaker_embedding': self.speaker_embedding,
@@ -225,6 +287,7 @@ class TextToSpeech:
                 'repetition_penalty': self.repetition_penalty,
                 'speed': self.speed,
                 'seed': self.seed,
+                'sample_count': sample_count,
                 'name': name
             }, model_path)
             
@@ -273,13 +336,11 @@ class TextToSpeech:
             self.speaker_embedding = data['speaker_embedding']
             self.current_voice_name = data.get('name', model_path.stem)
             
-            # Optionale Parameter wiederherstellen
-            if 'gpt_cond_len' in data:
-                self.gpt_cond_len = data['gpt_cond_len']
-            if 'gpt_cond_chunk_len' in data:
-                self.gpt_cond_chunk_len = data['gpt_cond_chunk_len']
-            if 'temperature' in data:
-                self.temperature = data['temperature']
+            # HINWEIS: gpt_cond_len und temperature werden NICHT aus der Datei geladen,
+            # da die optimierten Standardwerte (gpt_cond_len=5, temperature=0.70) 
+            # bessere Pitch-Reproduktion liefern (getestet mit Samples 29+41)
+            
+            # Nur diese Parameter wiederherstellen:
             if 'top_k' in data:
                 self.top_k = data['top_k']
             if 'top_p' in data:
@@ -295,6 +356,7 @@ class TextToSpeech:
             print(f"Voice-Modell '{self.current_voice_name}' geladen!")
             print(f"  - GPT Latent Shape: {self.gpt_cond_latent.shape}")
             print(f"  - Speaker Embedding Shape: {self.speaker_embedding.shape}")
+            print(f"  - Aktuelle Parameter: gpt_cond_len={self.gpt_cond_len}, temperature={self.temperature}")
             
             # Speichere als zuletzt genutztes Modell
             self._save_last_model_name(self.current_voice_name)
@@ -312,14 +374,24 @@ class TextToSpeech:
         Listet alle gespeicherten Voice-Modelle auf
         
         Returns:
-            list: Liste von Dictionaries mit 'name' und 'path' für jedes Modell
+            list: Liste von Dictionaries mit 'name', 'path' und 'sample_count' für jedes Modell
         """
+        import torch
         models = []
         if self.VOICE_MODELS_DIR.exists():
             for model_file in self.VOICE_MODELS_DIR.glob("*.pt"):
+                # Versuche sample_count aus der Datei zu lesen
+                sample_count = 1  # Default
+                try:
+                    data = torch.load(model_file, map_location='cpu', weights_only=False)
+                    sample_count = data.get('sample_count', 1)
+                except:
+                    pass
+                
                 models.append({
                     'name': model_file.stem,
-                    'path': str(model_file)
+                    'path': str(model_file),
+                    'sample_count': sample_count
                 })
         return models
     
@@ -361,6 +433,103 @@ class TextToSpeech:
         except Exception as e:
             print(f"Fehler beim Lesen des letzten Modellnamens: {e}")
         return None
+    
+    def _save_last_tts_model(self, model_id):
+        """Speichert die ID des zuletzt genutzten TTS-Modells"""
+        try:
+            self.LAST_TTS_MODEL_FILE.write_text(model_id, encoding='utf-8')
+        except Exception as e:
+            print(f"Fehler beim Speichern des TTS-Modells: {e}")
+    
+    def _get_last_tts_model(self):
+        """Gibt die ID des zuletzt genutzten TTS-Modells zurück"""
+        try:
+            if self.LAST_TTS_MODEL_FILE.exists():
+                return self.LAST_TTS_MODEL_FILE.read_text(encoding='utf-8').strip()
+        except Exception as e:
+            print(f"Fehler beim Lesen des TTS-Modells: {e}")
+        return None
+    
+    def get_available_tts_models(self):
+        """
+        Gibt alle verfügbaren TTS-Modelle zurück
+        
+        Returns:
+            dict: Dictionary mit Modell-IDs als Keys und Modell-Infos als Values
+        """
+        return self.AVAILABLE_TTS_MODELS
+    
+    def get_current_tts_model(self):
+        """
+        Gibt das aktuell geladene TTS-Modell zurück
+        
+        Returns:
+            dict: Dictionary mit model_id und model_info
+        """
+        model_info = self.AVAILABLE_TTS_MODELS.get(self.current_tts_model_id, {})
+        return {
+            "model_id": self.current_tts_model_id,
+            "model_info": model_info,
+            "supports_cloning": model_info.get("supports_cloning", False)
+        }
+    
+    def switch_tts_model(self, model_id):
+        """
+        Wechselt zu einem anderen TTS-Modell
+        
+        Args:
+            model_id (str): ID des neuen Modells (z.B. "xtts_v2", "bark", "vits_de")
+            
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
+        if model_id not in self.AVAILABLE_TTS_MODELS:
+            print(f"Unbekanntes TTS-Modell: {model_id}")
+            return False
+        
+        if model_id == self.current_tts_model_id:
+            print(f"TTS-Modell {model_id} ist bereits aktiv")
+            return True
+        
+        try:
+            import torch
+            
+            print(f"Wechsle TTS-Modell zu: {self.AVAILABLE_TTS_MODELS[model_id]['name']}")
+            
+            # Alte Ressourcen freigeben
+            if hasattr(self, 'tts_api') and self.tts_api:
+                del self.tts_api
+            if hasattr(self, 'model') and self.model:
+                del self.model
+            
+            # GPU-Speicher freigeben
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
+            # Neues Modell setzen
+            self.current_tts_model_id = model_id
+            
+            # Cache invalidieren
+            self.gpt_cond_latent = None
+            self.speaker_embedding = None
+            
+            # Neues Modell laden
+            if XTTS_DIRECT and self.gpu_available and model_id.startswith("xtts"):
+                self._init_xtts_direct()
+            else:
+                self._init_tts_api()
+            
+            # Präferenz speichern
+            self._save_last_tts_model(model_id)
+            
+            print(f"TTS-Modell gewechselt zu: {self.AVAILABLE_TTS_MODELS[model_id]['name']}")
+            return True
+            
+        except Exception as e:
+            print(f"Fehler beim Wechseln des TTS-Modells: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     def load_last_model(self):
         """
@@ -521,6 +690,7 @@ class TextToSpeech:
         
         start_time = time.time()
         print(f"Generiere Audio...")
+        print(f"  Parameter: gpt_cond_len={self.gpt_cond_len}, temperature={self.temperature}")
         
         # Streaming-Modus für schnelleres erstes Audio
         if self.use_streaming:
@@ -591,9 +761,10 @@ class TextToSpeech:
         # Alle Chunks zusammenfügen
         if chunks:
             wav = np.concatenate([c.cpu().numpy() for c in chunks])
+            
             wav = self._remove_artifacts_with_transcription(wav, text, sample_rate=24000)
             torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
-    
+
     def _remove_artifacts_with_transcription(self, audio, expected_text, sample_rate=24000):
         """
         Entfernt Artefakte am Ende des Audios durch Whisper-Transkription.

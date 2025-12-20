@@ -143,15 +143,25 @@ body {
     flex-wrap: wrap;
 }
 
-.voice-compact, .language-compact {
+.model-compact, .voice-compact, .language-compact {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
 }
 
-.voice-compact label, .language-compact label {
+.model-compact label, .voice-compact label, .language-compact label {
     font-weight: 500;
     white-space: nowrap;
+}
+
+.model-compact .select {
+    min-width: 160px;
+}
+
+.model-compact .select:disabled,
+.voice-compact .select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .text-row {
@@ -329,8 +339,19 @@ body {
     padding: var(--spacing-md);
     min-height: 48px;
     min-width: 48px;
-    background: transparent;
     font-size: 1.25rem;
+}
+
+.btn-icon.btn-secondary {
+    background: transparent;
+}
+
+.btn-icon.btn-danger {
+    background: var(--color-danger);
+}
+
+.btn-icon.btn-danger:hover {
+    background: var(--color-danger-hover);
 }
 
 /* Form Elements - Eye-Tracking optimiert */

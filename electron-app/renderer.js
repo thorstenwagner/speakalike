@@ -10,6 +10,8 @@ let currentText = null;
 let voiceModels = [];
 let catalogTags = [];
 let selectedFiles = [];
+let currentTTSModel = 'xtts_v2';
+let availableTTSModels = {};
 
 // DOM Elements
 const elements = {
@@ -17,10 +19,14 @@ const elements = {
     status: document.getElementById('status'),
     statusText: document.querySelector('.status-text'),
     
+    // TTS Model
+    ttsModelSelect: document.getElementById('ttsModelSelect'),
+    
     // Voice
     voiceSelect: document.getElementById('voiceSelect'),
     currentVoice: document.getElementById('currentVoice'),
     newVoiceBtn: document.getElementById('newVoiceBtn'),
+    deleteVoiceBtn: document.getElementById('deleteVoiceBtn'),
     
     // Text
     textInput: document.getElementById('textInput'),
@@ -329,6 +335,32 @@ async function loadVoiceModel(name) {
         await checkStatus();
     } catch (error) {
         alert(`Fehler beim Laden: ${error.message}`);
+    }
+}
+
+async function deleteVoiceModel() {
+    const selectedVoice = elements.voiceSelect.value;
+    
+    if (!selectedVoice) {
+        alert('Bitte wähle zuerst eine Stimme aus, die gelöscht werden soll.');
+        return;
+    }
+    
+    const confirmed = confirm(`Möchtest du die Stimme "${selectedVoice}" wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`);
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        elements.statusText.textContent = `Lösche ${selectedVoice}...`;
+        await api(`/api/voice-models/${selectedVoice}`, { method: 'DELETE' });
+        elements.statusText.textContent = `Stimme "${selectedVoice}" gelöscht`;
+        elements.voiceSelect.value = '';
+        elements.currentVoice.querySelector('.voice-name').textContent = 'Standard';
+        await loadVoiceModels();
+    } catch (error) {
+        alert(`Fehler beim Löschen: ${error.message}`);
     }
 }
 
@@ -1320,6 +1352,14 @@ async function saveSettings() {
             })
         });
         
+        // Pitch-Korrektur speichern
+        await api('/api/pitch', {
+            method: 'POST',
+            body: JSON.stringify({
+                semitones: parseFloat(elements.pitchSlider.value)
+            })
+        });
+        
         closeSettingsModal();
     } catch (error) {
         alert(`Fehler: ${error.message}`);
@@ -1482,6 +1522,13 @@ function setupEventListeners() {
         }
     });
     
+    // TTS Model select
+    if (elements.ttsModelSelect) {
+        elements.ttsModelSelect.addEventListener('change', (e) => {
+            switchTTSModel(e.target.value);
+        });
+    }
+    
     // Voice select
     elements.voiceSelect.addEventListener('change', (e) => {
         loadVoiceModel(e.target.value);
@@ -1514,6 +1561,7 @@ function setupEventListeners() {
     
     // New Voice
     elements.newVoiceBtn.addEventListener('click', openNewVoiceModal);
+    elements.deleteVoiceBtn.addEventListener('click', deleteVoiceModel);
     elements.closeNewVoiceBtn.addEventListener('click', closeNewVoiceModal);
     elements.cancelNewVoiceBtn.addEventListener('click', closeNewVoiceModal);
     elements.createVoiceBtn.addEventListener('click', createVoice);
@@ -1730,11 +1778,114 @@ async function waitForTTSAndLoadModels() {
         const status = await api('/api/status');
         if (!status.loading) {
             loadVoiceModels();
+            loadTTSModels();
             return;
         }
         await new Promise(r => setTimeout(r, 1000));
     }
     console.error('TTS loading timeout');
+}
+
+// === TTS Model Functions ===
+
+async function loadTTSModels() {
+    try {
+        const response = await api('/api/tts/models');
+        if (response && response.models) {
+            availableTTSModels = response.models;
+            currentTTSModel = response.current_model;
+            
+            // Dropdown aktualisieren
+            if (elements.ttsModelSelect) {
+                elements.ttsModelSelect.innerHTML = '';
+                
+                for (const [modelId, modelInfo] of Object.entries(availableTTSModels)) {
+                    const option = document.createElement('option');
+                    option.value = modelId;
+                    option.textContent = modelInfo.name;
+                    option.title = modelInfo.description;
+                    if (modelId === currentTTSModel) {
+                        option.selected = true;
+                    }
+                    elements.ttsModelSelect.appendChild(option);
+                }
+            }
+            
+            // Voice-Auswahl basierend auf Modell aktivieren/deaktivieren
+            updateVoiceCloningAvailability();
+        }
+    } catch (error) {
+        console.error('Fehler beim Laden der TTS-Modelle:', error);
+    }
+}
+
+async function switchTTSModel(modelId) {
+    if (modelId === currentTTSModel) return;
+    
+    try {
+        updateStatus('Wechsle TTS-Modell...', 'connecting');
+        
+        const response = await api('/api/tts/models/switch', {
+            method: 'POST',
+            body: { model_id: modelId }
+        });
+        
+        if (response && response.success) {
+            currentTTSModel = response.model_id;
+            updateStatus('Bereit', 'connected');
+            
+            // Voice-Auswahl aktualisieren
+            updateVoiceCloningAvailability();
+            
+            // Voice neu laden falls nötig
+            loadVoiceModels();
+        } else {
+            updateStatus('Modellwechsel fehlgeschlagen', 'error');
+            // Dropdown zurücksetzen
+            if (elements.ttsModelSelect) {
+                elements.ttsModelSelect.value = currentTTSModel;
+            }
+        }
+    } catch (error) {
+        console.error('Fehler beim Modellwechsel:', error);
+        updateStatus('Fehler beim Modellwechsel', 'error');
+        // Dropdown zurücksetzen
+        if (elements.ttsModelSelect) {
+            elements.ttsModelSelect.value = currentTTSModel;
+        }
+    }
+}
+
+function updateVoiceCloningAvailability() {
+    const modelInfo = availableTTSModels[currentTTSModel];
+    const supportsCloning = modelInfo ? modelInfo.supports_cloning : true;
+    
+    // Voice-Auswahl und New Voice Button
+    if (elements.voiceSelect) {
+        elements.voiceSelect.disabled = !supportsCloning;
+        if (!supportsCloning) {
+            elements.voiceSelect.value = '';
+        }
+    }
+    
+    if (elements.newVoiceBtn) {
+        elements.newVoiceBtn.disabled = !supportsCloning;
+        elements.newVoiceBtn.title = supportsCloning ? 
+            'Neue Stimme erstellen' : 
+            'Dieses Modell unterstützt kein Voice Cloning';
+    }
+    
+    // Sprach-Auswahl basierend auf Modell aktualisieren
+    if (elements.languageSelect && modelInfo && modelInfo.languages) {
+        const currentLang = elements.languageSelect.value;
+        const availableLangs = modelInfo.languages;
+        
+        // Prüfen ob aktuelle Sprache unterstützt wird
+        if (!availableLangs.includes(currentLang)) {
+            // Auf erste verfügbare Sprache wechseln
+            elements.languageSelect.value = availableLangs[0] || 'de';
+        }
+    }
 }
 
 // Start

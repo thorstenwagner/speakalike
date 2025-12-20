@@ -57,3 +57,18 @@ voice_models/
 # Temp files
 *.tmp
 *.temp
+
+# Test and debug scripts
+analyze_pitch_debug.py
+calibrate_pitch.py
+compare_pitch.py
+compare_pitch_both.py
+test_pitch_params.py
+test_voice_samplerate.py
+create_optimized_model.py
+save_processed_samples.py
+save_resampled_samples.py
+create_voice_correct_sr.py
+list_models.py
+create_icon.py
+create_shortcut.ps1

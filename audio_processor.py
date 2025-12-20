@@ -255,7 +255,51 @@ def process_audio_file(file_path, output_path=None, reduce_noise_enabled=True,
     return output_path
 
 
-def concatenate_audio_files(file_paths, output_path=None, target_sample_rate=22050,
+def resample_audio(audio_data, original_sr, target_sr):
+    """
+    Resampelt Audio ohne Pitch-Veränderung
+    
+    Verwendet librosa für hochwertiges Resampling, das den Pitch erhält.
+    
+    Args:
+        audio_data: Audio als numpy array
+        original_sr: Original Sample-Rate
+        target_sr: Ziel Sample-Rate
+        
+    Returns:
+        Resampeltes Audio
+    """
+    if original_sr == target_sr:
+        return audio_data
+    
+    try:
+        import librosa
+        # librosa.resample erhält den Pitch korrekt
+        resampled = librosa.resample(
+            audio_data, 
+            orig_sr=original_sr, 
+            target_sr=target_sr,
+            res_type='soxr_hq'  # Hochwertiges Resampling
+        )
+        return resampled
+    except ImportError:
+        # Fallback auf scipy mit korrekter Implementierung
+        from scipy import signal
+        
+        # Berechne das genaue Verhältnis
+        ratio = target_sr / original_sr
+        num_samples = int(len(audio_data) * ratio)
+        
+        # Verwende polyphase Resampling für bessere Qualität
+        gcd = np.gcd(int(target_sr), int(original_sr))
+        up = int(target_sr // gcd)
+        down = int(original_sr // gcd)
+        
+        resampled = signal.resample_poly(audio_data, up, down)
+        return resampled
+
+
+def concatenate_audio_files(file_paths, output_path=None, target_sample_rate=None,
                            add_silence_between=0.3):
     """
     Fügt mehrere Audio-Dateien zu einer zusammen
@@ -263,12 +307,24 @@ def concatenate_audio_files(file_paths, output_path=None, target_sample_rate=220
     Args:
         file_paths: Liste von Audio-Dateipfaden
         output_path: Pfad für die Ausgabe
-        target_sample_rate: Ziel-Sample-Rate
+        target_sample_rate: Ziel-Sample-Rate (None = erste Datei bestimmt)
         add_silence_between: Stille zwischen Clips in Sekunden
         
     Returns:
         Pfad zur zusammengefügten Datei
     """
+    if not file_paths:
+        return None
+    
+    # Erste Datei laden um Sample-Rate zu bestimmen
+    first_audio, first_sr = sf.read(file_paths[0])
+    
+    # Wenn keine Ziel-Sample-Rate angegeben, Original beibehalten
+    # XTTS macht das Resampling intern korrekt
+    if target_sample_rate is None:
+        target_sample_rate = first_sr
+        print(f"Behalte Original-Sample-Rate: {target_sample_rate} Hz")
+    
     all_audio = []
     silence = np.zeros(int(add_silence_between * target_sample_rate))
     
@@ -279,11 +335,10 @@ def concatenate_audio_files(file_paths, output_path=None, target_sample_rate=220
         if len(audio_data.shape) > 1:
             audio_data = np.mean(audio_data, axis=1)
         
-        # Resample falls nötig
+        # Resample nur falls nötig (unterschiedliche Sample-Rates in den Dateien)
         if sample_rate != target_sample_rate:
-            from scipy import signal
-            num_samples = int(len(audio_data) * target_sample_rate / sample_rate)
-            audio_data = signal.resample(audio_data, num_samples)
+            print(f"  Resample {file_path}: {sample_rate} -> {target_sample_rate} Hz")
+            audio_data = resample_audio(audio_data, sample_rate, target_sample_rate)
         
         all_audio.append(audio_data)
         

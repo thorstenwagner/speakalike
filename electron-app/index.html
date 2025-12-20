@@ -30,6 +30,18 @@
             <!-- Voice & Text kombiniert -->
             <section class="card main-section">
                 <div class="main-row">
+                    <!-- TTS Model Selection -->
+                    <div class="model-compact">
+                        <label>🤖 Modell:</label>
+                        <select class="select" id="ttsModelSelect">
+                            <option value="xtts_v2">XTTS v2 (Standard)</option>
+                            <option value="xtts_v1.1">XTTS v1.1</option>
+                            <option value="bark">Bark (Kreativ)</option>
+                            <option value="tortoise_v2">Tortoise v2 (Langsam)</option>
+                            <option value="vits_de">VITS Deutsch (Schnell)</option>
+                        </select>
+                    </div>
+                    
                     <!-- Voice Selection -->
                     <div class="voice-compact">
                         <label>🎤 Stimme:</label>
@@ -37,6 +49,7 @@
                             <option value="">Standard (XTTS)</option>
                         </select>
                         <button class="btn btn-secondary btn-icon" id="newVoiceBtn" title="Neue Stimme">+</button>
+                        <button class="btn btn-danger btn-icon" id="deleteVoiceBtn" title="Stimme löschen">🗑</button>
                     </div>
                     
                     <!-- Language Selection -->

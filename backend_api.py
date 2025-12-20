@@ -98,6 +98,10 @@ class SaveToCatalogRequest(BaseModel):
 
 class TagGenerateRequest(BaseModel):
     text: str
+
+
+class SwitchTTSModelRequest(BaseModel):
+    model_id: str
     num_tags: int = 5
 
 
@@ -143,8 +147,64 @@ async def get_status():
     return {
         **current_status,
         "gpu_available": tts.gpu_available if tts else False,
-        "voice_loaded": tts.current_voice_name if tts else None
+        "voice_loaded": tts.current_voice_name if tts else None,
+        "tts_model": tts.current_tts_model_id if tts else "xtts_v2"
     }
+
+
+# === TTS Model Endpoints ===
+
+@app.get("/api/tts/models")
+async def get_tts_models():
+    """Gibt alle verfügbaren TTS-Modelle zurück"""
+    if not tts:
+        # Fallback: Gib statische Liste zurück
+        from main import TextToSpeech
+        return {
+            "models": TextToSpeech.AVAILABLE_TTS_MODELS,
+            "current_model": "xtts_v2"
+        }
+    
+    return {
+        "models": tts.get_available_tts_models(),
+        "current_model": tts.current_tts_model_id
+    }
+
+
+@app.post("/api/tts/models/switch")
+async def switch_tts_model(request: SwitchTTSModelRequest):
+    """Wechselt zu einem anderen TTS-Modell"""
+    global current_status
+    
+    if not tts or current_status.get("loading", False):
+        raise HTTPException(status_code=503, detail="TTS wird noch geladen, bitte warten...")
+    
+    if current_status["is_speaking"]:
+        raise HTTPException(status_code=409, detail="Generierung läuft bereits")
+    
+    current_status["message"] = f"Wechsle zu {request.model_id}..."
+    current_status["loading"] = True
+    
+    try:
+        success = tts.switch_tts_model(request.model_id)
+        
+        current_status["loading"] = False
+        
+        if success:
+            current_status["message"] = "Bereit"
+            return {
+                "success": True,
+                "model_id": tts.current_tts_model_id,
+                "model_info": tts.AVAILABLE_TTS_MODELS.get(tts.current_tts_model_id, {})
+            }
+        else:
+            current_status["message"] = "Fehler beim Modellwechsel"
+            raise HTTPException(status_code=500, detail="Modellwechsel fehlgeschlagen")
+            
+    except Exception as e:
+        current_status["loading"] = False
+        current_status["message"] = f"Fehler: {str(e)}"
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # === TTS Endpoints ===
@@ -270,7 +330,7 @@ async def list_voice_models():
         models.append({
             "name": model['name'],
             "path": model['path'],
-            "sample_count": 1,  # .pt Datei enthält bereits die Embeddings
+            "sample_count": model.get('sample_count', 1),
             "is_active": tts.current_voice_name == model['name']
         })
     
@@ -364,17 +424,21 @@ async def delete_voice_model(name: str):
     if not tts:
         raise HTTPException(status_code=503, detail="TTS nicht initialisiert")
     
-    model_path = tts.VOICE_MODELS_DIR / name
+    # Voice-Modelle sind .pt Dateien
+    model_path = tts.VOICE_MODELS_DIR / f"{name}.pt"
     if not model_path.exists():
-        raise HTTPException(status_code=404, detail="Modell nicht gefunden")
+        raise HTTPException(status_code=404, detail=f"Modell '{name}' nicht gefunden")
     
-    shutil.rmtree(model_path)
+    # Datei löschen (nicht Verzeichnis)
+    model_path.unlink()
     
     if tts.current_voice_name == name:
         tts.current_voice_name = None
         tts.speaker_wav = None
+        tts.gpt_cond_latent = None
+        tts.speaker_embedding = None
     
-    return {"success": True}
+    return {"success": True, "message": f"Modell '{name}' gelöscht"}
 
 
 # === Catalog Endpoints ===
