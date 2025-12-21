@@ -408,6 +408,63 @@ body {
 }
 
 /* Bottom Row - History & Favorites & Catalog nebeneinander */
+
+/* Global Search Bar */
+.global-search-bar {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: var(--spacing-md);
+}
+
+.global-search-input {
+    flex: 1;
+    min-width: 200px;
+    border: none;
+    background: var(--color-bg);
+    padding: var(--spacing-sm) var(--spacing-md);
+    min-height: 40px;
+}
+
+.global-search-input:focus {
+    outline: 2px solid var(--color-primary);
+}
+
+.search-mode-toggle {
+    display: flex;
+    gap: 2px;
+}
+
+.search-mode-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    min-height: 36px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--color-bg);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+
+.search-mode-btn.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.search-mode-btn:hover:not(.active) {
+    background: var(--color-border);
+}
+
+#clearSearchBtn {
+    min-height: 36px;
+    min-width: 36px;
+    padding: var(--spacing-xs);
+}
+
 .bottom-row {
     display: flex;
     gap: var(--spacing-md);

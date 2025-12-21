@@ -88,6 +88,16 @@
                 <audio id="audioPlayer" style="display: none;"></audio>
             </section>
 
+            <!-- Globale Suche über alle Spalten -->
+            <div class="global-search-bar">
+                <input type="search" class="input global-search-input" id="globalSearchInput" placeholder="🔍 Suche in allen Spalten (Begriffe mit Leerzeichen trennen)...">
+                <div class="search-mode-toggle">
+                    <button class="btn btn-small search-mode-btn" id="searchModeOr" data-mode="or">ODER</button>
+                    <button class="btn btn-small search-mode-btn" id="searchModeAnd" data-mode="and">UND</button>
+                </div>
+                <button class="btn btn-small btn-secondary" id="clearSearchBtn" title="Suche leeren">✕</button>
+            </div>
+
             <!-- History & Catalog & Favoriten nebeneinander -->
             <div class="bottom-row">
                 <!-- History Section -->
@@ -115,21 +125,6 @@
                     <div class="catalog-header">
                         <span>📚 Katalog</span>
                         <button class="btn btn-secondary" id="openCatalogBtn">Öffnen</button>
-                    </div>
-                    <div class="main-tag-filter">
-                        <div class="tag-filter-container small" id="mainTagFilterContainer">
-                            <div class="tag-filter-selected" id="mainSelectedTags">
-                                <span class="tag-filter-placeholder">Tags...</span>
-                            </div>
-                            <div class="tag-filter-dropdown" id="mainTagDropdown">
-                                <input type="text" class="input" id="mainTagSearch" placeholder="Tag suchen...">
-                                <div class="tag-filter-list" id="mainTagList"></div>
-                            </div>
-                        </div>
-                        <div class="tag-mode-toggle small">
-                            <button class="btn btn-small tag-mode-btn active" id="mainTagModeAnd" data-mode="and">∩</button>
-                            <button class="btn btn-small tag-mode-btn" id="mainTagModeOr" data-mode="or">∪</button>
-                        </div>
                     </div>
                     <div class="catalog-preview" id="catalogPreview">
                         <p class="muted">Noch keine Einträge</p>

@@ -135,7 +135,13 @@ const elements = {
     
     // Quick Access
     quickAccessList: document.getElementById('quickAccessList'),
-    clearQuickAccessBtn: document.getElementById('clearQuickAccessBtn')
+    clearQuickAccessBtn: document.getElementById('clearQuickAccessBtn'),
+    
+    // Global Search
+    globalSearchInput: document.getElementById('globalSearchInput'),
+    searchModeOr: document.getElementById('searchModeOr'),
+    searchModeAnd: document.getElementById('searchModeAnd'),
+    clearSearchBtn: document.getElementById('clearSearchBtn')
 };
 
 // === Tag Filter State ===
@@ -143,6 +149,10 @@ let catalogSelectedTagsList = [];
 let catalogTagMode = 'and';
 let mainSelectedTagsList = [];
 let mainTagMode = 'and';
+
+// === Global Search State ===
+let globalSearchTerms = [];
+let globalSearchMode = 'or'; // Default: ODER
 
 // === API Functions ===
 
@@ -609,12 +619,6 @@ async function loadCatalogPreview() {
         params.set('order_by', 'play_count');
         params.set('limit', '100');  // Mehr laden, da wir im Frontend filtern
         
-        // Nur die manuell ausgewählten Tags an Backend senden
-        if (mainSelectedTagsList.length > 0) {
-            params.set('tags', mainSelectedTagsList.join(','));
-            params.set('tag_mode', mainTagMode);
-        }
-        
         let messages = await api(`/api/catalog?${params}`);
         
         // Im Frontend nach Sprache filtern
@@ -639,6 +643,9 @@ async function loadCatalogPreview() {
         
         console.log(`Nach Sprachfilter: ${messages.length} (${beforeFilter - messages.length} entfernt)`);
         
+        // Globale Suche anwenden
+        messages = messages.filter(msg => matchesGlobalSearch(msg));
+        
         // Auf 50 begrenzen nach Filterung
         if (messages.length > 50) {
             console.log(`Abgeschnitten bei 50 (${messages.length - 50} weitere nicht angezeigt)`);
@@ -653,7 +660,8 @@ async function loadCatalogPreview() {
         if (messages.length > 5) console.log(`  ... und ${messages.length - 5} weitere`);
         
         if (messages.length === 0) {
-            elements.catalogPreview.innerHTML = '<p class="muted">Noch keine Einträge im Katalog</p>';
+            const noResultsText = globalSearchTerms.length > 0 ? 'Keine Treffer' : 'Noch keine Einträge im Katalog';
+            elements.catalogPreview.innerHTML = `<p class="muted">${noResultsText}</p>`;
             return;
         }
         
@@ -686,8 +694,16 @@ async function loadHistory() {
             return;
         }
         
+        // Globale Suche anwenden
+        const filteredHistory = history.filter(item => matchesGlobalSearch(item));
+        
+        if (filteredHistory.length === 0) {
+            elements.historyList.innerHTML = '<p class="muted">Keine Treffer</p>';
+            return;
+        }
+        
         elements.historyList.innerHTML = '';
-        history.forEach(item => {
+        filteredHistory.forEach(item => {
             const div = document.createElement('div');
             div.className = 'history-item';
             
@@ -779,7 +795,7 @@ async function loadFavorites() {
         console.log(`Aktuelle Sprache: ${currentLang} → Tag: "${langTag}"`);
         console.log(`Favoriten vom Backend: ${allFavorites.length}`);
         
-        const filtered = allFavorites.filter(item => {
+        let filtered = allFavorites.filter(item => {
             const itemTags = item.tags || [];
             const matches = matchesLanguageFilter(item, langTag);
             
@@ -790,6 +806,9 @@ async function loadFavorites() {
         });
         
         console.log(`Nach Sprachfilter: ${filtered.length} (${allFavorites.length - filtered.length} entfernt)`);
+        
+        // Globale Suche anwenden
+        filtered = filtered.filter(item => matchesGlobalSearch(item));
         
         const favorites = filtered.slice(0, 20);
         if (filtered.length > 20) {
@@ -802,7 +821,8 @@ async function loadFavorites() {
         });
         
         if (favorites.length === 0) {
-            elements.favoritesList.innerHTML = '<p class="muted">Keine Favoriten für diese Sprache</p>';
+            const noResultsText = globalSearchTerms.length > 0 ? 'Keine Treffer' : 'Keine Favoriten für diese Sprache';
+            elements.favoritesList.innerHTML = `<p class="muted">${noResultsText}</p>`;
             return;
         }
         
@@ -875,12 +895,13 @@ function addToQuickAccess(item) {
         return;
     }
     
-    // Am Anfang hinzufügen
+    // Am Anfang hinzufügen (inkl. tags für Suchfilter)
     quickAccessItems.unshift({
         id: item.id,
         text: item.text,
         audio_url: item.audio_url,
-        is_favorite: item.is_favorite
+        is_favorite: item.is_favorite,
+        tags: item.tags || []
     });
     
     // Max 20 Items
@@ -912,13 +933,17 @@ function clearQuickAccess() {
 function renderQuickAccess() {
     if (!elements.quickAccessList) return;
     
-    if (quickAccessItems.length === 0) {
-        elements.quickAccessList.innerHTML = '<p class="muted">Nachrichten hier hinzufügen mit dem ➕ Button</p>';
+    // Globale Suche anwenden
+    const filteredItems = quickAccessItems.filter(item => matchesGlobalSearch(item));
+    
+    if (filteredItems.length === 0) {
+        const emptyText = globalSearchTerms.length > 0 ? 'Keine Treffer' : 'Nachrichten hier hinzufügen mit dem ➕ Button';
+        elements.quickAccessList.innerHTML = `<p class="muted">${emptyText}</p>`;
         return;
     }
     
     elements.quickAccessList.innerHTML = '';
-    quickAccessItems.forEach(item => {
+    filteredItems.forEach(item => {
         const div = document.createElement('div');
         div.className = 'quick-access-item';
         
@@ -967,6 +992,77 @@ function useQuickAccessText(item) {
     if (elements.textInput) {
         elements.textInput.value = item.text;
         elements.textInput.focus();
+    }
+}
+
+// === Global Search ===
+
+function handleGlobalSearch() {
+    const searchValue = elements.globalSearchInput.value.trim().toLowerCase();
+    
+    if (!searchValue) {
+        globalSearchTerms = [];
+    } else {
+        // Aufteilen in einzelne Suchbegriffe (durch Leerzeichen getrennt)
+        globalSearchTerms = searchValue.split(/\s+/).filter(term => term.length > 0);
+    }
+    
+    // Alle 4 Spalten neu laden/filtern
+    applyGlobalSearch();
+}
+
+function setGlobalSearchMode(mode) {
+    globalSearchMode = mode;
+    updateSearchModeButtons();
+    
+    // Suche erneut anwenden wenn Suchbegriffe vorhanden
+    if (globalSearchTerms.length > 0) {
+        applyGlobalSearch();
+    }
+}
+
+function updateSearchModeButtons() {
+    if (elements.searchModeOr) {
+        elements.searchModeOr.classList.toggle('active', globalSearchMode === 'or');
+    }
+    if (elements.searchModeAnd) {
+        elements.searchModeAnd.classList.toggle('active', globalSearchMode === 'and');
+    }
+}
+
+function clearGlobalSearch() {
+    if (elements.globalSearchInput) {
+        elements.globalSearchInput.value = '';
+    }
+    globalSearchTerms = [];
+    applyGlobalSearch();
+}
+
+function applyGlobalSearch() {
+    // Alle Spalten aktualisieren
+    loadHistory();
+    loadFavorites();
+    loadCatalogPreview();
+    renderQuickAccess();
+}
+
+function matchesGlobalSearch(item) {
+    // Wenn keine Suchbegriffe, alles anzeigen
+    if (globalSearchTerms.length === 0) {
+        return true;
+    }
+    
+    // Text und Tags zum Durchsuchen vorbereiten
+    const text = (item.text || '').toLowerCase();
+    const tags = (item.tags || []).map(t => t.toLowerCase());
+    const searchableContent = text + ' ' + tags.join(' ');
+    
+    if (globalSearchMode === 'or') {
+        // ODER: Mindestens ein Begriff muss matchen
+        return globalSearchTerms.some(term => searchableContent.includes(term));
+    } else {
+        // UND: Alle Begriffe müssen matchen
+        return globalSearchTerms.every(term => searchableContent.includes(term));
     }
 }
 
@@ -1763,21 +1859,10 @@ function setupEventListeners() {
     elements.tagModeAnd.addEventListener('click', () => setTagMode('and', 'catalog'));
     elements.tagModeOr.addEventListener('click', () => setTagMode('or', 'catalog'));
     
-    // Main Tag Filter
-    elements.mainSelectedTags.addEventListener('click', () => {
-        toggleTagDropdown(elements.mainTagDropdown, !elements.mainTagDropdown.classList.contains('active'));
-    });
-    elements.mainTagSearch.addEventListener('input', (e) => {
-        renderTagFilterList(elements.mainTagList, 'main', e.target.value);
-    });
-    elements.mainTagModeAnd.addEventListener('click', () => setTagMode('and', 'main'));
-    elements.mainTagModeOr.addEventListener('click', () => setTagMode('or', 'main'));
-    
     // Close dropdowns when clicking outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.tag-filter-container')) {
             toggleTagDropdown(elements.catalogTagDropdown, false);
-            toggleTagDropdown(elements.mainTagDropdown, false);
         }
     });
     
@@ -1866,6 +1951,28 @@ function setupEventListeners() {
     if (elements.clearQuickAccessBtn) {
         elements.clearQuickAccessBtn.addEventListener('click', clearQuickAccess);
     }
+    
+    // Global Search
+    if (elements.globalSearchInput) {
+        elements.globalSearchInput.addEventListener('input', debounce(handleGlobalSearch, 300));
+        elements.globalSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                clearGlobalSearch();
+            }
+        });
+    }
+    if (elements.searchModeOr) {
+        elements.searchModeOr.addEventListener('click', () => setGlobalSearchMode('or'));
+    }
+    if (elements.searchModeAnd) {
+        elements.searchModeAnd.addEventListener('click', () => setGlobalSearchMode('and'));
+    }
+    if (elements.clearSearchBtn) {
+        elements.clearSearchBtn.addEventListener('click', clearGlobalSearch);
+    }
+    
+    // Initial search mode
+    updateSearchModeButtons();
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
