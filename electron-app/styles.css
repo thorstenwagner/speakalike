@@ -418,7 +418,8 @@ body {
 
 .bottom-row .history-section,
 .bottom-row .favorites-section,
-.bottom-row .catalog-section {
+.bottom-row .catalog-section,
+.bottom-row .quick-access-section {
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -475,6 +476,81 @@ body {
     overflow-y: auto;
     min-height: 100px;
 }
+
+/* Quick Access Section */
+.quick-access-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.quick-access-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 600;
+}
+
+.quick-access-header .btn {
+    padding: var(--spacing-xs);
+    min-height: 28px;
+    min-width: 28px;
+}
+
+.quick-access-list {
+    padding: var(--spacing-sm);
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    overflow-y: auto;
+    min-height: 100px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.quick-access-item {
+    display: flex;
+    flex-direction: column;
+    padding: var(--spacing-sm);
+    background: var(--color-white);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    gap: var(--spacing-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.quick-access-item:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow);
+}
+
+.quick-access-item .quick-text {
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text);
+}
+
+.quick-access-item .quick-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.quick-access-item .quick-actions .btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    min-height: 28px;
+    min-width: 28px;
+    font-size: 0.75rem;
+}
+
+.quick-access-section #refreshQuickAccessBtn {
+    margin-top: auto;
+}
+
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
@@ -563,6 +639,17 @@ body {
     white-space: nowrap;
     font-size: 0.9rem;
     color: var(--color-text);
+}
+
+.catalog-preview-item .preview-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.catalog-preview-item .preview-actions .btn {
+    padding: var(--spacing-xs);
+    min-height: 28px;
+    min-width: 28px;
 }
 
 .catalog-toolbar {

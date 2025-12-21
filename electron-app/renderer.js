@@ -131,7 +131,11 @@ const elements = {
     historyList: document.getElementById('historyList'),
     
     // Favorites
-    favoritesList: document.getElementById('favoritesList')
+    favoritesList: document.getElementById('favoritesList'),
+    
+    // Quick Access
+    quickAccessList: document.getElementById('quickAccessList'),
+    clearQuickAccessBtn: document.getElementById('clearQuickAccessBtn')
 };
 
 // === Tag Filter State ===
@@ -659,9 +663,13 @@ async function loadCatalogPreview() {
             item.className = 'catalog-preview-item';
             item.innerHTML = `
                 <span class="preview-text">${escapeHtml(msg.text.substring(0, 40))}${msg.text.length > 40 ? '...' : ''}</span>
-                <button class="btn btn-small play-btn" data-id="${msg.id}">▶️</button>
+                <div class="preview-actions">
+                    <button class="btn btn-small play-btn" data-id="${msg.id}">▶️</button>
+                    <button class="btn btn-small add-quick-btn" title="Zum Schnellzugriff">➕</button>
+                </div>
             `;
             item.querySelector('.play-btn').onclick = () => playCatalogAudio(msg.id, msg.text);
+            item.querySelector('.add-quick-btn').onclick = () => addToQuickAccess(msg);
             elements.catalogPreview.appendChild(item);
         });
     } catch (error) {
@@ -695,11 +703,18 @@ async function loadHistory() {
                 <span class="history-time">${timeStr}</span>
                 <div class="history-actions">
                     <button class="btn btn-small play-btn" title="Abspielen">▶️</button>
+                    <button class="btn btn-small add-quick-btn" title="Zum Schnellzugriff">➕</button>
                     <button class="btn btn-small save-btn" title="Speichern">💾</button>
                     ${!item.in_catalog ? '<button class="btn btn-small catalog-btn" title="Zum Katalog">📁</button>' : ''}
                 </div>
             `;
             div.querySelector('.play-btn').onclick = () => playHistoryAudio(item.audio_url, item.text, item.catalog_id);
+            div.querySelector('.add-quick-btn').onclick = () => addToQuickAccess({
+                id: item.catalog_id || `history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                text: item.text,
+                audio_url: item.audio_url,
+                is_favorite: false
+            });
             div.querySelector('.save-btn').onclick = () => saveHistoryAudio(item.audio_url, item.text);
             const catalogBtn = div.querySelector('.catalog-btn');
             if (catalogBtn) {
@@ -801,10 +816,12 @@ async function loadFavorites() {
                 <span class="history-time">${item.play_count || 0}×</span>
                 <div class="history-actions">
                     <button class="btn btn-small play-btn" title="Abspielen">▶️</button>
+                    <button class="btn btn-small add-quick-btn" title="Zum Schnellzugriff">➕</button>
                     <button class="btn btn-small unfav-btn" title="Entfernen">⭐</button>
                 </div>
             `;
             div.querySelector('.play-btn').onclick = () => playCatalogItem(item);
+            div.querySelector('.add-quick-btn').onclick = () => addToQuickAccess(item);
             div.querySelector('.unfav-btn').onclick = () => toggleFavorite(item.id, false);
             elements.favoritesList.appendChild(div);
         });
@@ -822,6 +839,134 @@ async function playCatalogItem(item) {
         await api(`/api/catalog/${item.id}/play`, { method: 'POST' });
         loadFavorites();
         loadCatalogPreview();
+        loadQuickAccess();
+    }
+}
+
+// === Quick Access ===
+
+// Schnellzugriff-Liste wird im localStorage gespeichert
+let quickAccessItems = [];
+
+function loadQuickAccessFromStorage() {
+    try {
+        const stored = localStorage.getItem('quickAccessItems');
+        if (stored) {
+            quickAccessItems = JSON.parse(stored);
+        }
+    } catch (e) {
+        quickAccessItems = [];
+    }
+}
+
+function saveQuickAccessToStorage() {
+    try {
+        localStorage.setItem('quickAccessItems', JSON.stringify(quickAccessItems));
+    } catch (e) {
+        console.error('Failed to save quick access:', e);
+    }
+}
+
+function addToQuickAccess(item) {
+    // Prüfen ob schon vorhanden
+    const exists = quickAccessItems.some(q => q.id === item.id);
+    if (exists) {
+        showToast('Bereits im Schnellzugriff', 'info');
+        return;
+    }
+    
+    // Am Anfang hinzufügen
+    quickAccessItems.unshift({
+        id: item.id,
+        text: item.text,
+        audio_url: item.audio_url,
+        is_favorite: item.is_favorite
+    });
+    
+    // Max 20 Items
+    if (quickAccessItems.length > 20) {
+        quickAccessItems = quickAccessItems.slice(0, 20);
+    }
+    
+    saveQuickAccessToStorage();
+    renderQuickAccess();
+    showToast('Zum Schnellzugriff hinzugefügt', 'success');
+}
+
+function removeFromQuickAccess(itemId) {
+    quickAccessItems = quickAccessItems.filter(q => q.id !== itemId);
+    saveQuickAccessToStorage();
+    renderQuickAccess();
+}
+
+function clearQuickAccess() {
+    if (quickAccessItems.length === 0) return;
+    
+    if (confirm('Schnellzugriff-Liste wirklich leeren?')) {
+        quickAccessItems = [];
+        saveQuickAccessToStorage();
+        renderQuickAccess();
+    }
+}
+
+function renderQuickAccess() {
+    if (!elements.quickAccessList) return;
+    
+    if (quickAccessItems.length === 0) {
+        elements.quickAccessList.innerHTML = '<p class="muted">Nachrichten hier hinzufügen mit dem ➕ Button</p>';
+        return;
+    }
+    
+    elements.quickAccessList.innerHTML = '';
+    quickAccessItems.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'quick-access-item';
+        
+        const textPreview = item.text.substring(0, 50) + (item.text.length > 50 ? '...' : '');
+        
+        div.innerHTML = `
+            <span class="quick-text" title="${escapeHtml(item.text)}">${escapeHtml(textPreview)}</span>
+            <div class="quick-actions">
+                <button class="btn btn-success btn-small play-btn" title="Abspielen">▶️</button>
+                <button class="btn btn-secondary btn-small use-btn" title="Text übernehmen">📝</button>
+                <button class="btn btn-danger btn-small remove-btn" title="Entfernen">✕</button>
+            </div>
+        `;
+        
+        div.querySelector('.play-btn').onclick = (e) => {
+            e.stopPropagation();
+            playQuickAccessItem(item);
+        };
+        div.querySelector('.use-btn').onclick = (e) => {
+            e.stopPropagation();
+            useQuickAccessText(item);
+        };
+        div.querySelector('.remove-btn').onclick = (e) => {
+            e.stopPropagation();
+            removeFromQuickAccess(item.id);
+        };
+        
+        // Klick auf Karte = Abspielen
+        div.onclick = () => playQuickAccessItem(item);
+        
+        elements.quickAccessList.appendChild(div);
+    });
+}
+
+async function playQuickAccessItem(item) {
+    if (item.audio_url) {
+        elements.audioPlayer.src = `${window.API_URL}${item.audio_url}`;
+        elements.audioPlayer.play();
+        
+        // Play count erhöhen
+        await api(`/api/catalog/${item.id}/play`, { method: 'POST' });
+    }
+}
+
+function useQuickAccessText(item) {
+    if (elements.textInput) {
+        elements.textInput.value = item.text;
+        elements.textInput.focus();
     }
 }
 
@@ -855,6 +1000,7 @@ function createCatalogItem(msg) {
             </button>
             <div class="catalog-item-actions">
                 <button class="btn btn-small play-btn" data-id="${msg.id}">▶️</button>
+                <button class="btn btn-small add-quick-btn" data-id="${msg.id}" title="Zum Schnellzugriff">➕</button>
                 <button class="btn btn-small edit-btn" data-id="${msg.id}">🏷️</button>
                 <button class="btn btn-small delete-btn" data-id="${msg.id}">🗑️</button>
             </div>
@@ -872,6 +1018,7 @@ function createCatalogItem(msg) {
     // Event handlers
     div.querySelector('.favorite-btn').onclick = () => toggleFavorite(msg.id);
     div.querySelector('.play-btn').onclick = () => playCatalogAudio(msg.id, msg.text);
+    div.querySelector('.add-quick-btn').onclick = () => addToQuickAccess(msg);
     div.querySelector('.edit-btn').onclick = () => openEditTagsModal(msg);
     div.querySelector('.delete-btn').onclick = () => deleteCatalogMessage(msg.id);
     
@@ -1715,6 +1862,11 @@ function setupEventListeners() {
         });
     });
     
+    // Quick Access
+    if (elements.clearQuickAccessBtn) {
+        elements.clearQuickAccessBtn.addEventListener('click', clearQuickAccess);
+    }
+    
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
@@ -1763,6 +1915,10 @@ async function init() {
         loadCatalogPreview();
         loadHistory();
         loadFavorites();
+        
+        // Quick Access aus localStorage laden
+        loadQuickAccessFromStorage();
+        renderQuickAccess();
         
         // Voice-Models erst laden wenn TTS bereit ist
         await waitForTTSAndLoadModels();

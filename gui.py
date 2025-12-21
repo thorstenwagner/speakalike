@@ -80,8 +80,8 @@ class SpeakAlikeGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("SpeakAlike")
-        self.root.geometry("750x520")  # Kompaktes Fenster
-        self.root.minsize(650, 480)    # Mindestgröße
+        self.root.geometry("1050x520")  # Breiter für 4. Spalte
+        self.root.minsize(900, 480)     # Mindestgröße
         self.root.resizable(True, True)
         self.root.configure(bg=self.COLOR_BG)
         
@@ -181,11 +181,18 @@ class SpeakAlikeGUI:
         # Konfiguriere Grid-Gewichtung
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(0, weight=1)  # Textfeld bekommt den Platz
+        main_frame.columnconfigure(0, weight=3)  # Linker Bereich (Hauptinhalt)
+        main_frame.columnconfigure(1, weight=1)  # Rechter Bereich (Schnellzugriff)
+        main_frame.rowconfigure(0, weight=1)  # Beide Bereiche bekommen den Platz
+        
+        # ===== LINKER BEREICH - Hauptinhalt =====
+        left_frame = ttk.Frame(main_frame)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, self.PADDING_MEDIUM))
+        left_frame.columnconfigure(0, weight=1)
+        left_frame.rowconfigure(0, weight=1)  # Textfeld expandiert
         
         # ===== TEXTFELD - Hauptelement mit subtiler Karte =====
-        text_frame = ttk.LabelFrame(main_frame, text="Text eingeben", 
+        text_frame = ttk.LabelFrame(left_frame, text="Text eingeben", 
                                     padding=self.PADDING_MEDIUM, style="Card.TLabelframe")
         text_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), 
                         pady=(0, self.PADDING_MEDIUM))
@@ -213,7 +220,7 @@ class SpeakAlikeGUI:
         self.text_input.bind("<FocusIn>", self.clear_placeholder)
         
         # ===== HAUPTBUTTONS - mit großzügigem Spacing =====
-        button_frame = ttk.Frame(main_frame)
+        button_frame = ttk.Frame(left_frame)
         button_frame.grid(row=1, column=0, pady=self.PADDING_SMALL)
         
         # Vorlesen Button - Primäre Aktion (Akzentfarbe)
@@ -329,7 +336,7 @@ class SpeakAlikeGUI:
         self.catalog_open_button.grid(row=3, column=0, pady=2)
         
         # ===== OPTIONEN - horizontale Leiste mit mehr Whitespace =====
-        options_frame = ttk.Frame(main_frame)
+        options_frame = ttk.Frame(left_frame)
         options_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(self.PADDING_MEDIUM, self.PADDING_SMALL))
         
         # Stimme
@@ -429,12 +436,15 @@ class SpeakAlikeGUI:
         # Statusleiste - subtil am unteren Rand
         self.status_var = tk.StringVar(value="Bereit")
         status_bar = ttk.Label(
-            main_frame,
+            left_frame,
             textvariable=self.status_var,
             style="Muted.TLabel",
             anchor=tk.W
         )
         status_bar.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(self.PADDING_MEDIUM, 0))
+        
+        # ===== RECHTE SPALTE - Schnellzugriff auf Katalog/Favoriten =====
+        self.setup_quick_access_panel(main_frame)
     
     def update_quality_values(self):
         """Überträgt Qualitätswerte an TTS-Engine"""
@@ -443,6 +453,259 @@ class SpeakAlikeGUI:
         self.tts.repetition_penalty = self.rep_var.get()
         self.tts.use_streaming = self.streaming_var.get()
     
+    def setup_quick_access_panel(self, parent):
+        """Erstellt die rechte Spalte für Schnellzugriff auf Katalog/Favoriten"""
+        # Schnellzugriff-Frame
+        quick_frame = ttk.LabelFrame(parent, text="Schnellzugriff", 
+                                     padding=self.PADDING_MEDIUM, style="Card.TLabelframe")
+        quick_frame.grid(row=0, column=1, sticky="nsew")
+        quick_frame.columnconfigure(0, weight=1)
+        quick_frame.rowconfigure(1, weight=1)
+        
+        # Variable für Anzeige-Modus
+        self.quick_access_mode = tk.StringVar(value="favorites")
+        
+        # Button-Frame für Auswahl
+        mode_frame = ttk.Frame(quick_frame)
+        mode_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, self.PADDING_SMALL))
+        mode_frame.columnconfigure(0, weight=1)
+        mode_frame.columnconfigure(1, weight=1)
+        
+        # Favoriten-Button
+        self.fav_mode_btn = tk.Button(
+            mode_frame,
+            text="⭐ Favoriten",
+            command=lambda: self.set_quick_access_mode("favorites"),
+            font=self.FONT_SMALL,
+            bg=self.COLOR_PRIMARY,
+            fg="white",
+            activebackground=self.COLOR_PRIMARY_HOVER,
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
+        )
+        self.fav_mode_btn.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 2))
+        
+        # Katalog-Button
+        self.cat_mode_btn = tk.Button(
+            mode_frame,
+            text="📚 Katalog",
+            command=lambda: self.set_quick_access_mode("catalog"),
+            font=self.FONT_SMALL,
+            bg="#e5e7eb",
+            fg=self.COLOR_TEXT,
+            activebackground="#d1d5db",
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
+        )
+        self.cat_mode_btn.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(2, 0))
+        
+        # Scrollbarer Bereich für Nachrichten
+        list_container = ttk.Frame(quick_frame)
+        list_container.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        list_container.columnconfigure(0, weight=1)
+        list_container.rowconfigure(0, weight=1)
+        
+        # Canvas für Scrolling
+        self.quick_canvas = tk.Canvas(list_container, bg=self.COLOR_BG, 
+                                       highlightthickness=0, width=220)
+        scrollbar = ttk.Scrollbar(list_container, orient=tk.VERTICAL, 
+                                  command=self.quick_canvas.yview)
+        
+        self.quick_messages_frame = ttk.Frame(self.quick_canvas)
+        
+        self.quick_canvas.create_window((0, 0), window=self.quick_messages_frame, 
+                                         anchor=tk.NW, tags="quick_messages")
+        self.quick_canvas.configure(yscrollcommand=scrollbar.set)
+        
+        self.quick_canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
+        # Mausrad-Scrolling
+        self.quick_canvas.bind('<MouseWheel>', self._on_quick_mousewheel)
+        self.quick_messages_frame.bind('<Configure>', 
+                                        lambda e: self.quick_canvas.configure(
+                                            scrollregion=self.quick_canvas.bbox("all")))
+        
+        # Canvas-Breite anpassen
+        list_container.bind('<Configure>', self._on_quick_canvas_configure)
+        
+        # Aktualisieren-Button
+        refresh_btn = tk.Button(
+            quick_frame,
+            text="🔄 Aktualisieren",
+            command=self.refresh_quick_access,
+            font=self.FONT_TINY,
+            bg="#e5e7eb",
+            fg=self.COLOR_TEXT,
+            activebackground="#d1d5db",
+            cursor="hand2",
+            relief=tk.FLAT,
+            bd=0
+        )
+        refresh_btn.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(self.PADDING_SMALL, 0))
+        
+        # Initiale Befüllung
+        self.refresh_quick_access()
+    
+    def _on_quick_canvas_configure(self, event):
+        """Passt die Breite des inneren Frames an"""
+        self.quick_canvas.itemconfig("quick_messages", width=event.width - 20)
+    
+    def _on_quick_mousewheel(self, event):
+        """Mausrad-Scrolling für Schnellzugriff"""
+        self.quick_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    
+    def set_quick_access_mode(self, mode):
+        """Wechselt zwischen Favoriten und Katalog"""
+        self.quick_access_mode.set(mode)
+        
+        # Button-Styles aktualisieren
+        if mode == "favorites":
+            self.fav_mode_btn.configure(bg=self.COLOR_PRIMARY, fg="white")
+            self.cat_mode_btn.configure(bg="#e5e7eb", fg=self.COLOR_TEXT)
+        else:
+            self.cat_mode_btn.configure(bg=self.COLOR_PRIMARY, fg="white")
+            self.fav_mode_btn.configure(bg="#e5e7eb", fg=self.COLOR_TEXT)
+        
+        self.refresh_quick_access()
+    
+    def refresh_quick_access(self):
+        """Aktualisiert die Schnellzugriff-Liste"""
+        # Alte Widgets entfernen
+        for widget in self.quick_messages_frame.winfo_children():
+            widget.destroy()
+        
+        # Nachrichten laden
+        mode = self.quick_access_mode.get()
+        if mode == "favorites":
+            messages = self.catalog.search(favorites_only=True, limit=20)
+        else:
+            messages = self.catalog.search(order_by="play_count", limit=20)
+        
+        if not messages:
+            empty_label = ttk.Label(self.quick_messages_frame, 
+                                    text="Keine Nachrichten\nverfügbar.",
+                                    style="Muted.TLabel",
+                                    justify=tk.CENTER)
+            empty_label.pack(pady=30, padx=10)
+            
+            hint_label = ttk.Label(self.quick_messages_frame,
+                                   text="Speichere Nachrichten\nim Katalog und markiere\nsie als Favoriten ⭐",
+                                   style="Muted.TLabel",
+                                   justify=tk.CENTER)
+            hint_label.pack(pady=10, padx=10)
+            return
+        
+        # Nachrichten-Karten erstellen
+        for msg in messages:
+            self.create_quick_message_card(msg)
+    
+    def create_quick_message_card(self, msg):
+        """Erstellt eine kompakte Karte für Schnellzugriff"""
+        card = tk.Frame(self.quick_messages_frame, bg="#ffffff", 
+                        relief=tk.FLAT, bd=1, padx=8, pady=6)
+        card.pack(fill=tk.X, pady=3, padx=2)
+        
+        # Text (stark gekürzt)
+        text = msg['text']
+        if len(text) > 40:
+            text = text[:40] + "..."
+        
+        text_label = tk.Label(card, text=text, 
+                              font=self.FONT_TINY,
+                              bg="#ffffff", fg=self.COLOR_TEXT,
+                              anchor=tk.W, justify=tk.LEFT,
+                              wraplength=180)
+        text_label.pack(fill=tk.X, anchor=tk.W)
+        
+        # Button-Frame
+        btn_frame = tk.Frame(card, bg="#ffffff")
+        btn_frame.pack(fill=tk.X, pady=(4, 0))
+        
+        # Abspielen-Button
+        play_btn = tk.Button(
+            btn_frame,
+            text="▶",
+            command=lambda m=msg: self.quick_play_message(m),
+            font=self.FONT_SMALL,
+            bg=self.COLOR_SUCCESS,
+            fg="white",
+            cursor="hand2",
+            relief=tk.FLAT,
+            width=3,
+            bd=0
+        )
+        play_btn.pack(side=tk.LEFT, padx=(0, 4))
+        
+        # Text übernehmen Button
+        use_btn = tk.Button(
+            btn_frame,
+            text="📝",
+            command=lambda m=msg: self.quick_use_text(m),
+            font=self.FONT_SMALL,
+            bg="#e5e7eb",
+            fg=self.COLOR_TEXT,
+            cursor="hand2",
+            relief=tk.FLAT,
+            width=3,
+            bd=0
+        )
+        use_btn.pack(side=tk.LEFT, padx=(0, 4))
+        
+        # Favoriten-Toggle
+        fav_text = "⭐" if msg['is_favorite'] else "☆"
+        fav_color = "#f59e0b" if msg['is_favorite'] else "#9ca3af"
+        fav_btn = tk.Button(
+            btn_frame,
+            text=fav_text,
+            command=lambda m=msg: self.quick_toggle_favorite(m),
+            font=self.FONT_SMALL,
+            bg="#ffffff",
+            fg=fav_color,
+            cursor="hand2",
+            relief=tk.FLAT,
+            width=3,
+            bd=0
+        )
+        fav_btn.pack(side=tk.RIGHT)
+    
+    def quick_play_message(self, msg):
+        """Spielt eine Nachricht aus dem Schnellzugriff ab"""
+        if os.path.exists(msg['audio_path']):
+            # Play-Count erhöhen
+            self.catalog.update_play_count(msg['id'])
+            
+            # Audio abspielen
+            import threading
+            def play():
+                try:
+                    import sounddevice as sd
+                    import soundfile as sf
+                    data, sr = sf.read(msg['audio_path'])
+                    sd.play(data, sr)
+                    sd.wait()
+                except Exception as e:
+                    print(f"Fehler beim Abspielen: {e}")
+            
+            threading.Thread(target=play, daemon=True).start()
+            self.status_var.set(f"▶ Spiele: {msg['text'][:30]}...")
+        else:
+            messagebox.showerror("Fehler", "Audio-Datei nicht gefunden!")
+    
+    def quick_use_text(self, msg):
+        """Übernimmt Text aus Schnellzugriff ins Eingabefeld"""
+        self.text_input.delete(1.0, tk.END)
+        self.text_input.insert(1.0, msg['text'])
+        self.text_input.config(fg=self.COLOR_TEXT)
+        self.status_var.set("Text übernommen")
+    
+    def quick_toggle_favorite(self, msg):
+        """Favoriten-Status aus Schnellzugriff umschalten"""
+        self.catalog.toggle_favorite(msg['id'])
+        self.refresh_quick_access()
+
     def open_quality_menu(self):
         """Öffnet das erweiterte Qualitäts-Menü"""
         menu_window = tk.Toplevel(self.root)
@@ -1198,6 +1461,10 @@ class SpeakAlikeGUI:
             
             dialog.destroy()
             self.status_var.set(f"Zum Katalog hinzugefügt (ID: {message_id})")
+            
+            # Schnellzugriff aktualisieren
+            self.refresh_quick_access()
+            
             messagebox.showinfo("Gespeichert", 
                               f"Sprachnachricht wurde zum Katalog hinzugefügt!\n\n"
                               f"Tags: {', '.join(tags) if tags else 'keine'}")

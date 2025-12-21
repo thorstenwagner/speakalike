@@ -1,0 +1,574 @@
+{
+  "kommunikationssystem": {
+    "kategorien": [
+      {
+        "id": "koerperliche_beduerfnisse",
+        "name": "Körperliche Bedürfnisse",
+        "schlagwoerter": ["Körper", "Unbehagen"],
+        "bausteine": [
+          {
+            "ebene1": "Mich juckt es",
+            "ebene2": [
+              "am Kopf",
+              "an der Stirn",
+              "an der Nase",
+              "am Ohr",
+              "am Kinn",
+              "am Hals",
+              "an der Schulter",
+              "am Arm",
+              "an der Hand",
+              "am Rücken",
+              "an der Brust",
+              "am Bauch",
+              "am Bein",
+              "am Fuß"
+            ],
+            "ebene3": [
+              "links",
+              "rechts",
+              "oben",
+              "unten",
+              "innen",
+              "außen"
+            ]
+          },
+          {
+            "ebene1": "Ich habe Schmerzen",
+            "ebene2": [
+              "am Kopf",
+              "an der Stirn",
+              "an den Augen",
+              "am Ohr",
+              "am Kiefer",
+              "am Hals",
+              "an der Schulter",
+              "am Arm",
+              "an der Hand",
+              "am Rücken",
+              "an der Brust",
+              "am Bauch",
+              "am Bein",
+              "am Fuß",
+              "überall"
+            ],
+            "ebene3": [
+              "links",
+              "rechts",
+              "stark",
+              "leicht",
+              "stechend",
+              "dumpf",
+              "brennend"
+            ]
+          },
+          {
+            "ebene1": "Bitte kratzen",
+            "ebene2": [
+              "am Kopf",
+              "an der Nase",
+              "am Ohr",
+              "am Kinn",
+              "am Hals",
+              "an der Schulter",
+              "am Arm",
+              "an der Hand",
+              "am Rücken",
+              "am Bauch",
+              "am Bein",
+              "am Fuß"
+            ],
+            "ebene3": [
+              "links",
+              "rechts",
+              "oben",
+              "unten",
+              "sanft",
+              "fester"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "position_lagerung",
+        "name": "Position & Lagerung",
+        "schlagwoerter": ["Liegen", "Bewegen"],
+        "bausteine": [
+          {
+            "ebene1": "Bitte Position ändern",
+            "ebene2": [
+              "nach links drehen",
+              "nach rechts drehen",
+              "auf den Rücken",
+              "höher lagern",
+              "tiefer lagern",
+              "aufrichten",
+              "hinlegen"
+            ],
+            "ebene3": [
+              "Kopf",
+              "Oberkörper",
+              "Arme",
+              "Beine",
+              "Füße",
+              "komplett"
+            ]
+          },
+          {
+            "ebene1": "Bitte bewegen",
+            "ebene2": [
+              "den linken Arm",
+              "den rechten Arm",
+              "das linke Bein",
+              "das rechte Bein",
+              "den Kopf",
+              "die Hände",
+              "die Füße"
+            ],
+            "ebene3": [
+              "nach oben",
+              "nach unten",
+              "zur Seite",
+              "gerade",
+              "langsam",
+              "vorsichtig"
+            ]
+          },
+          {
+            "ebene1": "Es drückt",
+            "ebene2": [
+              "am Rücken",
+              "am Gesäß",
+              "an der Schulter",
+              "am Arm",
+              "am Bein",
+              "am Fuß",
+              "am Kopf"
+            ],
+            "ebene3": [
+              "links",
+              "rechts",
+              "stark",
+              "leicht"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "temperatur_komfort",
+        "name": "Temperatur & Komfort",
+        "schlagwoerter": ["Wärme", "Wohlbefinden"],
+        "bausteine": [
+          {
+            "ebene1": "Mir ist",
+            "ebene2": [
+              "zu warm",
+              "zu kalt",
+              "heiß",
+              "schwindelig",
+              "übel",
+              "unwohl"
+            ],
+            "ebene3": [
+              "am ganzen Körper",
+              "an den Füßen",
+              "an den Händen",
+              "am Kopf",
+              "am Oberkörper"
+            ]
+          },
+          {
+            "ebene1": "Bitte",
+            "ebene2": [
+              "Decke drauf",
+              "Decke weg",
+              "Decke zurechtrücken",
+              "Fenster öffnen",
+              "Fenster schließen",
+              "Heizung an",
+              "Heizung aus",
+              "Ventilator an",
+              "Ventilator aus"
+            ],
+            "ebene3": [
+              "ganz",
+              "ein bisschen",
+              "nur kurz",
+              "für länger"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "grundbeduerfnisse",
+        "name": "Grundbedürfnisse",
+        "schlagwoerter": ["Versorgung", "Pflege"],
+        "bausteine": [
+          {
+            "ebene1": "Ich möchte",
+            "ebene2": [
+              "trinken",
+              "essen",
+              "auf die Toilette",
+              "schlafen",
+              "ausruhen",
+              "gewaschen werden",
+              "Zähne putzen"
+            ],
+            "ebene3_trinken": [
+              "Wasser",
+              "Tee",
+              "Saft",
+              "Kaffee",
+              "viel",
+              "wenig",
+              "mit Strohhalm"
+            ],
+            "ebene3_essen": [
+              "jetzt",
+              "später",
+              "wenig",
+              "normal",
+              "etwas Süßes",
+              "etwas Salziges"
+            ]
+          },
+          {
+            "ebene1": "Ich brauche",
+            "ebene2": [
+              "Hilfe",
+              "eine Pause",
+              "Ruhe",
+              "Gesellschaft",
+              "den Arzt",
+              "die Pflege",
+              "Medikamente"
+            ],
+            "ebene3": [
+              "sofort",
+              "dringend",
+              "bald",
+              "später",
+              "nicht sofort"
+            ]
+          },
+          {
+            "ebene1": "Ich muss",
+            "ebene2": [
+              "dringend auf die Toilette",
+              "mich übergeben",
+              "husten",
+              "niesen",
+              "Schleim absaugen",
+              "tief atmen"
+            ],
+            "ebene3": [
+              "sofort",
+              "gleich",
+              "Hilfe dabei"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "kommunikation_umgebung",
+        "name": "Kommunikation & Umgebung",
+        "schlagwoerter": ["Sprechen", "Umfeld"],
+        "bausteine": [
+          {
+            "ebene1": "Bitte",
+            "ebene2": [
+              "lauter sprechen",
+              "langsamer sprechen",
+              "wiederholen",
+              "näher kommen",
+              "Abstand halten",
+              "ansehen",
+              "zuhören"
+            ],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Bitte Licht",
+            "ebene2": [
+              "anmachen",
+              "ausmachen",
+              "dimmen",
+              "heller",
+              "dunkler"
+            ],
+            "ebene3": [
+              "im Zimmer",
+              "am Bett",
+              "draußen"
+            ]
+          },
+          {
+            "ebene1": "Es ist zu",
+            "ebene2": [
+              "laut",
+              "leise",
+              "hell",
+              "dunkel",
+              "hektisch",
+              "ruhig"
+            ],
+            "ebene3": [
+              "hier",
+              "draußen",
+              "im Fernseher",
+              "bitte ändern"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "medien_unterhaltung",
+        "name": "Medien & Unterhaltung",
+        "schlagwoerter": ["Freizeit", "Beschäftigung"],
+        "bausteine": [
+          {
+            "ebene1": "Ich möchte",
+            "ebene2": [
+              "fernsehen",
+              "Musik hören",
+              "Radio hören",
+              "vorlesen hören",
+              "telefonieren",
+              "Besuch empfangen",
+              "alleine sein"
+            ],
+            "ebene3_fernsehen": [
+              "Nachrichten",
+              "Film",
+              "Serie",
+              "Sport",
+              "Dokumentation",
+              "umschalten",
+              "ausschalten"
+            ],
+            "ebene3_musik": [
+              "leise",
+              "laut",
+              "klassisch",
+              "Pop",
+              "Jazz",
+              "anderes Lied",
+              "ausschalten"
+            ]
+          },
+          {
+            "ebene1": "Bitte",
+            "ebene2": [
+              "lauter",
+              "leiser",
+              "ausschalten",
+              "anschalten",
+              "Kanal wechseln",
+              "pausieren",
+              "weitermachen"
+            ],
+            "ebene3": []
+          }
+        ]
+      },
+      {
+        "id": "emotional_sozial",
+        "name": "Emotional & Sozial",
+        "schlagwoerter": ["Gefühle", "Kontakt"],
+        "bausteine": [
+          {
+            "ebene1": "Ich bin",
+            "ebene2": [
+              "müde",
+              "erschöpft",
+              "frustriert",
+              "traurig",
+              "ängstlich",
+              "entspannt",
+              "zufrieden",
+              "dankbar",
+              "glücklich",
+              "unruhig"
+            ],
+            "ebene3": [
+              "sehr",
+              "ein bisschen",
+              "heute",
+              "gerade"
+            ]
+          },
+          {
+            "ebene1": "Ich fühle mich",
+            "ebene2": [
+              "gut",
+              "schlecht",
+              "unwohl",
+              "einsam",
+              "überfordert",
+              "gelangweilt",
+              "nervös",
+              "ruhig"
+            ],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Ich möchte",
+            "ebene2": [
+              "reden",
+              "Ruhe",
+              "Ablenkung",
+              "jemanden sehen",
+              "alleine sein",
+              "nach draußen",
+              "drinnen bleiben"
+            ],
+            "ebene3": [
+              "jetzt",
+              "später",
+              "heute",
+              "bald"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "notfall",
+        "name": "Notfall & Dringend",
+        "schlagwoerter": ["Hilfe", "Sofort"],
+        "bausteine": [
+          {
+            "ebene1": "NOTFALL",
+            "ebene2": [
+              "Ich bekomme keine Luft",
+              "Starke Schmerzen",
+              "Mir ist sehr schwindelig",
+              "Ich fühle mich sehr schlecht",
+              "Bitte Arzt rufen",
+              "Bitte Krankenwagen"
+            ],
+            "ebene3": []
+          },
+          {
+            "ebene1": "DRINGEND",
+            "ebene2": [
+              "Ich brauche sofort Hilfe",
+              "Etwas stimmt nicht",
+              "Ich habe Angst",
+              "Bitte schnell kommen"
+            ],
+            "ebene3": []
+          }
+        ]
+      },
+      {
+        "id": "geraete_hilfsmittel",
+        "name": "Geräte & Hilfsmittel",
+        "schlagwoerter": ["Technik", "Einstellung"],
+        "bausteine": [
+          {
+            "ebene1": "Problem mit",
+            "ebene2": [
+              "Beatmungsgerät",
+              "Absauggerät",
+              "Rollstuhl",
+              "Bett",
+              "Kommunikationsgerät",
+              "Computer",
+              "Tablet"
+            ],
+            "ebene3": [
+              "funktioniert nicht",
+              "muss eingestellt werden",
+              "ist unbequem",
+              "braucht Wartung"
+            ]
+          },
+          {
+            "ebene1": "Bitte einstellen",
+            "ebene2": [
+              "Beatmung",
+              "Absaugung",
+              "Bettposition",
+              "Kopfstütze",
+              "Armlehne",
+              "Fußstütze"
+            ],
+            "ebene3": [
+              "höher",
+              "tiefer",
+              "lockerer",
+              "fester",
+              "anders"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "allgemein",
+        "name": "Allgemeine Aussagen",
+        "schlagwoerter": ["Basis", "Häufig"],
+        "bausteine": [
+          {
+            "ebene1": "Ja",
+            "ebene2": [],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Nein",
+            "ebene2": [],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Vielleicht",
+            "ebene2": [],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Danke",
+            "ebene2": [
+              "sehr",
+              "vielmals"
+            ],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Bitte",
+            "ebene2": [],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Entschuldigung",
+            "ebene2": [],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Alles gut",
+            "ebene2": [],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Warte",
+            "ebene2": [
+              "kurz",
+              "einen Moment",
+              "bitte"
+            ],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Stopp",
+            "ebene2": [],
+            "ebene3": []
+          },
+          {
+            "ebene1": "Weiter",
+            "ebene2": [],
+            "ebene3": []
+          }
+        ]
+      }
+    ],
+    "verwendungshinweis": "Die Bausteine können flexibel kombiniert werden. Ebene1 ist die Hauptaussage, Ebene2 spezifiziert diese weiter, und Ebene3 bietet zusätzliche Details. Nicht alle Kombinationen ergeben Sinn - das System sollte nur sinnvolle Kombinationen erlauben."
+  }
+}
