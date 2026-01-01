@@ -920,14 +920,26 @@ function removeFromQuickAccess(itemId) {
     renderQuickAccess();
 }
 
+let clearQuickAccessPending = false;
+
 function clearQuickAccess() {
     if (quickAccessItems.length === 0) return;
     
-    if (confirm('Schnellzugriff-Liste wirklich leeren?')) {
-        quickAccessItems = [];
-        saveQuickAccessToStorage();
-        renderQuickAccess();
+    // Doppelklick zum Bestätigen
+    if (!clearQuickAccessPending) {
+        clearQuickAccessPending = true;
+        showToast('Nochmal klicken zum Bestätigen', 'info');
+        setTimeout(() => {
+            clearQuickAccessPending = false;
+        }, 2000);
+        return;
     }
+    
+    clearQuickAccessPending = false;
+    quickAccessItems = [];
+    saveQuickAccessToStorage();
+    renderQuickAccess();
+    showToast('Schnellzugriff geleert', 'success');
 }
 
 function renderQuickAccess() {
