@@ -33,6 +33,7 @@ const elements = {
     languageSelect: document.getElementById('languageSelect'),
     charCount: document.getElementById('charCount'),
     speakBtn: document.getElementById('speakBtn'),
+    generateBtn: document.getElementById('generateBtn'),
     stopBtn: document.getElementById('stopBtn'),
     
     // Audio
@@ -429,12 +430,64 @@ async function speak() {
             
             // History aktualisieren
             loadHistory();
+            
+            // Textfeld leeren
+            elements.textInput.value = '';
         }
     } catch (error) {
         showToast(`Fehler: ${error.message}`, 'error');
     } finally {
         elements.speakBtn.disabled = false;
         elements.stopBtn.disabled = true;
+        checkStatus();
+    }
+}
+
+// Nur generieren ohne abspielen
+async function generateOnly() {
+    const text = elements.textInput.value.trim();
+    if (!text) {
+        showToast('Bitte geben Sie einen Text ein.', 'error');
+        return;
+    }
+    
+    currentText = text;
+    elements.generateBtn.disabled = true;
+    elements.speakBtn.disabled = true;
+    const originalText = elements.generateBtn.textContent;
+    elements.generateBtn.textContent = '⏳ Generiere...';
+    elements.statusText.textContent = 'Generiere Audio im Hintergrund...';
+    
+    try {
+        const result = await api('/api/tts/speak', {
+            method: 'POST',
+            body: JSON.stringify({
+                text: text,
+                language: elements.languageSelect.value
+            })
+        });
+        
+        if (result.success) {
+            currentAudioUrl = `${window.API_URL}${result.audio_url}`;
+            console.log('Audio generiert (nicht abgespielt):', currentAudioUrl);
+            
+            // Zum Wiedergabe-Verlauf hinzufügen
+            await addToPlaybackHistory(text, result.audio_url, null);
+            
+            // History aktualisieren
+            loadHistory();
+            
+            // Textfeld leeren
+            elements.textInput.value = '';
+            
+            showToast('Audio erfolgreich generiert!', 'success');
+        }
+    } catch (error) {
+        showToast(`Fehler: ${error.message}`, 'error');
+    } finally {
+        elements.generateBtn.disabled = false;
+        elements.speakBtn.disabled = false;
+        elements.generateBtn.textContent = originalText;
         checkStatus();
     }
 }
@@ -1797,6 +1850,7 @@ function setupEventListeners() {
     
     // TTS buttons
     elements.speakBtn.addEventListener('click', speak);
+    elements.generateBtn.addEventListener('click', generateOnly);
     elements.stopBtn.addEventListener('click', stopSpeaking);
     
     // Settings

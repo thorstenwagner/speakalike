@@ -1102,6 +1102,13 @@ body {
     padding: var(--spacing-md) var(--spacing-lg);
 }
 
+.btn-generate {
+    min-height: 56px;
+    min-width: 120px;
+    font-size: 1rem;
+    padding: var(--spacing-md) var(--spacing-lg);
+}
+
 .btn-stop {
     min-height: 56px;
     min-width: 100px;
