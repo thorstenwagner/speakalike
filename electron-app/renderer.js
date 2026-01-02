@@ -36,6 +36,11 @@ const elements = {
     generateBtn: document.getElementById('generateBtn'),
     stopBtn: document.getElementById('stopBtn'),
     
+    // Volume
+    volumeSlider: document.getElementById('volumeSlider'),
+    volumeIcon: document.getElementById('volumeIcon'),
+    volumeValue: document.getElementById('volumeValue'),
+    
     // Audio
     audioPlayer: document.getElementById('audioPlayer'),
     
@@ -1852,6 +1857,40 @@ function setupEventListeners() {
     elements.speakBtn.addEventListener('click', speak);
     elements.generateBtn.addEventListener('click', generateOnly);
     elements.stopBtn.addEventListener('click', stopSpeaking);
+    
+    // Volume control
+    let previousVolume = 100;
+    elements.volumeSlider.addEventListener('input', (e) => {
+        const volume = e.target.value / 100;
+        elements.audioPlayer.volume = volume;
+        elements.volumeValue.textContent = `${e.target.value}%`;
+        updateVolumeIcon(e.target.value);
+    });
+    
+    elements.volumeIcon.addEventListener('click', () => {
+        if (elements.audioPlayer.volume > 0) {
+            previousVolume = elements.volumeSlider.value;
+            elements.volumeSlider.value = 0;
+            elements.audioPlayer.volume = 0;
+            elements.volumeValue.textContent = '0%';
+            updateVolumeIcon(0);
+        } else {
+            elements.volumeSlider.value = previousVolume;
+            elements.audioPlayer.volume = previousVolume / 100;
+            elements.volumeValue.textContent = `${previousVolume}%`;
+            updateVolumeIcon(previousVolume);
+        }
+    });
+    
+    function updateVolumeIcon(value) {
+        if (value == 0) {
+            elements.volumeIcon.textContent = '🔇';
+        } else if (value < 50) {
+            elements.volumeIcon.textContent = '🔉';
+        } else {
+            elements.volumeIcon.textContent = '🔊';
+        }
+    }
     
     // Settings
     elements.settingsBtn.addEventListener('click', openSettingsModal);

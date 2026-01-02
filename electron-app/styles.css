@@ -1115,6 +1115,60 @@ body {
     font-size: 1rem;
 }
 
+/* Volume Control */
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0 var(--spacing-md);
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+.volume-icon {
+    font-size: 1.25rem;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.1s;
+}
+
+.volume-icon:hover {
+    transform: scale(1.1);
+}
+
+.volume-slider {
+    width: 80px;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--color-border);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--color-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.volume-value {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    min-width: 35px;
+    text-align: right;
+}
+
 .favorite-btn {
     min-width: 48px;
     min-height: 48px;
