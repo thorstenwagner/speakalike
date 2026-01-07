@@ -1667,14 +1667,6 @@ async function saveSettings() {
             })
         });
         
-        // Pitch-Korrektur speichern
-        await api('/api/pitch', {
-            method: 'POST',
-            body: JSON.stringify({
-                semitones: parseFloat(elements.pitchSlider.value)
-            })
-        });
-        
         closeSettingsModal();
     } catch (error) {
         alert(`Fehler: ${error.message}`);
