@@ -520,15 +520,17 @@ async function loadCatalogTags() {
         renderTagFilterList(elements.catalogTagList, 'catalog');
         renderTagFilterList(elements.mainTagList, 'main');
         
-        // Update existing tags in save dialog
-        elements.existingTags.innerHTML = '';
-        catalogTags.slice(0, 15).forEach(tag => {
-            const tagEl = document.createElement('span');
-            tagEl.className = 'tag';
-            tagEl.textContent = tag.name;
-            tagEl.onclick = () => addTagToInput(tag.name);
-            elements.existingTags.appendChild(tagEl);
-        });
+        // Update existing tags in save dialog - use existingTagsList (not existingTags container)
+        if (elements.existingTagsList) {
+            elements.existingTagsList.innerHTML = '';
+            catalogTags.slice(0, 15).forEach(tag => {
+                const tagEl = document.createElement('button');
+                tagEl.className = 'tag clickable';
+                tagEl.textContent = tag.name;
+                tagEl.onclick = () => addExistingTag(tag.name, 'save');
+                elements.existingTagsList.appendChild(tagEl);
+            });
+        }
     } catch (error) {
         console.error('Failed to load tags:', error);
     }
@@ -1138,7 +1140,7 @@ function matchesGlobalSearch(item) {
 
 let currentHistoryItem = null;
 
-function openSaveCatalogModalForHistory(item) {
+async function openSaveCatalogModalForHistory(item) {
     currentHistoryItem = item;
     currentText = item.text;
     currentAudioUrl = `${window.API_URL}${item.audio_url}`;
@@ -1149,8 +1151,8 @@ function openSaveCatalogModalForHistory(item) {
     currentTags = [];
     renderTagList(currentTags, elements.tagListContainer, 'save');
     
-    // Existing tags anzeigen (mit Filter)
-    loadCatalogTags();
+    // Existing tags anzeigen (mit Filter) - await, damit Tags geladen sind
+    await loadCatalogTags();
     filterExistingTags('', 'save');
     
     elements.saveCatalogModal.classList.add('active');
@@ -1712,7 +1714,7 @@ function closeCatalogModal() {
     elements.catalogModal.classList.remove('active');
 }
 
-function openSaveCatalogModal() {
+async function openSaveCatalogModal() {
     if (!currentText || !currentAudioUrl) {
         alert('Keine Audio zum Speichern vorhanden.');
         return;
@@ -1725,8 +1727,8 @@ function openSaveCatalogModal() {
     elements.tagInputField.value = '';
     renderTagList(currentTags, elements.tagListContainer, 'save');
     
-    // Load existing tags (mit Filter)
-    loadCatalogTags();
+    // Load existing tags (mit Filter) - await, damit Tags geladen sind
+    await loadCatalogTags();
     filterExistingTags('', 'save');
     
     elements.saveCatalogModal.classList.add('active');
