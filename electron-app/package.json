@@ -27,5 +27,8 @@
       "!**/*.py",
       "!**/__pycache__"
     ]
+  },
+  "dependencies": {
+    "franc": "^5.0.0"
   }
 }

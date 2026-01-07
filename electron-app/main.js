@@ -270,3 +270,4 @@ ipcMain.handle('read-file-as-buffer', async (event, filePath) => {
         throw error;
     }
 });
+

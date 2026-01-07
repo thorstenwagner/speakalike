@@ -17,6 +17,11 @@ if sys.platform == 'win32':
 from typing import Optional, List
 from datetime import datetime
 
+# Spracherkennung
+from langdetect import detect, DetectorFactory
+# Für konsistente Ergebnisse
+DetectorFactory.seed = 0
+
 # Füge espeak-ng zum PATH hinzu
 os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get("PATH", "")
 
@@ -140,6 +145,23 @@ async def startup():
 
 
 # === Status Endpoints ===
+
+@app.get("/api/detect-language")
+async def detect_language(text: str):
+    """Erkennt die Sprache des Textes"""
+    if not text or len(text.strip()) < 5:
+        return {"language": None, "error": "Text zu kurz"}
+    
+    try:
+        lang = detect(text)
+        # Nur unterstützte Sprachen zurückgeben
+        supported = ['de', 'en', 'es', 'fr']
+        if lang in supported:
+            return {"language": lang}
+        else:
+            return {"language": None, "detected": lang}
+    except Exception as e:
+        return {"language": None, "error": str(e)}
 
 @app.get("/api/status")
 async def get_status():

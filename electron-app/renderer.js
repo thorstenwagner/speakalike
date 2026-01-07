@@ -160,6 +160,32 @@ let mainTagMode = 'and';
 let globalSearchTerms = [];
 let globalSearchMode = 'or'; // Default: ODER
 
+// === Language Detection State ===
+let lastDetectedLanguage = null;
+let languageDetectionTimer = null;
+
+// === Language Detection (using Python backend) ===
+async function updateLanguageFromText() {
+    const text = elements.textInput.value;
+    
+    if (!text || text.trim().length < 5) return;
+    
+    try {
+        const result = await api(`/api/detect-language?text=${encodeURIComponent(text)}`);
+        
+        if (result && result.language && result.language !== lastDetectedLanguage) {
+            const options = Array.from(elements.languageSelect.options).map(o => o.value);
+            if (options.includes(result.language)) {
+                elements.languageSelect.value = result.language;
+                lastDetectedLanguage = result.language;
+                console.log(`Sprache erkannt: ${result.language}`);
+            }
+        }
+    } catch (error) {
+        // Ignoriere Fehler still
+    }
+}
+
 // === API Functions ===
 
 async function api(endpoint, options = {}) {
@@ -1809,6 +1835,12 @@ function setupEventListeners() {
         if (elements.charCount) {
             elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
         }
+        
+        // Automatische Spracherkennung mit Verzögerung
+        if (languageDetectionTimer) {
+            clearTimeout(languageDetectionTimer);
+        }
+        languageDetectionTimer = setTimeout(updateLanguageFromText, 300);
     });
     
     // Tastatur starten bei Fokus
