@@ -195,17 +195,24 @@ class MessageCatalog:
                 clean_query = clean_query.strip()
                 
                 if clean_query:
-                    # Volltextsuche mit Prefix
+                    # Volltextsuche mit Prefix im Text ODER Suche in Tags
                     sql = '''
                         SELECT m.*, GROUP_CONCAT(t.name) as tags_str
                         FROM messages m
                         LEFT JOIN message_tags mt ON m.id = mt.message_id
                         LEFT JOIN tags t ON mt.tag_id = t.id
-                        WHERE m.id IN (
-                            SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
+                        WHERE (
+                            m.id IN (
+                                SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
+                            )
+                            OR m.id IN (
+                                SELECT mt3.message_id FROM message_tags mt3
+                                JOIN tags t3 ON mt3.tag_id = t3.id
+                                WHERE t3.name LIKE ?
+                            )
                         )
                     '''
-                    params = [clean_query + '*']  # Prefix-Suche
+                    params = [clean_query + '*', f'%{clean_query}%']  # Prefix-Suche im Text, LIKE in Tags
                 else:
                     # Fallback auf LIKE wenn keine gültigen Zeichen übrig
                     sql = '''
@@ -213,9 +220,13 @@ class MessageCatalog:
                         FROM messages m
                         LEFT JOIN message_tags mt ON m.id = mt.message_id
                         LEFT JOIN tags t ON mt.tag_id = t.id
-                        WHERE m.text LIKE ?
+                        WHERE (m.text LIKE ? OR m.id IN (
+                            SELECT mt3.message_id FROM message_tags mt3
+                            JOIN tags t3 ON mt3.tag_id = t3.id
+                            WHERE t3.name LIKE ?
+                        ))
                     '''
-                    params = [f'%{query}%']
+                    params = [f'%{query}%', f'%{query}%']
             else:
                 sql = '''
                     SELECT m.*, GROUP_CONCAT(t.name) as tags_str

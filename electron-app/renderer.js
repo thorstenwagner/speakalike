@@ -168,7 +168,13 @@ let languageDetectionTimer = null;
 async function updateLanguageFromText() {
     const text = elements.textInput.value;
     
-    if (!text || text.trim().length < 5) return;
+    // Erkennung starten sobald erstes Wort abgeschlossen (Leerzeichen oder min. 3 Zeichen)
+    const trimmed = text.trim();
+    if (!trimmed || (trimmed.length < 3 && !trimmed.includes(' '))) return;
+    
+    // Mindestens ein vollständiges Wort benötigt
+    const hasCompleteWord = trimmed.includes(' ') || trimmed.length >= 3;  
+    if (!hasCompleteWord) return;
     
     try {
         const result = await api(`/api/detect-language?text=${encodeURIComponent(text)}`);

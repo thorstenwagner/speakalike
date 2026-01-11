@@ -149,7 +149,8 @@ async def startup():
 @app.get("/api/detect-language")
 async def detect_language(text: str):
     """Erkennt die Sprache des Textes"""
-    if not text or len(text.strip()) < 5:
+    # Erkennung ab erstem Wort (min. 3 Zeichen)
+    if not text or len(text.strip()) < 3:
         return {"language": None, "error": "Text zu kurz"}
     
     try:
