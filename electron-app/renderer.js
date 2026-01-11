@@ -147,7 +147,12 @@ const elements = {
     globalSearchInput: document.getElementById('globalSearchInput'),
     searchModeOr: document.getElementById('searchModeOr'),
     searchModeAnd: document.getElementById('searchModeAnd'),
-    clearSearchBtn: document.getElementById('clearSearchBtn')
+    clearSearchBtn: document.getElementById('clearSearchBtn'),
+    
+    // Mini-Modus
+    miniModeBtn: document.getElementById('miniModeBtn'),
+    miniPositionBtn: document.getElementById('miniPositionBtn'),
+    miniExitBtn: document.getElementById('miniExitBtn')
 };
 
 // === Tag Filter State ===
@@ -1804,6 +1809,45 @@ function formatDate(dateStr) {
     });
 }
 
+// === Mini-Modus ===
+
+let currentMiniPosition = 'top';
+
+async function toggleMiniMode() {
+    try {
+        const isMiniMode = await window.electronAPI.toggleMiniMode();
+        
+        if (isMiniMode) {
+            document.body.classList.add('mini-mode');
+            updateMiniPositionUI(currentMiniPosition);
+        } else {
+            document.body.classList.remove('mini-mode', 'mini-top', 'mini-bottom');
+        }
+    } catch (error) {
+        console.error('Fehler beim Mini-Modus Toggle:', error);
+    }
+}
+
+async function toggleMiniPosition() {
+    try {
+        const position = await window.electronAPI.toggleMiniPosition();
+        currentMiniPosition = position;
+        updateMiniPositionUI(position);
+    } catch (error) {
+        console.error('Fehler beim Positions-Toggle:', error);
+    }
+}
+
+function updateMiniPositionUI(position) {
+    document.body.classList.remove('mini-top', 'mini-bottom');
+    document.body.classList.add(`mini-${position}`);
+    
+    if (elements.miniPositionBtn) {
+        elements.miniPositionBtn.textContent = position === 'top' ? '⬇️' : '⬆️';
+        elements.miniPositionBtn.title = position === 'top' ? 'Nach unten verschieben' : 'Nach oben verschieben';
+    }
+}
+
 // === Event Listeners ===
 
 // Tastatur API URL
@@ -2111,14 +2155,36 @@ function setupEventListeners() {
     // Initial search mode
     updateSearchModeButtons();
     
+    // Mini-Modus
+    if (elements.miniModeBtn) {
+        elements.miniModeBtn.addEventListener('click', toggleMiniMode);
+    }
+    if (elements.miniPositionBtn) {
+        elements.miniPositionBtn.addEventListener('click', toggleMiniPosition);
+    }
+    if (elements.miniExitBtn) {
+        elements.miniExitBtn.addEventListener('click', toggleMiniMode);
+    }
+    
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+            // Im Mini-Modus: ESC beendet den Mini-Modus
+            if (document.body.classList.contains('mini-mode')) {
+                toggleMiniMode();
+            } else {
+                document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+            }
         }
         
         if (e.ctrlKey && e.key === 'Enter') {
             speak();
+        }
+        
+        // Ctrl+M für Mini-Modus Toggle
+        if (e.ctrlKey && e.key === 'm') {
+            e.preventDefault();
+            toggleMiniMode();
         }
     });
 }

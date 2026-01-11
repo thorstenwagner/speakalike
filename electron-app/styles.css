@@ -1401,3 +1401,106 @@ body {
 .toast-info {
     background: var(--color-primary);
 }
+
+/* ============================================
+   Mini-Modus Styles
+   ============================================ */
+
+/* Mini-Modus Buttons - standardmäßig versteckt */
+.btn-mini-position,
+.btn-mini-exit {
+    display: none;
+}
+
+/* Im Mini-Modus: verstecke alles außer dem Textfeld und Sprechen-Button */
+body.mini-mode .header,
+body.mini-mode .main-row,
+body.mini-mode .global-search-bar,
+body.mini-mode .bottom-row,
+body.mini-mode .hide-in-mini {
+    display: none !important;
+}
+
+body.mini-mode {
+    overflow: hidden;
+    background: var(--color-white);
+}
+
+body.mini-mode .app {
+    min-height: auto;
+    height: 100vh;
+    background: var(--color-white);
+}
+
+body.mini-mode .main {
+    padding: 10px;
+    gap: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.mini-mode .main-section {
+    padding: 10px;
+    border-radius: var(--radius);
+    margin: 0;
+    width: 100%;
+    box-shadow: none;
+}
+
+body.mini-mode .text-row {
+    gap: 10px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+body.mini-mode .text-input {
+    min-height: 60px;
+    max-height: 60px;
+    height: 60px;
+    padding: 10px 14px;
+    font-size: 1.1rem;
+    resize: none;
+    flex: 1;
+}
+
+body.mini-mode .btn-speak {
+    padding: 10px 20px;
+    font-size: 1rem;
+    min-width: auto;
+    white-space: nowrap;
+    height: 60px;
+}
+
+/* Zeige Mini-Modus Controls nur im Mini-Modus */
+body.mini-mode .btn-mini-position,
+body.mini-mode .btn-mini-exit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    padding: 0;
+    font-size: 1.4rem;
+    border-radius: var(--radius);
+}
+
+body.mini-mode .btn-mini-exit {
+    background: var(--color-danger);
+    color: white;
+}
+
+body.mini-mode .btn-mini-exit:hover {
+    background: var(--color-danger-hover);
+}
+
+/* Position oben oder unten */
+body.mini-mode.mini-top {
+    border-bottom: 2px solid var(--color-primary);
+}
+
+body.mini-mode.mini-bottom {
+    border-top: 2px solid var(--color-primary);
+}

@@ -5,7 +5,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openFileDialog: (options) => ipcRenderer.invoke('open-file-dialog', options),
     saveFileDialog: (options) => ipcRenderer.invoke('save-file-dialog', options),
     readFileAsBuffer: (filePath) => ipcRenderer.invoke('read-file-as-buffer', filePath),
-    onStatusUpdate: (callback) => ipcRenderer.on('status-update', (event, status) => callback(status))
+    onStatusUpdate: (callback) => ipcRenderer.on('status-update', (event, status) => callback(status)),
+    // Mini-Modus
+    toggleMiniMode: () => ipcRenderer.invoke('toggle-mini-mode'),
+    toggleMiniPosition: () => ipcRenderer.invoke('toggle-mini-position'),
+    getMiniModeStatus: () => ipcRenderer.invoke('get-mini-mode-status')
 });
 
 // Backend API URL

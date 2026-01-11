@@ -20,6 +20,7 @@
                     <span class="status-dot"></span>
                     <span class="status-text">Verbinde...</span>
                 </div>
+                <button class="btn btn-icon" id="miniModeBtn" title="Mini-Modus">📌</button>
                 <button class="btn btn-icon" id="settingsBtn" title="Einstellungen">⚙️</button>
             </div>
         </header>
@@ -80,17 +81,20 @@
                     <button class="btn btn-success btn-speak" id="speakBtn">
                         🔊 Sprechen
                     </button>
-                    <button class="btn btn-primary btn-generate" id="generateBtn" title="Nur generieren, nicht abspielen">
+                    <button class="btn btn-primary btn-generate hide-in-mini" id="generateBtn" title="Nur generieren, nicht abspielen">
                         💾 Generieren
                     </button>
-                    <button class="btn btn-danger btn-stop" id="stopBtn" disabled>
+                    <button class="btn btn-danger btn-stop hide-in-mini" id="stopBtn" disabled>
                         ⏹️ Stopp
                     </button>
-                    <div class="volume-control">
+                    <div class="volume-control hide-in-mini">
                         <span class="volume-icon" id="volumeIcon" title="Stumm schalten">🔊</span>
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Lautstärke">
                         <span class="volume-value" id="volumeValue">100%</span>
                     </div>
+                    <!-- Mini-Modus Controls -->
+                    <button class="btn btn-secondary btn-mini-position" id="miniPositionBtn" title="Position wechseln (oben/unten)">⬆️</button>
+                    <button class="btn btn-secondary btn-mini-exit" id="miniExitBtn" title="Mini-Modus beenden">✕</button>
                 </div>
                 <!-- Versteckter Audio Player für Wiedergabe -->
                 <audio id="audioPlayer" style="display: none;"></audio>

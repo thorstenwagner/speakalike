@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, screen } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
@@ -6,6 +6,9 @@ const http = require('http');
 let mainWindow;
 let splashWindow;
 let pythonProcess;
+let isMiniMode = false;
+let miniModePosition = 'top'; // 'top' oder 'bottom'
+let normalWindowBounds = null;
 
 const BACKEND_URL = 'http://127.0.0.1:8765';
 
@@ -269,5 +272,95 @@ ipcMain.handle('read-file-as-buffer', async (event, filePath) => {
         console.error('Error reading file:', error);
         throw error;
     }
+});
+
+// Mini-Modus Toggle
+ipcMain.handle('toggle-mini-mode', async () => {
+    const display = screen.getPrimaryDisplay();
+    const workArea = display.workAreaSize;
+    const workAreaPos = display.workArea;
+    
+    if (!isMiniMode) {
+        // Speichere ob maximiert und aktuelle Fenstergröße
+        const wasMaximized = mainWindow.isMaximized();
+        
+        if (wasMaximized) {
+            mainWindow.unmaximize();
+            await new Promise(r => setTimeout(r, 200));
+        }
+        
+        normalWindowBounds = mainWindow.getBounds();
+        
+        // Wechsle zu Mini-Modus
+        const miniWidth = 650;
+        const miniHeight = 120;
+        const x = workAreaPos.x + Math.round((workArea.width - miniWidth) / 2);
+        const y = miniModePosition === 'top' 
+            ? workAreaPos.y + 5 
+            : workAreaPos.y + workArea.height - miniHeight - 5;
+        
+        console.log('Mini-Modus - Berechnet:', { x, y, width: miniWidth, height: miniHeight, workArea, workAreaPos });
+        
+        // Minimum Size zuerst reduzieren
+        mainWindow.setMinimumSize(200, 80);
+        
+        // Fenster verkleinern
+        mainWindow.setSize(miniWidth, miniHeight);
+        await new Promise(r => setTimeout(r, 50));
+        
+        // Position setzen
+        mainWindow.setPosition(x, y);
+        
+        // Always on top
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+        mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        
+        // Sichtbar machen falls versteckt
+        mainWindow.show();
+        mainWindow.focus();
+        
+        isMiniMode = true;
+        console.log('Mini-Modus aktiviert - Finale Bounds:', mainWindow.getBounds());
+    } else {
+        // Zurück zum normalen Modus
+        mainWindow.setAlwaysOnTop(false);
+        mainWindow.setVisibleOnAllWorkspaces(false);
+        mainWindow.setMinimumSize(800, 600);
+        
+        if (normalWindowBounds) {
+            mainWindow.setSize(normalWindowBounds.width, normalWindowBounds.height);
+            mainWindow.setPosition(normalWindowBounds.x, normalWindowBounds.y);
+        }
+        
+        await new Promise(r => setTimeout(r, 100));
+        mainWindow.maximize();
+        isMiniMode = false;
+    }
+    
+    return isMiniMode;
+});
+
+// Mini-Modus Position ändern (oben/unten)
+ipcMain.handle('toggle-mini-position', async () => {
+    if (!isMiniMode) return miniModePosition;
+    
+    const display = screen.getPrimaryDisplay();
+    const workArea = display.workAreaSize;
+    const workAreaPos = display.workArea;
+    const bounds = mainWindow.getBounds();
+    
+    miniModePosition = miniModePosition === 'top' ? 'bottom' : 'top';
+    const y = miniModePosition === 'top' 
+        ? workAreaPos.y + 5 
+        : workAreaPos.y + workArea.height - bounds.height - 5;
+    
+    mainWindow.setPosition(bounds.x, y);
+    
+    return miniModePosition;
+});
+
+// Mini-Modus Status abfragen
+ipcMain.handle('get-mini-mode-status', async () => {
+    return { isMiniMode, position: miniModePosition };
 });
 
