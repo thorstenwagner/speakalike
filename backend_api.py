@@ -291,9 +291,53 @@ async def speak(request: TTSRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/tts/play-audio")
+async def play_audio_on_device(data: dict):
+    """Spielt eine Audio-Datei auf dem ausgewählten Gerät ab"""
+    try:
+        import sounddevice as sd
+        import soundfile as sf
+        
+        audio_url = data.get("audio_url", "")
+        file_path = None
+        
+        # Prüfe ob es eine Katalog-URL ist
+        if "/api/catalog/" in audio_url and "/audio" in audio_url:
+            # Extrahiere message_id aus URL wie /api/catalog/123/audio
+            parts = audio_url.split("/")
+            try:
+                message_id = int(parts[-2])
+                messages = catalog.search() if catalog else []
+                message = next((m for m in messages if m["id"] == message_id), None)
+                if message and os.path.exists(message["audio_path"]):
+                    file_path = Path(message["audio_path"])
+            except (ValueError, IndexError):
+                pass
+        else:
+            # Normale Audio-URL aus TEMP_DIR
+            filename = audio_url.split("/")[-1] if "/" in audio_url else audio_url
+            file_path = TEMP_DIR / filename
+        
+        if not file_path or not file_path.exists():
+            raise HTTPException(status_code=404, detail="Audio nicht gefunden")
+        
+        # Audio laden und abspielen
+        audio_data, samplerate = sf.read(str(file_path))
+        device = tts.output_device if tts else None
+        
+        # Nicht-blockierend abspielen
+        sd.play(audio_data, samplerate, device=device)
+        
+        return {"success": True, "device": device}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/tts/stop")
 async def stop_speaking():
     """Stoppt die aktuelle Wiedergabe"""
+    import sounddevice as sd
+    sd.stop()  # Stoppe auch sounddevice Wiedergabe
     if tts:
         tts.stop()
     current_status["is_speaking"] = False
@@ -756,6 +800,52 @@ async def generate_tags_endpoint(request: TagGenerateRequest):
         return {"tags": tags}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# === Audio Devices ===
+
+@app.get("/api/audio-devices")
+async def get_audio_devices():
+    """Gibt Liste der verfügbaren Ausgabegeräte zurück"""
+    try:
+        import sounddevice as sd
+        devices = []
+        seen_names = set()
+        device_list = sd.query_devices()
+        for i, device in enumerate(device_list):
+            # Nur Ausgabegeräte (max_output_channels > 0)
+            if device['max_output_channels'] > 0:
+                # Gerätenamen bereinigen und deduplizieren
+                name = device['name']
+                # Nur den Hauptnamen verwenden (vor API-Typ wie "MME", "Windows DirectSound" etc.)
+                base_name = name.split(',')[0].strip() if ',' in name else name
+                
+                # Überspringe wenn wir dieses Gerät schon haben (anhand des Basisnamens)
+                if base_name in seen_names:
+                    continue
+                seen_names.add(base_name)
+                
+                devices.append({
+                    'index': i,
+                    'name': name,
+                    'channels': device['max_output_channels'],
+                    'samplerate': device['default_samplerate']
+                })
+        return {"devices": devices, "current": tts.output_device if tts else None}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/audio-device")
+async def set_audio_device(device: dict):
+    """Setzt das Ausgabegerät"""
+    if not tts:
+        raise HTTPException(status_code=503, detail="TTS nicht initialisiert")
+    
+    device_index = device.get("index")
+    # None = Standard-Gerät
+    tts.output_device = device_index if device_index != -1 else None
+    return {"success": True, "device": tts.output_device}
 
 
 # === Settings ===

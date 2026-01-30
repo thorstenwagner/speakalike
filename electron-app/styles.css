@@ -1036,6 +1036,16 @@ body {
     font-size: 0.875rem;
 }
 
+.device-select-row {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.device-select-row .select {
+    flex: 1;
+}
+
 /* Muted Text */
 .muted {
     color: var(--color-text-muted);
@@ -1407,6 +1417,8 @@ body {
    ============================================ */
 
 /* Mini-Modus Buttons - standardmäßig versteckt */
+.btn-mini-signal,
+.btn-mini-repeat,
 .btn-mini-position,
 .btn-mini-exit {
     display: none;
@@ -1475,6 +1487,8 @@ body.mini-mode .btn-speak {
 }
 
 /* Zeige Mini-Modus Controls nur im Mini-Modus */
+body.mini-mode .btn-mini-signal,
+body.mini-mode .btn-mini-repeat,
 body.mini-mode .btn-mini-position,
 body.mini-mode .btn-mini-exit {
     display: flex;
@@ -1485,6 +1499,30 @@ body.mini-mode .btn-mini-exit {
     padding: 0;
     font-size: 1.4rem;
     border-radius: var(--radius);
+}
+
+body.mini-mode .btn-mini-signal {
+    background: var(--color-warning, #f59e0b);
+    color: white;
+}
+
+body.mini-mode .btn-mini-signal:hover {
+    background: #d97706;
+}
+
+body.mini-mode .btn-mini-repeat {
+    background: var(--color-primary);
+    color: white;
+}
+
+body.mini-mode .btn-mini-repeat:hover {
+    background: var(--color-primary-hover);
+}
+
+body.mini-mode .btn-mini-repeat:disabled {
+    background: var(--color-gray-300);
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 body.mini-mode .btn-mini-exit {

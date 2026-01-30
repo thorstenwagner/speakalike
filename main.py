@@ -88,6 +88,9 @@ class TextToSpeech:
         self.speaker_wav = None
         self.seed = 42  # Fester Seed für konsistente Ausgabe
         
+        # Ausgabegerät (None = Standard-Gerät)
+        self.output_device = None
+        
         # Aktuelles TTS-Modell
         self.current_tts_model_id = model_id
         
@@ -635,7 +638,7 @@ class TextToSpeech:
         # Audio abspielen (nur wenn nicht headless/API-Modus)
         if not getattr(self, 'headless_mode', False):
             data, samplerate = sf.read(output_path)
-            sd.play(data, samplerate)
+            sd.play(data, samplerate, device=self.output_device)
             sd.wait()
         
         return output_path
@@ -672,7 +675,7 @@ class TextToSpeech:
             
             # Audio abspielen
             data, samplerate = sf.read(output_path)
-            sd.play(data, samplerate)
+            sd.play(data, samplerate, device=self.output_device)
             sd.wait()
             
         finally:

@@ -52,6 +52,8 @@ const elements = {
     settingsBtn: document.getElementById('settingsBtn'),
     settingsModal: document.getElementById('settingsModal'),
     closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+    audioDeviceSelect: document.getElementById('audioDeviceSelect'),
+    refreshDevicesBtn: document.getElementById('refreshDevicesBtn'),
     speedSlider: document.getElementById('speedSlider'),
     speedValue: document.getElementById('speedValue'),
     temperatureSlider: document.getElementById('temperatureSlider'),
@@ -151,6 +153,8 @@ const elements = {
     
     // Mini-Modus
     miniModeBtn: document.getElementById('miniModeBtn'),
+    miniSignalBtn: document.getElementById('miniSignalBtn'),
+    miniRepeatBtn: document.getElementById('miniRepeatBtn'),
     miniPositionBtn: document.getElementById('miniPositionBtn'),
     miniExitBtn: document.getElementById('miniExitBtn')
 };
@@ -447,24 +451,21 @@ async function speak() {
         if (result.success) {
             currentAudioUrl = `${window.API_URL}${result.audio_url}`;
             console.log('Audio URL:', currentAudioUrl);
-            elements.audioPlayer.src = currentAudioUrl;
             
-            // Event-Listener für Debugging
-            elements.audioPlayer.onerror = (e) => {
-                console.error('Audio Fehler:', e, elements.audioPlayer.error);
-                showToast('Audio-Fehler beim Abspielen', 'error');
-            };
-            
-            elements.audioPlayer.oncanplay = () => {
-                console.log('Audio kann abgespielt werden');
-            };
-            
+            // Audio über Backend auf ausgewähltem Gerät abspielen
             try {
-                await elements.audioPlayer.play();
-                console.log('Audio wird abgespielt');
+                await api('/api/tts/play-audio', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        audio_url: result.audio_url
+                    })
+                });
+                console.log('Audio wird auf Backend-Gerät abgespielt');
             } catch (playError) {
-                console.error('Play Fehler:', playError);
-                showToast('Konnte Audio nicht abspielen', 'error');
+                console.error('Backend Play Fehler:', playError);
+                // Fallback: Im Browser abspielen
+                elements.audioPlayer.src = currentAudioUrl;
+                await elements.audioPlayer.play();
             }
             
             // Zum Wiedergabe-Verlauf hinzufügen
@@ -841,8 +842,18 @@ async function loadHistory() {
 }
 
 async function playHistoryAudio(audioUrl, text, catalogId) {
-    elements.audioPlayer.src = `${window.API_URL}${audioUrl}`;
-    elements.audioPlayer.play();
+    // Audio über Backend auf ausgewähltem Gerät abspielen
+    try {
+        await api('/api/tts/play-audio', {
+            method: 'POST',
+            body: JSON.stringify({ audio_url: audioUrl })
+        });
+    } catch (error) {
+        console.error('Backend Play Fehler:', error);
+        // Fallback: Im Browser abspielen
+        elements.audioPlayer.src = `${window.API_URL}${audioUrl}`;
+        elements.audioPlayer.play();
+    }
     
     // Zum Wiedergabe-Verlauf hinzufügen
     await addToPlaybackHistory(text, audioUrl, catalogId);
@@ -949,8 +960,18 @@ async function loadFavorites() {
 
 async function playCatalogItem(item) {
     if (item.audio_url) {
-        elements.audioPlayer.src = `${window.API_URL}${item.audio_url}`;
-        elements.audioPlayer.play();
+        // Audio über Backend auf ausgewähltem Gerät abspielen
+        try {
+            await api('/api/tts/play-audio', {
+                method: 'POST',
+                body: JSON.stringify({ audio_url: item.audio_url })
+            });
+        } catch (error) {
+            console.error('Backend Play Fehler:', error);
+            // Fallback: Im Browser abspielen
+            elements.audioPlayer.src = `${window.API_URL}${item.audio_url}`;
+            elements.audioPlayer.play();
+        }
         
         // Play count erhöhen
         await api(`/api/catalog/${item.id}/play`, { method: 'POST' });
@@ -1089,8 +1110,18 @@ function renderQuickAccess() {
 
 async function playQuickAccessItem(item) {
     if (item.audio_url) {
-        elements.audioPlayer.src = `${window.API_URL}${item.audio_url}`;
-        elements.audioPlayer.play();
+        // Audio über Backend auf ausgewähltem Gerät abspielen
+        try {
+            await api('/api/tts/play-audio', {
+                method: 'POST',
+                body: JSON.stringify({ audio_url: item.audio_url })
+            });
+        } catch (error) {
+            console.error('Backend Play Fehler:', error);
+            // Fallback: Im Browser abspielen
+            elements.audioPlayer.src = `${window.API_URL}${item.audio_url}`;
+            elements.audioPlayer.play();
+        }
         
         // Play count erhöhen
         await api(`/api/catalog/${item.id}/play`, { method: 'POST' });
@@ -1252,8 +1283,19 @@ async function toggleFavorite(id, setTo = null) {
 
 async function playCatalogAudio(id, text) {
     const audioUrl = `/api/catalog/${id}/audio`;
-    elements.audioPlayer.src = `${window.API_URL}${audioUrl}`;
-    elements.audioPlayer.play();
+    
+    // Audio über Backend auf ausgewähltem Gerät abspielen
+    try {
+        await api('/api/tts/play-audio', {
+            method: 'POST',
+            body: JSON.stringify({ audio_url: audioUrl })
+        });
+    } catch (error) {
+        console.error('Backend Play Fehler:', error);
+        // Fallback: Im Browser abspielen
+        elements.audioPlayer.src = `${window.API_URL}${audioUrl}`;
+        elements.audioPlayer.play();
+    }
     
     // Zum Wiedergabe-Verlauf hinzufügen
     await addToPlaybackHistory(text, audioUrl, id);
@@ -1676,6 +1718,44 @@ function updateFileList() {
 
 // === Settings ===
 
+async function loadAudioDevices() {
+    try {
+        const data = await api('/api/audio-devices');
+        const select = elements.audioDeviceSelect;
+        
+        // Leere die Liste und füge Standard hinzu
+        select.innerHTML = '<option value="-1">Standard</option>';
+        
+        // Füge alle Geräte hinzu
+        data.devices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.index;
+            option.textContent = device.name;
+            select.appendChild(option);
+        });
+        
+        // Wähle aktuelles Gerät aus
+        if (data.current !== null && data.current !== undefined) {
+            select.value = data.current;
+        } else {
+            select.value = '-1';
+        }
+    } catch (error) {
+        console.error('Failed to load audio devices:', error);
+    }
+}
+
+async function setAudioDevice(deviceIndex) {
+    try {
+        await api('/api/audio-device', {
+            method: 'PUT',
+            body: JSON.stringify({ index: parseInt(deviceIndex) })
+        });
+    } catch (error) {
+        console.error('Failed to set audio device:', error);
+    }
+}
+
 async function loadSettings() {
     try {
         const settings = await api('/api/settings');
@@ -1688,6 +1768,9 @@ async function loadSettings() {
         
         elements.repetitionSlider.value = settings.repetition_penalty || 5.0;
         elements.repetitionValue.textContent = settings.repetition_penalty || 5.0;
+        
+        // Audio-Geräte laden
+        await loadAudioDevices();
     } catch (error) {
         console.error('Failed to load settings:', error);
     }
@@ -1695,6 +1778,7 @@ async function loadSettings() {
 
 async function saveSettings() {
     try {
+        // Einstellungen speichern
         await api('/api/settings', {
             method: 'PUT',
             body: JSON.stringify({
@@ -1703,6 +1787,9 @@ async function saveSettings() {
                 repetition_penalty: parseFloat(elements.repetitionSlider.value)
             })
         });
+        
+        // Audio-Gerät speichern
+        await setAudioDevice(elements.audioDeviceSelect.value);
         
         closeSettingsModal();
     } catch (error) {
@@ -1848,6 +1935,76 @@ function updateMiniPositionUI(position) {
     }
 }
 
+// Letzte Nachricht wiederholen
+async function repeatLastMessage() {
+    if (!currentAudioUrl) {
+        showToast('Keine letzte Nachricht vorhanden.', 'info');
+        return;
+    }
+    
+    elements.miniRepeatBtn.disabled = true;
+    
+    try {
+        // Audio-URL extrahieren (relativer Pfad für Backend)
+        const audioPath = currentAudioUrl.replace(window.API_URL, '');
+        
+        // Audio über Backend auf ausgewähltem Gerät abspielen
+        try {
+            await api('/api/tts/play-audio', {
+                method: 'POST',
+                body: JSON.stringify({
+                    audio_url: audioPath
+                })
+            });
+        } catch (playError) {
+            console.error('Backend Play Fehler:', playError);
+            // Fallback: Im Browser abspielen
+            elements.audioPlayer.src = currentAudioUrl;
+            await elements.audioPlayer.play();
+        }
+    } catch (error) {
+        showToast(`Fehler beim Wiederholen: ${error.message}`, 'error');
+    } finally {
+        elements.miniRepeatBtn.disabled = false;
+    }
+}
+
+// Signalton abspielen (Aufmerksamkeit erregen)
+function playSignalTone() {
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Zwei-Ton Signal (Ding-Dong)
+        const playTone = (frequency, startTime, duration) => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+            
+            // Sanfter Ein- und Ausklang
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(0.5, startTime + 0.05);
+            gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+            
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+        };
+        
+        const now = audioContext.currentTime;
+        playTone(880, now, 0.15);        // Erster Ton (A5)
+        playTone(1100, now + 0.15, 0.2); // Zweiter Ton (höher)
+        
+        // AudioContext nach Abspielen schließen
+        setTimeout(() => audioContext.close(), 500);
+    } catch (error) {
+        console.error('Fehler beim Abspielen des Signaltons:', error);
+    }
+}
+
 // === Event Listeners ===
 
 // Tastatur API URL
@@ -1856,11 +2013,32 @@ const KEYBOARD_API_URL = 'http://127.0.0.1:3847';
 async function startKeyboard() {
     try {
         console.log('Starte Tastatur...');
-        const response = await fetch(`${KEYBOARD_API_URL}/start`, { 
+        
+        // Tastatur starten
+        await fetch(`${KEYBOARD_API_URL}/start`, { 
             method: 'POST',
             mode: 'no-cors'
         });
-        console.log('Tastatur gestartet');
+        
+        // Large Keys Modus aktivieren
+        await fetch(`${KEYBOARD_API_URL}/largekeys`, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true }),
+            mode: 'no-cors'
+        });
+        
+        // Dock-Position entgegengesetzt zur eigenen Position setzen
+        // Wenn wir oben sind, Tastatur unten öffnen und umgekehrt
+        const keyboardDockPosition = currentMiniPosition === 'top' ? 'bottom' : 'top';
+        await fetch(`${KEYBOARD_API_URL}/dock`, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ position: keyboardDockPosition }),
+            mode: 'no-cors'
+        });
+        
+        console.log(`Tastatur gestartet (Large Mode, Position: ${keyboardDockPosition})`);
     } catch (error) {
         console.log('Tastatur-API nicht erreichbar:', error.message);
     }
@@ -1907,7 +2085,13 @@ function setupEventListeners() {
     elements.textInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            speak();
+            const text = elements.textInput.value.trim();
+            if (text) {
+                speak();
+            } else if (currentAudioUrl) {
+                // Leeres Textfeld + Enter = letzte Nachricht wiederholen
+                repeatLastMessage();
+            }
         }
     });
     
@@ -1972,6 +2156,7 @@ function setupEventListeners() {
     elements.settingsBtn.addEventListener('click', openSettingsModal);
     elements.closeSettingsBtn.addEventListener('click', closeSettingsModal);
     elements.saveSettingsBtn.addEventListener('click', saveSettings);
+    elements.refreshDevicesBtn.addEventListener('click', loadAudioDevices);
     
     elements.speedSlider.addEventListener('input', (e) => {
         elements.speedValue.textContent = `${e.target.value}x`;
@@ -2158,6 +2343,12 @@ function setupEventListeners() {
     // Mini-Modus
     if (elements.miniModeBtn) {
         elements.miniModeBtn.addEventListener('click', toggleMiniMode);
+    }
+    if (elements.miniSignalBtn) {
+        elements.miniSignalBtn.addEventListener('click', playSignalTone);
+    }
+    if (elements.miniRepeatBtn) {
+        elements.miniRepeatBtn.addEventListener('click', repeatLastMessage);
     }
     if (elements.miniPositionBtn) {
         elements.miniPositionBtn.addEventListener('click', toggleMiniPosition);

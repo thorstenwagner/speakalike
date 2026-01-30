@@ -292,7 +292,7 @@ ipcMain.handle('toggle-mini-mode', async () => {
         normalWindowBounds = mainWindow.getBounds();
         
         // Wechsle zu Mini-Modus
-        const miniWidth = 650;
+        const miniWidth = 850;
         const miniHeight = 120;
         const x = workAreaPos.x + Math.round((workArea.width - miniWidth) / 2);
         const y = miniModePosition === 'top' 

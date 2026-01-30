@@ -59,8 +59,6 @@
                         <select class="select" id="languageSelect">
                             <option value="de">Deutsch</option>
                             <option value="en">English</option>
-                            <option value="es">Español</option>
-                            <option value="fr">Français</option>
                         </select>
                     </div>
                     
@@ -93,6 +91,8 @@
                         <span class="volume-value" id="volumeValue">100%</span>
                     </div>
                     <!-- Mini-Modus Controls -->
+                    <button class="btn btn-secondary btn-mini-signal" id="miniSignalBtn" title="Signalton (Aufmerksamkeit)">🔔</button>
+                    <button class="btn btn-secondary btn-mini-repeat" id="miniRepeatBtn" title="Letzte Nachricht wiederholen">🔁</button>
                     <button class="btn btn-secondary btn-mini-position" id="miniPositionBtn" title="Position wechseln (oben/unten)">⬆️</button>
                     <button class="btn btn-secondary btn-mini-exit" id="miniExitBtn" title="Mini-Modus beenden">✕</button>
                 </div>
@@ -165,6 +165,15 @@
                 <button class="btn btn-icon modal-close" id="closeSettingsBtn">✕</button>
             </div>
             <div class="modal-body">
+                <div class="setting-group">
+                    <label>🔊 Ausgabegerät</label>
+                    <div class="device-select-row">
+                        <select class="select" id="audioDeviceSelect">
+                            <option value="-1">Standard</option>
+                        </select>
+                        <button class="btn btn-small btn-icon" id="refreshDevicesBtn" title="Geräte aktualisieren">🔄</button>
+                    </div>
+                </div>
                 <div class="setting-group">
                     <label>Geschwindigkeit</label>
                     <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.1" value="1.0">
