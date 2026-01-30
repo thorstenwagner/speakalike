@@ -844,7 +844,7 @@ class TextToSpeech:
             language: Sprachcode
             
         Returns:
-            Start-Zeit des Stop-Markers oder None wenn nicht gefunden
+            Tuple (Start-Zeit des Stop-Markers, Index des ersten Stop-Marker-Wortes) oder (None, None) wenn nicht gefunden
         """
         import re
         patterns = self.STOP_MARKER_PATTERNS.get(language, self.STOP_MARKER_PATTERNS["en"])
@@ -873,7 +873,7 @@ class TextToSpeech:
             # Für Deutsch: "ende"
             if word == first_pattern or first_pattern in word:
                 print(f"  -> Stop-Marker erstes Wort '{first_pattern}' gefunden: '{word}' bei {recognized_words[i]['start']:.2f}s")
-                return recognized_words[i]["start"]
+                return recognized_words[i]["start"], i
             
             # Prüfe auch auf weitere Marker-Wörter (z.B. "nachricht", "message")
             for pattern in patterns[1:]:
@@ -885,13 +885,13 @@ class TextToSpeech:
                         prev_word = words_text[j]
                         if prev_word == first_pattern or first_pattern in prev_word:
                             print(f"  -> Marker-Anfang '{first_pattern}' gefunden bei {recognized_words[j]['start']:.2f}s")
-                            return recognized_words[j]["start"]
+                            return recognized_words[j]["start"], j
                     # Falls "ende" nicht gefunden, nutze dieses Wort als Schnittposition
                     print(f"  -> Kein Marker-Anfang gefunden, schneide bei '{word}' ({recognized_words[i]['start']:.2f}s)")
-                    return recognized_words[i]["start"]
+                    return recognized_words[i]["start"], i
         
         print(f"  -> Stop-Marker NICHT gefunden!")
-        return None
+        return None, None
 
     def _remove_artifacts_with_transcription(self, audio, expected_text, sample_rate=24000, language="de"):
         """
@@ -993,13 +993,22 @@ class TextToSpeech:
             print(f"  Erkannte Wörter ({len(recognized_words)}): {[w['word'] for w in recognized_words]}")
             
             # NEUE STRATEGIE: Suche nach dem Stop-Marker
-            stop_marker_start = self._find_stop_marker_position(recognized_words, language)
+            stop_marker_start, stop_marker_index = self._find_stop_marker_position(recognized_words, language)
             
             if stop_marker_start is not None:
-                print(f"  Stop-Marker gefunden bei {stop_marker_start:.2f}s")
+                print(f"  Stop-Marker gefunden bei {stop_marker_start:.2f}s (Index {stop_marker_index})")
                 
-                # Schneide kurz VOR dem Stop-Marker ab (100ms Puffer für natürliches Ende)
-                cut_time = max(0, stop_marker_start - 0.1)
+                # Finde das Ende des letzten Wortes VOR dem Stop-Marker
+                if stop_marker_index > 0:
+                    last_content_word = recognized_words[stop_marker_index - 1]
+                    last_word_end = last_content_word["end"]
+                    print(f"  Letztes Inhaltswort: '{last_content_word['word']}' endet bei {last_word_end:.2f}s")
+                    # Schneide nach dem letzten Inhaltswort ab (+ 200ms Puffer für natürliches Ausklingen)
+                    cut_time = last_word_end + 0.2
+                else:
+                    # Fallback: Schneide 300ms vor dem Stop-Marker ab
+                    cut_time = max(0, stop_marker_start - 0.3)
+                
                 end_sample = int(cut_time * sample_rate)
                 
                 # Sanftes Fade-Out (100ms)
