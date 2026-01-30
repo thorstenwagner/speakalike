@@ -695,15 +695,22 @@ class TextToSpeech:
         print(f"Generiere Audio...")
         print(f"  Parameter: gpt_cond_len={self.gpt_cond_len}, temperature={self.temperature}")
         
+        # Originaltext speichern (ohne Stop-Marker) für Trimming
+        original_text = text
+        
+        # Stop-Marker zum Text hinzufügen
+        text_with_marker = self._add_stop_marker(text, language)
+        print(f"  Text mit Stop-Marker: '{text_with_marker}'")
+        
         # Streaming-Modus für schnelleres erstes Audio
         if self.use_streaming:
-            self._inference_direct_streaming(text, language, output_path)
+            self._inference_direct_streaming(original_text, language, output_path)
             print(f"  Generierung abgeschlossen in {time.time() - start_time:.2f}s (Streaming)")
             return
         
-        # Generiere den gesamten Text in einem Stück
+        # Generiere den gesamten Text in einem Stück (mit Stop-Marker)
         out = self.model.inference(
-            text=text,
+            text=text_with_marker,
             language=language,
             gpt_cond_latent=self.gpt_cond_latent,
             speaker_embedding=self.speaker_embedding,
@@ -727,8 +734,8 @@ class TextToSpeech:
         wavfile.write(debug_path, 24000, wav_debug_int16)
         print(f"  DEBUG: Audio vor Trimming gespeichert: {debug_path}")
         
-        # Artefakte am Ende entfernen
-        wav = self._remove_artifacts_with_transcription(wav, text, sample_rate=24000)
+        # Artefakte am Ende entfernen (sucht nach Stop-Marker)
+        wav = self._remove_artifacts_with_transcription(wav, original_text, sample_rate=24000, language=language)
         
         # Speichern als Standard-PCM WAV (16-bit) für maximale Kompatibilität
         wav = np.clip(wav, -1.0, 1.0)
@@ -742,11 +749,18 @@ class TextToSpeech:
         import torchaudio
         import numpy as np
         
+        # Originaltext speichern (ohne Stop-Marker) für Trimming
+        original_text = text
+        
+        # Stop-Marker zum Text hinzufügen
+        text_with_marker = self._add_stop_marker(text, language)
+        print(f"  Text mit Stop-Marker (Streaming): '{text_with_marker}'")
+        
         chunks = []
         
-        # Streaming-Generator verwenden
+        # Streaming-Generator verwenden (mit Stop-Marker)
         for chunk in self.model.inference_stream(
-            text=text,
+            text=text_with_marker,
             language=language,
             gpt_cond_latent=self.gpt_cond_latent,
             speaker_embedding=self.speaker_embedding,
@@ -765,20 +779,132 @@ class TextToSpeech:
         if chunks:
             wav = np.concatenate([c.cpu().numpy() for c in chunks])
             
-            wav = self._remove_artifacts_with_transcription(wav, text, sample_rate=24000)
+            # Artefakte am Ende entfernen (sucht nach Stop-Marker)
+            wav = self._remove_artifacts_with_transcription(wav, original_text, sample_rate=24000, language=language)
             torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
 
-    def _remove_artifacts_with_transcription(self, audio, expected_text, sample_rate=24000):
+    # Stop-Marker-Sätze für verschiedene Sprachen
+    # Diese werden zum Text hinzugefügt und beim Trimming erkannt
+    STOP_MARKERS = {
+        "de": "Ende der Nachricht.",
+        "en": "End of message.",
+        "es": "Fin del mensaje.",
+        "fr": "Fin du message.",
+        "it": "Fine del messaggio.",
+        "pt": "Fim da mensagem.",
+        "pl": "Koniec wiadomości.",
+        "nl": "Einde bericht.",
+        "ru": "Конец сообщения.",
+        "ja": "メッセージ終了。",
+        "zh-cn": "消息结束。",
+        "ar": "نهاية الرسالة.",
+        "tr": "Mesaj sonu.",
+        "ko": "메시지 끝.",
+    }
+    
+    # Erkennungsmuster für Stop-Marker (normalisiert, für Whisper-Erkennung)
+    STOP_MARKER_PATTERNS = {
+        "de": ["ende", "nachricht", "ende der nachricht"],
+        "en": ["end", "message", "end of message"],
+        "es": ["fin", "mensaje", "fin del mensaje"],
+        "fr": ["fin", "message", "fin du message"],
+        "it": ["fine", "messaggio", "fine del messaggio"],
+        "pt": ["fim", "mensagem", "fim da mensagem"],
+        "pl": ["koniec", "wiadomości", "koniec wiadomości"],
+        "nl": ["einde", "bericht", "einde bericht"],
+        "ru": ["конец", "сообщения", "конец сообщения"],
+        "ja": ["メッセージ", "終了"],
+        "zh-cn": ["消息", "结束"],
+        "ar": ["نهاية", "الرسالة"],
+        "tr": ["mesaj", "sonu"],
+        "ko": ["메시지", "끝"],
+    }
+
+    def _add_stop_marker(self, text, language):
+        """
+        Fügt einen Stop-Marker-Satz am Ende des Textes hinzu.
+        
+        Args:
+            text: Der Originaltext
+            language: Sprachcode (z.B. 'de', 'en')
+            
+        Returns:
+            Text mit Stop-Marker
+        """
+        stop_marker = self.STOP_MARKERS.get(language, self.STOP_MARKERS["en"])
+        # Füge etwas Abstand/Pause zwischen Text und Marker ein
+        return f"{text.rstrip()} ... {stop_marker}"
+
+    def _find_stop_marker_position(self, recognized_words, language):
+        """
+        Findet die Position des Stop-Markers in den erkannten Wörtern.
+        
+        Args:
+            recognized_words: Liste von {"word": str, "start": float, "end": float}
+            language: Sprachcode
+            
+        Returns:
+            Start-Zeit des Stop-Markers oder None wenn nicht gefunden
+        """
+        import re
+        patterns = self.STOP_MARKER_PATTERNS.get(language, self.STOP_MARKER_PATTERNS["en"])
+        
+        # Normalisiere alle Wörter (Kleinbuchstaben, nur Buchstaben)
+        def normalize(w):
+            return re.sub(r'[^\w]', '', w.lower())
+        
+        words_text = [normalize(w["word"]) for w in recognized_words]
+        
+        print(f"  Suche Stop-Marker in: {words_text[-15:] if len(words_text) > 15 else words_text}")
+        print(f"  Muster für '{language}': {patterns}")
+        
+        # Suche nach dem ersten Wort des Stop-Markers (z.B. "ende" oder "end")
+        first_pattern = normalize(patterns[0])
+        
+        # Durchsuche die letzten 15 Wörter (mehr Spielraum)
+        search_range = min(15, len(recognized_words))
+        
+        for i in range(len(recognized_words) - 1, len(recognized_words) - search_range - 1, -1):
+            if i < 0:
+                break
+            word = words_text[i]
+            
+            # Prüfe ob das Wort das erste Stop-Marker-Wort ist
+            # Für Deutsch: "ende"
+            if word == first_pattern or first_pattern in word:
+                print(f"  -> Stop-Marker erstes Wort '{first_pattern}' gefunden: '{word}' bei {recognized_words[i]['start']:.2f}s")
+                return recognized_words[i]["start"]
+            
+            # Prüfe auch auf weitere Marker-Wörter (z.B. "nachricht", "message")
+            for pattern in patterns[1:]:
+                normalized_pattern = normalize(pattern)
+                if word == normalized_pattern or normalized_pattern in word:
+                    print(f"  -> Stop-Marker Wort '{normalized_pattern}' gefunden: '{word}' bei Index {i}")
+                    # Suche nach dem Anfang des Markers (das Wort "ende" oder "end" davor)
+                    for j in range(max(0, i - 5), i):
+                        prev_word = words_text[j]
+                        if prev_word == first_pattern or first_pattern in prev_word:
+                            print(f"  -> Marker-Anfang '{first_pattern}' gefunden bei {recognized_words[j]['start']:.2f}s")
+                            return recognized_words[j]["start"]
+                    # Falls "ende" nicht gefunden, nutze dieses Wort als Schnittposition
+                    print(f"  -> Kein Marker-Anfang gefunden, schneide bei '{word}' ({recognized_words[i]['start']:.2f}s)")
+                    return recognized_words[i]["start"]
+        
+        print(f"  -> Stop-Marker NICHT gefunden!")
+        return None
+
+    def _remove_artifacts_with_transcription(self, audio, expected_text, sample_rate=24000, language="de"):
         """
         Entfernt Artefakte am Ende des Audios durch Whisper-Transkription.
         
-        Vergleicht den transkribierten Text mit dem erwarteten Text und
-        schneidet das Audio am Ende des erkannten Textes ab.
+        Verwendet einen Stop-Marker-Satz der zum Text hinzugefügt wurde.
+        Das Audio wird am Anfang des Stop-Markers abgeschnitten.
         
         Args:
             audio: Audio-Array (numpy)
-            expected_text: Der erwartete Text der gesprochen wurde
+            expected_text: Der erwartete Text der gesprochen wurde (ohne Stop-Marker)
             sample_rate: Sample-Rate des Audios
+            language: Sprachcode für Stop-Marker-Erkennung
             
         Returns:
             Getrimmtes Audio-Array
@@ -822,10 +948,15 @@ class TextToSpeech:
             # Debug: Zeige Audio-Info
             print(f"  Whisper-Input: {len(audio_16k)} samples, max={np.max(np.abs(audio_16k)):.3f}, dtype={audio_16k.dtype}")
             
+            # Bestimme Whisper-Sprache (mapping für einige Sprachen)
+            whisper_lang = language
+            if language == "zh-cn":
+                whisper_lang = "zh"
+            
             # Transkribiere mit Wort-Zeitstempeln
             result = self._whisper_model.transcribe(
                 audio_16k,
-                language="de",
+                language=whisper_lang,
                 word_timestamps=True,
                 fp16=torch.cuda.is_available(),
                 verbose=False
@@ -837,19 +968,16 @@ class TextToSpeech:
             else:
                 print("  Whisper: Kein Text erkannt")
             
-            # Finde das letzte Wort das zum erwarteten Text gehört
-            expected_words = self._normalize_text(expected_text).split()
-            
             if not result.get("segments"):
                 print("  Keine Segmente erkannt, verwende Fallback-Trimming")
                 return self._remove_trailing_artifacts(audio, sample_rate)
             
-            # Sammle alle erkannten Wörter mit Zeitstempeln
+            # Sammle alle erkannten Wörter mit Zeitstempeln (NICHT normalisieren für besseres Debug)
             recognized_words = []
             for segment in result["segments"]:
                 if "words" in segment:
                     for word_info in segment["words"]:
-                        word = self._normalize_text(word_info["word"])
+                        word = word_info["word"].strip()
                         if word:
                             recognized_words.append({
                                 "word": word,
@@ -863,6 +991,40 @@ class TextToSpeech:
             
             # Debug: Zeige erkannte Wörter
             print(f"  Erkannte Wörter ({len(recognized_words)}): {[w['word'] for w in recognized_words]}")
+            
+            # NEUE STRATEGIE: Suche nach dem Stop-Marker
+            stop_marker_start = self._find_stop_marker_position(recognized_words, language)
+            
+            if stop_marker_start is not None:
+                print(f"  Stop-Marker gefunden bei {stop_marker_start:.2f}s")
+                
+                # Schneide kurz VOR dem Stop-Marker ab (100ms Puffer für natürliches Ende)
+                cut_time = max(0, stop_marker_start - 0.1)
+                end_sample = int(cut_time * sample_rate)
+                
+                # Sanftes Fade-Out (100ms)
+                fade_duration = 0.1
+                fade_samples = int(fade_duration * sample_rate)
+                if end_sample > fade_samples:
+                    fade_start = end_sample - fade_samples
+                    fade_curve = np.power(np.linspace(1.0, 0.0, fade_samples), 2)
+                    audio = audio.copy()
+                    audio[fade_start:end_sample] *= fade_curve[:end_sample - fade_start]
+                
+                trimmed = audio[:end_sample]
+                
+                original_duration = len(audio) / sample_rate
+                trimmed_duration = len(trimmed) / sample_rate
+                
+                print(f"  -> Stop-Marker-Trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
+                      f"({original_duration - trimmed_duration:.2f}s entfernt)")
+                
+                return trimmed
+            
+            # FALLBACK: Stop-Marker nicht gefunden, verwende alte Wort-Zähl-Methode
+            print(f"  Stop-Marker nicht erkannt, verwende Wort-Zählung als Fallback")
+            
+            expected_words = self._normalize_text(expected_text).split()
             print(f"  Erwartete Wörter ({len(expected_words)}): {expected_words}")
             
             # Strategie: Einfach zählen!
