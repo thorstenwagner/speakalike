@@ -832,12 +832,25 @@ class TextToSpeech:
             Text mit Stop-Marker
         """
         stop_marker = self.STOP_MARKERS.get(language, self.STOP_MARKERS["en"])
-        # Füge etwas Abstand/Pause zwischen Text und Marker ein
-        return f"{text.rstrip()} ... {stop_marker}"
+        
+        # Prüfe, ob der Text BEREITS einen Stop-Marker enthält
+        if stop_marker.lower() in text.lower():
+            print(f"  WARNUNG: Text enthält bereits Stop-Marker '{stop_marker}'!")
+            print(f"  Original-Text: '{text}'")
+            return text  # Nicht nochmal hinzufügen
+        
+        # Füge Stop-Marker mit einfachem Punkt an (... kann XTTS verwirren)
+        result = f"{text.rstrip()}. {stop_marker}"
+        print(f"  DEBUG _add_stop_marker: Eingabe='{text}'")
+        print(f"  DEBUG _add_stop_marker: Ausgabe='{result}'")
+        return result
 
     def _find_stop_marker_position(self, recognized_words, language):
         """
-        Findet die Position des Stop-Markers in den erkannten Wörtern.
+        Findet die Position des LETZTEN Stop-Markers in den erkannten Wörtern.
+        
+        Wichtig: Wir suchen den LETZTEN Marker, da Whisper manchmal fälschlicherweise
+        "Ende" oder ähnliche Wörter mitten im Text erkennt.
         
         Args:
             recognized_words: Liste von {"word": str, "start": float, "end": float}
@@ -860,35 +873,41 @@ class TextToSpeech:
         
         # Suche nach dem ersten Wort des Stop-Markers (z.B. "ende" oder "end")
         first_pattern = normalize(patterns[0])
+        second_pattern = normalize(patterns[1]) if len(patterns) > 1 else None
         
-        # Durchsuche die letzten 15 Wörter (mehr Spielraum)
-        search_range = min(15, len(recognized_words))
+        # WICHTIG: Suche nur in den LETZTEN 6 Wörtern nach dem Stop-Marker
+        # Der echte Stop-Marker ist immer ganz am Ende
+        # "Ende der Nachricht" = 3 Wörter, mit etwas Puffer = 6 Wörter
+        search_start = max(0, len(recognized_words) - 6)
         
-        for i in range(len(recognized_words) - 1, len(recognized_words) - search_range - 1, -1):
-            if i < 0:
-                break
+        print(f"  Suche nur in letzten {len(recognized_words) - search_start} Wörtern (Index {search_start} bis {len(recognized_words)-1})")
+        
+        # Suche von hinten nach vorne nach dem vollständigen Marker
+        for i in range(len(recognized_words) - 1, search_start - 1, -1):
             word = words_text[i]
             
-            # Prüfe ob das Wort das erste Stop-Marker-Wort ist
-            # Für Deutsch: "ende"
-            if word == first_pattern or first_pattern in word:
-                print(f"  -> Stop-Marker erstes Wort '{first_pattern}' gefunden: '{word}' bei {recognized_words[i]['start']:.2f}s")
+            # Prüfe ob dieses Wort "nachricht" oder "message" ist (das letzte Wort des Markers)
+            if second_pattern and (word == second_pattern or second_pattern in word):
+                print(f"  -> Stop-Marker letztes Wort '{second_pattern}' gefunden: '{word}' bei Index {i}")
+                # Suche nach dem Anfang des Markers ("ende" oder "end") NUR in den 3 Wörtern DIREKT davor
+                # (nicht weiter zurück, um doppelte Marker zu vermeiden)
+                for j in range(max(0, i - 3), i):
+                    prev_word = words_text[j]
+                    if prev_word == first_pattern or first_pattern in prev_word:
+                        print(f"  -> Marker-Anfang '{first_pattern}' gefunden bei {recognized_words[j]['start']:.2f}s (Index {j})")
+                        return recognized_words[j]["start"], j
+                # Falls "ende" nicht direkt davor, nutze dieses Wort
+                print(f"  -> Kein Marker-Anfang gefunden, schneide bei '{word}' ({recognized_words[i]['start']:.2f}s)")
                 return recognized_words[i]["start"], i
             
-            # Prüfe auch auf weitere Marker-Wörter (z.B. "nachricht", "message")
-            for pattern in patterns[1:]:
-                normalized_pattern = normalize(pattern)
-                if word == normalized_pattern or normalized_pattern in word:
-                    print(f"  -> Stop-Marker Wort '{normalized_pattern}' gefunden: '{word}' bei Index {i}")
-                    # Suche nach dem Anfang des Markers (das Wort "ende" oder "end" davor)
-                    for j in range(max(0, i - 5), i):
-                        prev_word = words_text[j]
-                        if prev_word == first_pattern or first_pattern in prev_word:
-                            print(f"  -> Marker-Anfang '{first_pattern}' gefunden bei {recognized_words[j]['start']:.2f}s")
-                            return recognized_words[j]["start"], j
-                    # Falls "ende" nicht gefunden, nutze dieses Wort als Schnittposition
-                    print(f"  -> Kein Marker-Anfang gefunden, schneide bei '{word}' ({recognized_words[i]['start']:.2f}s)")
-                    return recognized_words[i]["start"], i
+            # Prüfe auch auf "ende" alleine (falls "nachricht" nicht erkannt wurde)
+            if word == first_pattern or first_pattern in word:
+                # Prüfe ob das nächste Wort "der" oder ähnlich ist (zur Bestätigung)
+                if i + 1 < len(words_text):
+                    next_word = words_text[i + 1]
+                    if next_word in ["der", "of", "du", "del", "de"]:
+                        print(f"  -> Stop-Marker '{first_pattern}' + '{next_word}' gefunden bei {recognized_words[i]['start']:.2f}s (Index {i})")
+                        return recognized_words[i]["start"], i
         
         print(f"  -> Stop-Marker NICHT gefunden!")
         return None, None
@@ -999,14 +1018,37 @@ class TextToSpeech:
                 print(f"  Stop-Marker gefunden bei {stop_marker_start:.2f}s (Index {stop_marker_index})")
                 
                 # Finde das Ende des letzten Wortes VOR dem Stop-Marker
-                if stop_marker_index > 0:
-                    last_content_word = recognized_words[stop_marker_index - 1]
+                # WICHTIG: Überspringe Wörter die auch zum Stop-Marker gehören könnten
+                # (z.B. wenn Whisper "Ende der Nachricht" doppelt erkennt)
+                import re
+                def normalize(w):
+                    return re.sub(r'[^\w]', '', w.lower())
+                
+                patterns = self.STOP_MARKER_PATTERNS.get(language, self.STOP_MARKER_PATTERNS["en"])
+                stop_words = set()
+                for p in patterns:
+                    for word in p.split():
+                        stop_words.add(normalize(word))
+                # Füge auch "der", "of" etc. hinzu
+                stop_words.update(["der", "of", "du", "del", "de", "la", "le"])
+                
+                # Suche rückwärts nach dem ersten Wort das NICHT zum Stop-Marker gehört
+                last_content_index = stop_marker_index - 1
+                while last_content_index >= 0:
+                    word = normalize(recognized_words[last_content_index]["word"])
+                    if word not in stop_words:
+                        break
+                    last_content_index -= 1
+                
+                if last_content_index >= 0:
+                    last_content_word = recognized_words[last_content_index]
                     last_word_end = last_content_word["end"]
-                    print(f"  Letztes Inhaltswort: '{last_content_word['word']}' endet bei {last_word_end:.2f}s")
+                    print(f"  Letztes Inhaltswort: '{last_content_word['word']}' endet bei {last_word_end:.2f}s (Index {last_content_index})")
                     # Schneide nach dem letzten Inhaltswort ab (+ 200ms Puffer für natürliches Ausklingen)
                     cut_time = last_word_end + 0.2
                 else:
                     # Fallback: Schneide 300ms vor dem Stop-Marker ab
+                    print(f"  Kein Inhaltswort gefunden, verwende Fallback")
                     cut_time = max(0, stop_marker_start - 0.3)
                 
                 end_sample = int(cut_time * sample_rate)
