@@ -25,7 +25,7 @@ DetectorFactory.seed = 0
 # Füge espeak-ng zum PATH hinzu
 os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get("PATH", "")
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -108,6 +108,10 @@ class TagGenerateRequest(BaseModel):
 class SwitchTTSModelRequest(BaseModel):
     model_id: str
     num_tags: int = 5
+
+
+class SentenceCompletionRequest(BaseModel):
+    text: str
 
 
 # === Lifecycle ===
@@ -779,6 +783,67 @@ async def get_all_tags():
         return []
     
     return [{"name": t[0], "count": t[1]} for t in catalog.get_all_tags()]
+
+
+# === Sentence Completion with Claude AI ===
+
+@app.post("/api/ai/complete-sentence")
+async def complete_sentence_endpoint(
+    request: SentenceCompletionRequest,
+    x_api_key: Optional[str] = Header(None)
+):
+    """Vervollständigt unvollständige deutsche Sätze mit Claude AI"""
+    import anthropic
+    
+    system_prompt = """Du bist ein Assistent zum Ergänzen unvollständiger deutscher Sätze.
+Aufgabe: Ergänze fehlende Artikel, Hilfsverben, Präpositionen und andere Wörter, um grammatisch korrekte deutsche Sätze zu bilden. Korrigiere dabei auch unvollständig geschriebene Wörter.
+Regeln:
+- Ergänze nur fehlende Wörter
+- Vervollständige unvollständig geschriebene Wörter
+- Behalte die vorhandenen Wörter bei (sinngemäß)
+- Achte auf korrekte Grammatik (Kasus, Genus, Numerus)
+- Achte auf korrekte Rechtschreibung
+- Wähle die wahrscheinlichste Interpretation bei Mehrdeutigkeit
+- Berücksichtige den Kontext aus vorherigen Nachrichten
+Beispiele:
+Eingabe: "Katze schläft Sofa"
+Ausgabe: "Die Katze schläft auf dem Sofa."
+Eingabe: "Ich morgen Arzt gehen"
+Ausgabe: "Ich muss morgen zum Arzt gehen."
+Eingabe: "mir geht gut. Keine schmerzen"
+Ausgabe: "Mir geht es gut. Ich habe keine Schmerzen."
+Eingabe: "wln wr eign ma schw ghn"
+Ausgabe: "Wollen wir eigentlich mal schwimmen gehen?"
+Eingabe: "ih hbe sps bei vln din abr bsors brtsple"
+Ausgabe: "Ich habe Spaß bei vielen Dingen, aber besonders bei Brettspielen."
+Antworte mit nur einem Satz – dem vervollständigten und korrigierten Satz, ohne weitere Erklärungen."""
+
+    try:
+        # API Key aus Header oder Umgebungsvariable
+        api_key = x_api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=401, detail="API Key nicht gesetzt")
+        
+        client = anthropic.Anthropic(api_key=api_key)
+        
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=[
+                {"role": "user", "content": request.text}
+            ]
+        )
+        
+        completed_text = message.content[0].text.strip()
+        return {"original": request.text, "completed": completed_text}
+        
+    except anthropic.AuthenticationError:
+        raise HTTPException(status_code=401, detail="API Key ungültig")
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=429, detail="Rate Limit erreicht")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Claude API Fehler: {str(e)}")
 
 
 # === Tag Generation ===

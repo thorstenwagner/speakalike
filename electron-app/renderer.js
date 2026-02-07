@@ -34,7 +34,6 @@ const elements = {
     charCount: document.getElementById('charCount'),
     speakBtn: document.getElementById('speakBtn'),
     generateBtn: document.getElementById('generateBtn'),
-    stopBtn: document.getElementById('stopBtn'),
     
     // Volume
     volumeSlider: document.getElementById('volumeSlider'),
@@ -135,6 +134,18 @@ const elements = {
     importAudioPlayer: document.getElementById('importAudioPlayer'),
     importAutoTagsBtn: document.getElementById('importAutoTagsBtn'),
     
+    // AI Mode
+    aiModeCheckbox: document.getElementById('aiModeCheckbox'),
+    apiKeyInput: document.getElementById('apiKeyInput'),
+    
+    // AI Confirm Modal
+    aiConfirmModal: document.getElementById('aiConfirmModal'),
+    closeAiConfirmBtn: document.getElementById('closeAiConfirmBtn'),
+    aiOriginalText: document.getElementById('aiOriginalText'),
+    aiCompletedText: document.getElementById('aiCompletedText'),
+    rejectAiBtn: document.getElementById('rejectAiBtn'),
+    acceptAiBtn: document.getElementById('acceptAiBtn'),
+    
     // History
     historyList: document.getElementById('historyList'),
     
@@ -205,12 +216,13 @@ async function updateLanguageFromText() {
 
 async function api(endpoint, options = {}) {
     try {
+        const { headers: extraHeaders, ...restOptions } = options;
         const response = await fetch(`${window.API_URL}${endpoint}`, {
             headers: {
                 'Content-Type': 'application/json',
-                ...options.headers
+                ...extraHeaders
             },
-            ...options
+            ...restOptions
         });
         
         if (!response.ok) {
@@ -427,16 +439,89 @@ async function deleteVoiceModel() {
 
 // === Text-to-Speech ===
 
+// AI Sentence Completion
+async function completeWithAI(text) {
+    const apiKey = localStorage.getItem('claudeApiKey') || '';
+    if (!apiKey) {
+        showToast('Bitte API Key in den Einstellungen hinterlegen.', 'error');
+        return null;
+    }
+    
+    try {
+        const result = await api('/api/ai/complete-sentence', {
+            method: 'POST',
+            headers: {
+                'X-API-Key': apiKey
+            },
+            body: JSON.stringify({ text })
+        });
+        return result.completed;
+    } catch (error) {
+        console.error('AI Completion Error:', error);
+        showToast(`KI-Fehler: ${error.message}`, 'error');
+        return null;
+    }
+}
+
+// Show AI Confirm Modal and wait for user decision
+function showAiConfirmModal(original, completed) {
+    return new Promise((resolve) => {
+        elements.aiOriginalText.textContent = original;
+        elements.aiCompletedText.value = completed;
+        elements.aiConfirmModal.classList.add('active');
+        // Fokus auf das editierbare Textfeld
+        setTimeout(() => elements.aiCompletedText.focus(), 100);
+        
+        const cleanup = () => {
+            elements.aiConfirmModal.classList.remove('active');
+            elements.acceptAiBtn.removeEventListener('click', onAccept);
+            elements.rejectAiBtn.removeEventListener('click', onReject);
+            elements.closeAiConfirmBtn.removeEventListener('click', onReject);
+        };
+        
+        const onAccept = () => {
+            const editedText = elements.aiCompletedText.value.trim();
+            cleanup();
+            resolve(editedText || completed);
+        };
+        
+        const onReject = () => {
+            cleanup();
+            resolve(null);  // null = abbrechen, nicht sprechen
+        };
+        
+        elements.acceptAiBtn.addEventListener('click', onAccept);
+        elements.rejectAiBtn.addEventListener('click', onReject);
+        elements.closeAiConfirmBtn.addEventListener('click', onReject);
+    });
+}
+
 async function speak() {
-    const text = elements.textInput.value.trim();
+    let text = elements.textInput.value.trim();
     if (!text) {
         showToast('Bitte geben Sie einen Text ein.', 'error');
         return;
     }
     
+    // AI Mode: Text zuerst an KI senden
+    if (elements.aiModeCheckbox.checked) {
+        elements.statusText.textContent = 'KI vervollständigt Text...';
+        const completed = await completeWithAI(text);
+        
+        if (completed && completed !== text) {
+            const result = await showAiConfirmModal(text, completed);
+            if (result === null) {
+                // Abgebrochen – nicht sprechen
+                elements.statusText.textContent = 'Abgebrochen';
+                return;
+            }
+            text = result;
+            elements.textInput.value = text;
+        }
+    }
+    
     currentText = text;
     elements.speakBtn.disabled = true;
-    elements.stopBtn.disabled = false;
     elements.statusText.textContent = 'Generiere Audio...';
     
     try {
@@ -481,7 +566,6 @@ async function speak() {
         showToast(`Fehler: ${error.message}`, 'error');
     } finally {
         elements.speakBtn.disabled = false;
-        elements.stopBtn.disabled = true;
         checkStatus();
     }
 }
@@ -544,7 +628,6 @@ async function stopSpeaking() {
     }
     
     elements.speakBtn.disabled = false;
-    elements.stopBtn.disabled = true;
     checkStatus();
 }
 
@@ -1769,6 +1852,10 @@ async function loadSettings() {
         elements.repetitionSlider.value = settings.repetition_penalty || 5.0;
         elements.repetitionValue.textContent = settings.repetition_penalty || 5.0;
         
+        // API Key aus localStorage laden
+        const savedApiKey = localStorage.getItem('claudeApiKey') || '';
+        elements.apiKeyInput.value = savedApiKey;
+        
         // Audio-Geräte laden
         await loadAudioDevices();
     } catch (error) {
@@ -1791,7 +1878,16 @@ async function saveSettings() {
         // Audio-Gerät speichern
         await setAudioDevice(elements.audioDeviceSelect.value);
         
+        // API Key lokal speichern (nicht an Server senden)
+        const apiKey = elements.apiKeyInput.value.trim();
+        if (apiKey) {
+            localStorage.setItem('claudeApiKey', apiKey);
+        } else {
+            localStorage.removeItem('claudeApiKey');
+        }
+        
         closeSettingsModal();
+        showToast('Einstellungen gespeichert', 'success');
     } catch (error) {
         alert(`Fehler: ${error.message}`);
     }
@@ -2116,7 +2212,6 @@ function setupEventListeners() {
     // TTS buttons
     elements.speakBtn.addEventListener('click', speak);
     elements.generateBtn.addEventListener('click', generateOnly);
-    elements.stopBtn.addEventListener('click', stopSpeaking);
     
     // Volume control
     let previousVolume = 100;

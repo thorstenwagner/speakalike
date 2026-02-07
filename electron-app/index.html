@@ -82,9 +82,10 @@
                     <button class="btn btn-primary btn-generate hide-in-mini" id="generateBtn" title="Nur generieren, nicht abspielen">
                         💾 Generieren
                     </button>
-                    <button class="btn btn-danger btn-stop hide-in-mini" id="stopBtn" disabled>
-                        ⏹️ Stopp
-                    </button>
+                    <label class="ai-mode-toggle hide-in-mini" title="Text vor dem Sprechen mit KI vervollständigen">
+                        <input type="checkbox" id="aiModeCheckbox">
+                        <span>🤖 KI</span>
+                    </label>
                     <div class="volume-control hide-in-mini">
                         <span class="volume-icon" id="volumeIcon" title="Stumm schalten">🔊</span>
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Lautstärke">
@@ -188,6 +189,11 @@
                     <label>Wiederholungsstrafe</label>
                     <input type="range" id="repetitionSlider" min="1.0" max="1.9" step="0.1" value="1.5">
                     <span id="repetitionValue">1.5</span>
+                </div>
+                <div class="setting-group">
+                    <label>🤖 Claude API Key</label>
+                    <input type="password" class="input" id="apiKeyInput" placeholder="sk-ant-...">
+                    <small class="muted">Für KI-Satzvervollständigung (Claude Haiku)</small>
                 </div>
             </div>
             <div class="modal-footer">
@@ -372,6 +378,30 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancelImportMp3Btn">Abbrechen</button>
                 <button class="btn btn-primary" id="confirmImportMp3Btn">📥 Importieren</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Completion Confirm Modal -->
+    <div class="modal" id="aiConfirmModal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>🤖 KI-Vervollständigung</h2>
+                <button class="btn btn-icon modal-close" id="closeAiConfirmBtn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="ai-confirm-section">
+                    <label class="muted">Original:</label>
+                    <p id="aiOriginalText" class="ai-text-preview"></p>
+                </div>
+                <div class="ai-confirm-section">
+                    <label class="muted">Vervollständigt (editierbar):</label>
+                    <textarea id="aiCompletedText" class="ai-text-preview ai-completed ai-editable" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="rejectAiBtn">❌ Abbrechen</button>
+                <button class="btn btn-primary" id="acceptAiBtn">✅ Übernehmen & Sprechen</button>
             </div>
         </div>
     </div>
