@@ -803,21 +803,65 @@ class TextToSpeech:
     }
     
     # Erkennungsmuster für Stop-Marker (normalisiert, für Whisper-Erkennung)
+    # Erweitert um häufige Whisper-Fehltranskriptionen
     STOP_MARKER_PATTERNS = {
-        "de": ["ende", "nachricht", "ende der nachricht"],
-        "en": ["end", "message", "end of message"],
-        "es": ["fin", "mensaje", "fin del mensaje"],
-        "fr": ["fin", "message", "fin du message"],
-        "it": ["fine", "messaggio", "fine del messaggio"],
-        "pt": ["fim", "mensagem", "fim da mensagem"],
-        "pl": ["koniec", "wiadomości", "koniec wiadomości"],
-        "nl": ["einde", "bericht", "einde bericht"],
-        "ru": ["конец", "сообщения", "конец сообщения"],
-        "ja": ["メッセージ", "終了"],
-        "zh-cn": ["消息", "结束"],
-        "ar": ["نهاية", "الرسالة"],
-        "tr": ["mesaj", "sonu"],
-        "ko": ["메시지", "끝"],
+        "de": {
+            "first_words": ["ende", "ände", "hände", "ender", "endet", "erinnert", "erinnernd", "erinnere"],  # "erinnert" = häufige Fehltranskription von "Ende"
+            "second_words": ["nachricht", "nachrich", "naricht", "nach", "danach", 
+                           "richter", "richt", "richtig", "deiner", "dein"]  # Whisper hört oft "deiner Richter"
+        },
+        "en": {
+            "first_words": ["end"],
+            "second_words": ["message", "messag"]
+        },
+        "es": {
+            "first_words": ["fin"],
+            "second_words": ["mensaje"]
+        },
+        "fr": {
+            "first_words": ["fin"],
+            "second_words": ["message"]
+        },
+        "it": {
+            "first_words": ["fine"],
+            "second_words": ["messaggio"]
+        },
+        "pt": {
+            "first_words": ["fim"],
+            "second_words": ["mensagem"]
+        },
+        "pl": {
+            "first_words": ["koniec"],
+            "second_words": ["wiadomości", "wiadomosci"]
+        },
+        "nl": {
+            "first_words": ["einde"],
+            "second_words": ["bericht"]
+        },
+        "ru": {
+            "first_words": ["конец"],
+            "second_words": ["сообщения"]
+        },
+        "ja": {
+            "first_words": ["メッセージ"],
+            "second_words": ["終了"]
+        },
+        "zh-cn": {
+            "first_words": ["消息"],
+            "second_words": ["结束"]
+        },
+        "ar": {
+            "first_words": ["نهاية"],
+            "second_words": ["الرسالة"]
+        },
+        "tr": {
+            "first_words": ["mesaj"],
+            "second_words": ["sonu"]
+        },
+        "ko": {
+            "first_words": ["메시지"],
+            "second_words": ["끝"]
+        },
     }
 
     def _add_stop_marker(self, text, language):
@@ -860,7 +904,7 @@ class TextToSpeech:
             Tuple (Start-Zeit des Stop-Markers, Index des ersten Stop-Marker-Wortes) oder (None, None) wenn nicht gefunden
         """
         import re
-        patterns = self.STOP_MARKER_PATTERNS.get(language, self.STOP_MARKER_PATTERNS["en"])
+        patterns = self.STOP_MARKER_PATTERNS.get(language, self.STOP_MARKER_PATTERNS.get("en"))
         
         # Normalisiere alle Wörter (Kleinbuchstaben, nur Buchstaben)
         def normalize(w):
@@ -871,43 +915,64 @@ class TextToSpeech:
         print(f"  Suche Stop-Marker in: {words_text[-15:] if len(words_text) > 15 else words_text}")
         print(f"  Muster für '{language}': {patterns}")
         
-        # Suche nach dem ersten Wort des Stop-Markers (z.B. "ende" oder "end")
-        first_pattern = normalize(patterns[0])
-        second_pattern = normalize(patterns[1]) if len(patterns) > 1 else None
+        # Hole die Pattern-Listen
+        first_words = patterns.get("first_words", ["ende"])
+        second_words = patterns.get("second_words", ["nachricht"])
         
-        # WICHTIG: Suche nur in den LETZTEN 6 Wörtern nach dem Stop-Marker
-        # Der echte Stop-Marker ist immer ganz am Ende
-        # "Ende der Nachricht" = 3 Wörter, mit etwas Puffer = 6 Wörter
-        search_start = max(0, len(recognized_words) - 6)
+        # Hilfsfunktion: Prüft ob ein Wort einem der Muster entspricht
+        def matches_any(word, patterns_list):
+            for pattern in patterns_list:
+                if word == pattern or pattern in word:
+                    return True
+            return False
         
-        print(f"  Suche nur in letzten {len(recognized_words) - search_start} Wörtern (Index {search_start} bis {len(recognized_words)-1})")
+        # Mittlere Wörter die zwischen first_word und second_word kommen können
+        middle_words = ["der", "of", "du", "del", "de", "deiner", "da", "danach"]
         
-        # Suche von hinten nach vorne nach dem vollständigen Marker
-        for i in range(len(recognized_words) - 1, search_start - 1, -1):
+        print(f"  Suche nach Stop-Marker in {len(recognized_words)} Wörtern")
+        
+        # STRATEGIE: Suche nach der VOLLSTÄNDIGEN Sequenz "ende" + "der" + "nachricht"
+        # Das ist robuster als einzelne Wörter, da der Inhalt selbst "ende" enthalten könnte
+        
+        # Suche ALLE vollständigen Stop-Marker-Sequenzen und nimm den ERSTEN
+        for i in range(len(recognized_words) - 2):  # Brauche mindestens 3 Wörter
             word = words_text[i]
             
-            # Prüfe ob dieses Wort "nachricht" oder "message" ist (das letzte Wort des Markers)
-            if second_pattern and (word == second_pattern or second_pattern in word):
-                print(f"  -> Stop-Marker letztes Wort '{second_pattern}' gefunden: '{word}' bei Index {i}")
-                # Suche nach dem Anfang des Markers ("ende" oder "end") NUR in den 3 Wörtern DIREKT davor
-                # (nicht weiter zurück, um doppelte Marker zu vermeiden)
+            # Prüfe: first_word + middle_word + second_word (vollständige Sequenz)
+            if matches_any(word, first_words):
+                if i + 1 < len(words_text) and i + 2 < len(words_text):
+                    next_word = words_text[i + 1]
+                    word_after = words_text[i + 2]
+                    
+                    # Vollständige Sequenz: "ende" + "der" + "nachricht"
+                    if next_word in middle_words and matches_any(word_after, second_words):
+                        print(f"  -> VOLLSTÄNDIGER Stop-Marker '{word}' + '{next_word}' + '{word_after}' bei {recognized_words[i]['start']:.2f}s (Index {i})")
+                        return recognized_words[i]["start"], i
+        
+        # Fallback 1: Suche nach "ende" + "der" (2 Wörter) - von HINTEN
+        # Das ist sicherer als von vorne, falls der Inhalt "ende" enthält
+        for i in range(len(recognized_words) - 1, 0, -1):
+            word = words_text[i]
+            if word in middle_words:
+                prev_word = words_text[i - 1]
+                if matches_any(prev_word, first_words):
+                    print(f"  -> Stop-Marker '{prev_word}' + '{word}' gefunden bei {recognized_words[i-1]['start']:.2f}s (Index {i-1})")
+                    return recognized_words[i - 1]["start"], i - 1
+        
+        # Fallback 2: Suche nach second_word alleine (von hinten)
+        for i in range(len(recognized_words) - 1, 0, -1):
+            word = words_text[i]
+            if matches_any(word, second_words):
+                print(f"  -> Stop-Marker second_word '{word}' gefunden bei Index {i}")
+                # Suche nach dem Anfang des Markers ("ende") in den 3 Wörtern davor
                 for j in range(max(0, i - 3), i):
                     prev_word = words_text[j]
-                    if prev_word == first_pattern or first_pattern in prev_word:
-                        print(f"  -> Marker-Anfang '{first_pattern}' gefunden bei {recognized_words[j]['start']:.2f}s (Index {j})")
+                    if matches_any(prev_word, first_words):
+                        print(f"  -> Marker-Anfang gefunden bei {recognized_words[j]['start']:.2f}s (Index {j})")
                         return recognized_words[j]["start"], j
                 # Falls "ende" nicht direkt davor, nutze dieses Wort
                 print(f"  -> Kein Marker-Anfang gefunden, schneide bei '{word}' ({recognized_words[i]['start']:.2f}s)")
                 return recognized_words[i]["start"], i
-            
-            # Prüfe auch auf "ende" alleine (falls "nachricht" nicht erkannt wurde)
-            if word == first_pattern or first_pattern in word:
-                # Prüfe ob das nächste Wort "der" oder ähnlich ist (zur Bestätigung)
-                if i + 1 < len(words_text):
-                    next_word = words_text[i + 1]
-                    if next_word in ["der", "of", "du", "del", "de"]:
-                        print(f"  -> Stop-Marker '{first_pattern}' + '{next_word}' gefunden bei {recognized_words[i]['start']:.2f}s (Index {i})")
-                        return recognized_words[i]["start"], i
         
         print(f"  -> Stop-Marker NICHT gefunden!")
         return None, None
@@ -938,8 +1003,9 @@ class TextToSpeech:
             if not hasattr(self, '_whisper_model') or self._whisper_model is None:
                 print("  Lade Whisper-Modell für Artefakt-Erkennung...")
                 import whisper
+                import torch
                 # Verwende das base Modell - gut für Deutsch
-                self._whisper_model = whisper.load_model("base", device="cuda")
+                self._whisper_model = whisper.load_model("base", device="cuda" if torch.cuda.is_available() else "cpu")
                 print("  Whisper-Modell geladen.")
             
             # Whisper erwartet Audio bei 16kHz als float32 im Bereich [-1, 1]
@@ -991,7 +1057,7 @@ class TextToSpeech:
                 print("  Keine Segmente erkannt, verwende Fallback-Trimming")
                 return self._remove_trailing_artifacts(audio, sample_rate)
             
-            # Sammle alle erkannten Wörter mit Zeitstempeln (NICHT normalisieren für besseres Debug)
+            # Sammle alle erkannten Wörter mit Zeitstempeln
             recognized_words = []
             for segment in result["segments"]:
                 if "words" in segment:
