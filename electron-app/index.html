@@ -77,12 +77,12 @@
                         rows="2"
                     ></textarea>
                     <button class="btn btn-success btn-speak" id="speakBtn">
-                        🔊 Sprechen
+                        🔊 <span class="hide-in-mini">Sprechen</span>
                     </button>
                     <button class="btn btn-primary btn-generate hide-in-mini" id="generateBtn" title="Nur generieren, nicht abspielen">
                         💾 Generieren
                     </button>
-                    <label class="ai-mode-toggle hide-in-mini" title="Text vor dem Sprechen mit KI vervollständigen">
+                    <label class="ai-mode-toggle" title="Text vor dem Sprechen mit KI vervollständigen">
                         <input type="checkbox" id="aiModeCheckbox">
                         <span>🤖 KI</span>
                     </label>
@@ -193,7 +193,14 @@
                 <div class="setting-group">
                     <label>🤖 Claude API Key</label>
                     <input type="password" class="input" id="apiKeyInput" placeholder="sk-ant-...">
-                    <small class="muted">Für KI-Satzvervollständigung (Claude Haiku)</small>
+                    <small class="muted">Für KI-Satzvervollständigung</small>
+                </div>
+                <div class="setting-group">
+                    <label>🧠 KI-Modell</label>
+                    <select class="input" id="aiModelSelect">
+                        <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (schnell & günstig)</option>
+                        <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5 (besser & teurer)</option>
+                    </select>
                 </div>
             </div>
             <div class="modal-footer">

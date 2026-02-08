@@ -1549,14 +1549,14 @@ body.mini-mode .text-input {
     padding: 10px 14px;
     font-size: 1.1rem;
     resize: none;
-    flex: 1;
+    flex: 3;
 }
 
 body.mini-mode .btn-speak {
-    padding: 10px 20px;
-    font-size: 1rem;
+    padding: 0;
+    font-size: 1.4rem;
     min-width: auto;
-    white-space: nowrap;
+    width: 60px;
     height: 60px;
 }
 

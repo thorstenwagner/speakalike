@@ -137,6 +137,7 @@ const elements = {
     // AI Mode
     aiModeCheckbox: document.getElementById('aiModeCheckbox'),
     apiKeyInput: document.getElementById('apiKeyInput'),
+    aiModelSelect: document.getElementById('aiModelSelect'),
     
     // AI Confirm Modal
     aiConfirmModal: document.getElementById('aiConfirmModal'),
@@ -342,11 +343,11 @@ async function checkStatus() {
         // Speak-Button deaktivieren während TTS lädt
         if (status.loading) {
             elements.speakBtn.disabled = true;
-            elements.speakBtn.textContent = '⏳ TTS lädt...';
+            elements.speakBtn.innerHTML = '⏳ <span class="hide-in-mini">TTS lädt...</span>';
             elements.status.classList.add('loading');
         } else {
             elements.speakBtn.disabled = false;
-            elements.speakBtn.textContent = '🔊 Sprechen';
+            elements.speakBtn.innerHTML = '🔊 <span class="hide-in-mini">Sprechen</span>';
             elements.status.classList.remove('loading');
         }
         
@@ -453,7 +454,7 @@ async function completeWithAI(text) {
             headers: {
                 'X-API-Key': apiKey
             },
-            body: JSON.stringify({ text })
+            body: JSON.stringify({ text, model: localStorage.getItem('claudeModel') || 'claude-haiku-4-5-20251001' })
         });
         return result.completed;
     } catch (error) {
@@ -503,22 +504,23 @@ async function speak() {
         return;
     }
     
-    // AI Mode: Text zuerst an KI senden
-    if (elements.aiModeCheckbox.checked) {
+    // AI Mode: Text zuerst an KI senden, dann stoppen für Prüfung
+    if (elements.aiModeCheckbox.checked && !elements.textInput.dataset.aiCompleted) {
         elements.statusText.textContent = 'KI vervollständigt Text...';
         const completed = await completeWithAI(text);
         
-        if (completed && completed !== text) {
-            const result = await showAiConfirmModal(text, completed);
-            if (result === null) {
-                // Abgebrochen – nicht sprechen
-                elements.statusText.textContent = 'Abgebrochen';
-                return;
-            }
-            text = result;
-            elements.textInput.value = text;
+        if (completed) {
+            elements.textInput.value = completed;
+            elements.textInput.dataset.aiCompleted = 'true';
+            // Spracherkennung für den neuen Text ausführen
+            await detectLanguage(completed);
+            elements.statusText.textContent = 'KI-Text übernommen – Enter oder 🔊 zum Sprechen';
+            elements.textInput.focus();
+            return;  // Stopp – User muss nochmal Enter/Klick machen
         }
     }
+    // AI-Flag zurücksetzen
+    delete elements.textInput.dataset.aiCompleted;
     
     currentText = text;
     elements.speakBtn.disabled = true;
@@ -1852,9 +1854,11 @@ async function loadSettings() {
         elements.repetitionSlider.value = settings.repetition_penalty || 5.0;
         elements.repetitionValue.textContent = settings.repetition_penalty || 5.0;
         
-        // API Key aus localStorage laden
+        // API Key und Modell aus localStorage laden
         const savedApiKey = localStorage.getItem('claudeApiKey') || '';
         elements.apiKeyInput.value = savedApiKey;
+        const savedModel = localStorage.getItem('claudeModel') || 'claude-haiku-4-5-20251001';
+        elements.aiModelSelect.value = savedModel;
         
         // Audio-Geräte laden
         await loadAudioDevices();
@@ -1878,13 +1882,14 @@ async function saveSettings() {
         // Audio-Gerät speichern
         await setAudioDevice(elements.audioDeviceSelect.value);
         
-        // API Key lokal speichern (nicht an Server senden)
+        // API Key und Modell lokal speichern (nicht an Server senden)
         const apiKey = elements.apiKeyInput.value.trim();
         if (apiKey) {
             localStorage.setItem('claudeApiKey', apiKey);
         } else {
             localStorage.removeItem('claudeApiKey');
         }
+        localStorage.setItem('claudeModel', elements.aiModelSelect.value);
         
         closeSettingsModal();
         showToast('Einstellungen gespeichert', 'success');
@@ -2177,9 +2182,22 @@ function setupEventListeners() {
         stopKeyboard();
     });
     
-    // Enter key to speak
-    elements.textInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+    // Enter key to speak, Ctrl+Enter for AI completion
+    elements.textInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            // Ctrl+Enter = KI-Vervollständigung (unabhängig von Checkbox)
+            e.preventDefault();
+            const text = elements.textInput.value.trim();
+            if (!text) return;
+            elements.statusText.textContent = 'KI vervollständigt...';
+            const completed = await completeWithAI(text);
+            if (completed) {
+                elements.textInput.value = completed;
+                elements.statusText.textContent = 'KI-Text übernommen – Enter zum Sprechen';
+                elements.textInput.focus();
+                detectLanguage();
+            }
+        } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             const text = elements.textInput.value.trim();
             if (text) {
@@ -2464,7 +2482,11 @@ function setupEventListeners() {
         }
         
         if (e.ctrlKey && e.key === 'Enter') {
-            speak();
+            // Wird bereits vom textInput keydown-Handler behandelt
+            // Nur sprechen wenn Focus NICHT im Textfeld ist
+            if (document.activeElement !== elements.textInput) {
+                speak();
+            }
         }
         
         // Ctrl+M für Mini-Modus Toggle

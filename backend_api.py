@@ -112,6 +112,7 @@ class SwitchTTSModelRequest(BaseModel):
 
 class SentenceCompletionRequest(BaseModel):
     text: str
+    model: str = "claude-haiku-4-5-20251001"
 
 
 # === Lifecycle ===
@@ -826,8 +827,12 @@ Antworte mit nur einem Satz – dem vervollständigten und korrigierten Satz, oh
         
         client = anthropic.Anthropic(api_key=api_key)
         
+        # Nur erlaubte Modelle zulassen
+        allowed_models = ["claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"]
+        model = request.model if request.model in allowed_models else "claude-haiku-4-5-20251001"
+        
         message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=model,
             max_tokens=1024,
             system=system_prompt,
             messages=[
