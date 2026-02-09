@@ -17,11 +17,6 @@ if sys.platform == 'win32':
 from typing import Optional, List
 from datetime import datetime
 
-# Spracherkennung
-from langdetect import detect, DetectorFactory
-# Für konsistente Ergebnisse
-DetectorFactory.seed = 0
-
 # Füge espeak-ng zum PATH hinzu
 os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get("PATH", "")
 
@@ -113,6 +108,7 @@ class SwitchTTSModelRequest(BaseModel):
 class SentenceCompletionRequest(BaseModel):
     text: str
     model: str = "claude-haiku-4-5-20251001"
+    language: str = "de"
 
 
 # === Lifecycle ===
@@ -150,24 +146,6 @@ async def startup():
 
 
 # === Status Endpoints ===
-
-@app.get("/api/detect-language")
-async def detect_language(text: str):
-    """Erkennt die Sprache des Textes"""
-    # Erkennung ab erstem Wort (min. 3 Zeichen)
-    if not text or len(text.strip()) < 3:
-        return {"language": None, "error": "Text zu kurz"}
-    
-    try:
-        lang = detect(text)
-        # Nur unterstützte Sprachen zurückgeben
-        supported = ['de', 'en', 'es', 'fr']
-        if lang in supported:
-            return {"language": lang}
-        else:
-            return {"language": None, "detected": lang}
-    except Exception as e:
-        return {"language": None, "error": str(e)}
 
 @app.get("/api/status")
 async def get_status():
@@ -793,31 +771,14 @@ async def complete_sentence_endpoint(
     request: SentenceCompletionRequest,
     x_api_key: Optional[str] = Header(None)
 ):
-    """Vervollständigt unvollständige deutsche Sätze mit Claude AI"""
+    """Vervollständigt unvollständige Sätze mit Claude AI"""
     import anthropic
     
-    system_prompt = """Du bist ein Assistent zum Ergänzen unvollständiger deutscher Sätze.
-Aufgabe: Ergänze fehlende Artikel, Hilfsverben, Präpositionen und andere Wörter, um grammatisch korrekte deutsche Sätze zu bilden. Korrigiere dabei auch unvollständig geschriebene Wörter.
-Regeln:
-- Ergänze nur fehlende Wörter
-- Vervollständige unvollständig geschriebene Wörter
-- Behalte die vorhandenen Wörter bei (sinngemäß)
-- Achte auf korrekte Grammatik (Kasus, Genus, Numerus)
-- Achte auf korrekte Rechtschreibung
-- Wähle die wahrscheinlichste Interpretation bei Mehrdeutigkeit
-- Berücksichtige den Kontext aus vorherigen Nachrichten
-Beispiele:
-Eingabe: "Katze schläft Sofa"
-Ausgabe: "Die Katze schläft auf dem Sofa."
-Eingabe: "Ich morgen Arzt gehen"
-Ausgabe: "Ich muss morgen zum Arzt gehen."
-Eingabe: "mir geht gut. Keine schmerzen"
-Ausgabe: "Mir geht es gut. Ich habe keine Schmerzen."
-Eingabe: "wln wr eign ma schw ghn"
-Ausgabe: "Wollen wir eigentlich mal schwimmen gehen?"
-Eingabe: "ih hbe sps bei vln din abr bsors brtsple"
-Ausgabe: "Ich habe Spaß bei vielen Dingen, aber besonders bei Brettspielen."
-Antworte mit nur einem Satz – dem vervollständigten und korrigierten Satz, ohne weitere Erklärungen."""
+    prompt_file = f"prompt_{request.language}.txt"
+    prompt_path = Path(__file__).parent / prompt_file
+    if not prompt_path.exists():
+        prompt_path = Path(__file__).parent / "prompt_de.txt"
+    system_prompt = prompt_path.read_text(encoding="utf-8")
 
     try:
         # API Key aus Header oder Umgebungsvariable
@@ -825,29 +786,62 @@ Antworte mit nur einem Satz – dem vervollständigten und korrigierten Satz, oh
         if not api_key:
             raise HTTPException(status_code=401, detail="API Key nicht gesetzt")
         
+        print(f"[AI] Anfrage: text='{request.text[:50]}...', model={request.model}, language={request.language}")
+        
         client = anthropic.Anthropic(api_key=api_key)
         
         # Nur erlaubte Modelle zulassen
         allowed_models = ["claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"]
         model = request.model if request.model in allowed_models else "claude-haiku-4-5-20251001"
         
-        message = client.messages.create(
-            model=model,
-            max_tokens=1024,
-            system=system_prompt,
-            messages=[
-                {"role": "user", "content": request.text}
-            ]
-        )
+        # Versuche mit gewähltem Modell, bei Refusal Fallback auf Haiku
+        models_to_try = [model]
+        if model != "claude-haiku-4-5-20251001":
+            models_to_try.append("claude-haiku-4-5-20251001")
         
-        completed_text = message.content[0].text.strip()
-        return {"original": request.text, "completed": completed_text}
+        for try_model in models_to_try:
+            print(f"[AI] Sende an Claude (model={try_model})...")
+            message = client.messages.create(
+                model=try_model,
+                max_tokens=1024,
+                system=system_prompt,
+                messages=[
+                    {"role": "user", "content": f"Bitte vervollständige folgenden abgekürzten Text: {request.text}"}
+                ]
+            )
+            
+            print(f"[AI] Antwort: stop_reason={message.stop_reason}, content_blocks={len(message.content)}")
+            
+            # Bei Verweigerung: nächstes Modell versuchen
+            if message.stop_reason == 'refusal' or not message.content:
+                print(f"[AI] {try_model} hat verweigert/leer, versuche Fallback...")
+                continue
+            
+            # Ersten Text-Block finden
+            completed_text = None
+            for block in message.content:
+                if hasattr(block, 'text'):
+                    completed_text = block.text.strip()
+                    break
+            
+            if completed_text:
+                print(f"[AI] Ergebnis ({try_model}): '{completed_text[:80]}'")
+                return {"original": request.text, "completed": completed_text}
         
+        # Alle Modelle haben verweigert – Originaltext zurückgeben
+        print(f"[AI] Alle Modelle haben verweigert. Gebe Originaltext zurück.")
+        return {"original": request.text, "completed": request.text, "refusal": True}
+        
+    except HTTPException:
+        raise
     except anthropic.AuthenticationError:
+        print("[AI] FEHLER: API Key ungültig")
         raise HTTPException(status_code=401, detail="API Key ungültig")
     except anthropic.RateLimitError:
+        print("[AI] FEHLER: Rate Limit erreicht")
         raise HTTPException(status_code=429, detail="Rate Limit erreicht")
     except Exception as e:
+        print(f"[AI] FEHLER: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Claude API Fehler: {str(e)}")
 
 

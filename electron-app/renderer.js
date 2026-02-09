@@ -181,38 +181,6 @@ let mainTagMode = 'and';
 let globalSearchTerms = [];
 let globalSearchMode = 'or'; // Default: ODER
 
-// === Language Detection State ===
-let lastDetectedLanguage = null;
-let languageDetectionTimer = null;
-
-// === Language Detection (using Python backend) ===
-async function updateLanguageFromText() {
-    const text = elements.textInput.value;
-    
-    // Erkennung starten sobald erstes Wort abgeschlossen (Leerzeichen oder min. 3 Zeichen)
-    const trimmed = text.trim();
-    if (!trimmed || (trimmed.length < 3 && !trimmed.includes(' '))) return;
-    
-    // Mindestens ein vollständiges Wort benötigt
-    const hasCompleteWord = trimmed.includes(' ') || trimmed.length >= 3;  
-    if (!hasCompleteWord) return;
-    
-    try {
-        const result = await api(`/api/detect-language?text=${encodeURIComponent(text)}`);
-        
-        if (result && result.language && result.language !== lastDetectedLanguage) {
-            const options = Array.from(elements.languageSelect.options).map(o => o.value);
-            if (options.includes(result.language)) {
-                elements.languageSelect.value = result.language;
-                lastDetectedLanguage = result.language;
-                console.log(`Sprache erkannt: ${result.language}`);
-            }
-        }
-    } catch (error) {
-        // Ignoriere Fehler still
-    }
-}
-
 // === API Functions ===
 
 async function api(endpoint, options = {}) {
@@ -454,7 +422,7 @@ async function completeWithAI(text) {
             headers: {
                 'X-API-Key': apiKey
             },
-            body: JSON.stringify({ text, model: localStorage.getItem('claudeModel') || 'claude-haiku-4-5-20251001' })
+            body: JSON.stringify({ text, model: localStorage.getItem('claudeModel') || 'claude-haiku-4-5-20251001', language: elements.languageSelect.value || 'de' })
         });
         return result.completed;
     } catch (error) {
@@ -512,8 +480,6 @@ async function speak() {
         if (completed) {
             elements.textInput.value = completed;
             elements.textInput.dataset.aiCompleted = 'true';
-            // Spracherkennung für den neuen Text ausführen
-            await detectLanguage(completed);
             elements.statusText.textContent = 'KI-Text übernommen – Enter oder 🔊 zum Sprechen';
             elements.textInput.focus();
             return;  // Stopp – User muss nochmal Enter/Klick machen
@@ -2164,12 +2130,6 @@ function setupEventListeners() {
         if (elements.charCount) {
             elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
         }
-        
-        // Automatische Spracherkennung mit Verzögerung
-        if (languageDetectionTimer) {
-            clearTimeout(languageDetectionTimer);
-        }
-        languageDetectionTimer = setTimeout(updateLanguageFromText, 300);
     });
     
     // Tastatur starten bei Fokus
@@ -2195,7 +2155,6 @@ function setupEventListeners() {
                 elements.textInput.value = completed;
                 elements.statusText.textContent = 'KI-Text übernommen – Enter zum Sprechen';
                 elements.textInput.focus();
-                detectLanguage();
             }
         } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
