@@ -73,7 +73,7 @@
                     <textarea 
                         class="text-input" 
                         id="textInput" 
-                        placeholder="Text eingeben..."
+                        placeholder="Text eingeben... (Strg+Enter = KI | Strg+L = Sprache)"
                         rows="2"
                     ></textarea>
                     <button class="btn btn-success btn-speak" id="speakBtn">
@@ -82,10 +82,6 @@
                     <button class="btn btn-primary btn-generate hide-in-mini" id="generateBtn" title="Nur generieren, nicht abspielen">
                         💾 Generieren
                     </button>
-                    <label class="ai-mode-toggle" title="Text vor dem Sprechen mit KI vervollständigen">
-                        <input type="checkbox" id="aiModeCheckbox">
-                        <span>🤖 KI</span>
-                    </label>
                     <div class="volume-control hide-in-mini">
                         <span class="volume-icon" id="volumeIcon" title="Stumm schalten">🔊</span>
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Lautstärke">
@@ -96,6 +92,7 @@
                     <button class="btn btn-secondary btn-mini-repeat" id="miniRepeatBtn" title="Letzte Nachricht wiederholen">🔁</button>
                     <button class="btn btn-secondary btn-mini-position" id="miniPositionBtn" title="Position wechseln (oben/unten)">⬆️</button>
                     <button class="btn btn-secondary btn-mini-exit" id="miniExitBtn" title="Mini-Modus beenden">✕</button>
+                    <span class="char-count" id="charCount">0 Zeichen</span>
                 </div>
                 <!-- Versteckter Audio Player für Wiedergabe -->
                 <audio id="audioPlayer" style="display: none;"></audio>

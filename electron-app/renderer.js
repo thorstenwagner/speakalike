@@ -135,7 +135,7 @@ const elements = {
     importAutoTagsBtn: document.getElementById('importAutoTagsBtn'),
     
     // AI Mode
-    aiModeCheckbox: document.getElementById('aiModeCheckbox'),
+
     apiKeyInput: document.getElementById('apiKeyInput'),
     aiModelSelect: document.getElementById('aiModelSelect'),
     
@@ -472,19 +472,6 @@ async function speak() {
         return;
     }
     
-    // AI Mode: Text zuerst an KI senden, dann stoppen für Prüfung
-    if (elements.aiModeCheckbox.checked && !elements.textInput.dataset.aiCompleted) {
-        elements.statusText.textContent = 'KI vervollständigt Text...';
-        const completed = await completeWithAI(text);
-        
-        if (completed) {
-            elements.textInput.value = completed;
-            elements.textInput.dataset.aiCompleted = 'true';
-            elements.statusText.textContent = 'KI-Text übernommen – Enter oder 🔊 zum Sprechen';
-            elements.textInput.focus();
-            return;  // Stopp – User muss nochmal Enter/Klick machen
-        }
-    }
     // AI-Flag zurücksetzen
     delete elements.textInput.dataset.aiCompleted;
     
@@ -529,6 +516,9 @@ async function speak() {
             
             // Textfeld leeren
             elements.textInput.value = '';
+            if (elements.charCount) {
+                elements.charCount.textContent = '0 Zeichen';
+            }
         }
     } catch (error) {
         showToast(`Fehler: ${error.message}`, 'error');
@@ -574,6 +564,9 @@ async function generateOnly() {
             
             // Textfeld leeren
             elements.textInput.value = '';
+            if (elements.charCount) {
+                elements.charCount.textContent = '0 Zeichen';
+            }
             
             showToast('Audio erfolgreich generiert!', 'success');
         }
@@ -1963,6 +1956,16 @@ function formatDate(dateStr) {
     });
 }
 
+// === Fenstertitel mit Sprache ===
+
+const langFlags = { de: '🇩🇪 DE', en: '🇬🇧 EN', es: '🇪🇸 ES', fr: '🇫🇷 FR' };
+
+function updateTitle() {
+    const lang = elements.languageSelect?.value || 'de';
+    const flag = langFlags[lang] || lang.toUpperCase();
+    document.title = `SpeakAlike – ${flag}`;
+}
+
 // === Mini-Modus ===
 
 let currentMiniPosition = 'top';
@@ -2153,6 +2156,9 @@ function setupEventListeners() {
             const completed = await completeWithAI(text);
             if (completed) {
                 elements.textInput.value = completed;
+                if (elements.charCount) {
+                    elements.charCount.textContent = `${completed.length} Zeichen`;
+                }
                 elements.statusText.textContent = 'KI-Text übernommen – Enter zum Sprechen';
                 elements.textInput.focus();
             }
@@ -2165,6 +2171,15 @@ function setupEventListeners() {
                 // Leeres Textfeld + Enter = letzte Nachricht wiederholen
                 repeatLastMessage();
             }
+        } else if (e.key === 'l' && e.ctrlKey) {
+            // Strg+L = Sprache umschalten
+            e.preventDefault();
+            const sel = elements.languageSelect;
+            const idx = sel.selectedIndex;
+            sel.selectedIndex = (idx + 1) % sel.options.length;
+            sel.dispatchEvent(new Event('change'));
+            showToast(`Sprache: ${sel.options[sel.selectedIndex].text}`, 'info');
+            updateTitle();
         }
     });
     
@@ -2184,6 +2199,7 @@ function setupEventListeners() {
     elements.languageSelect.addEventListener('change', () => {
         loadCatalogPreview();
         loadFavorites();
+        updateTitle();
     });
     
     // TTS buttons
@@ -2474,6 +2490,7 @@ async function init() {
     console.log('Initializing SpeakAlike...');
     
     setupEventListeners();
+    updateTitle();
     
     // Wait for backend
     let connected = false;
