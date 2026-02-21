@@ -889,6 +889,7 @@ body {
     width: 90%;
     max-height: 90vh;
     overflow-y: auto;
+    overflow-x: hidden;
     box-shadow: var(--shadow-lg);
 }
 
@@ -898,6 +899,12 @@ body {
 
 .modal-small {
     max-width: 450px;
+}
+
+.modal-settings {
+    max-width: 600px;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .modal-fullscreen {
@@ -1070,6 +1077,82 @@ body {
 }
 
 /* Settings */
+.settings-body {
+    padding: var(--spacing-md) var(--spacing-lg) !important;
+    overflow-x: hidden;
+}
+
+.settings-body .setting-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.settings-body .input,
+.settings-body .select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.settings-sliders {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    overflow: hidden;
+}
+
+.setting-group-compact {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.setting-group-compact label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-weight: 500;
+    font-size: 0.8rem;
+}
+
+.setting-group-compact input[type="range"] {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    min-width: 0;
+}
+
+.slider-row input[type="range"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.slider-row span {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    min-width: 28px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.settings-ai-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.settings-ai-row .setting-group {
+    margin-bottom: 0;
+    min-width: 0;
+    overflow: hidden;
+}
+
 .setting-group {
     margin-bottom: var(--spacing-lg);
 }
@@ -1098,6 +1181,7 @@ body {
 
 .device-select-row .select {
     flex: 1;
+    min-width: 0;
 }
 
 /* Muted Text */
@@ -1541,7 +1625,6 @@ body.mini-mode .btn-speak {
 }
 
 /* Zeige Mini-Modus Controls nur im Mini-Modus */
-body.mini-mode .btn-mini-signal,
 body.mini-mode .btn-mini-repeat,
 body.mini-mode .btn-mini-position,
 body.mini-mode .btn-mini-exit {
@@ -1553,15 +1636,6 @@ body.mini-mode .btn-mini-exit {
     padding: 0;
     font-size: 1.4rem;
     border-radius: var(--radius);
-}
-
-body.mini-mode .btn-mini-signal {
-    background: var(--color-warning, #f59e0b);
-    color: white;
-}
-
-body.mini-mode .btn-mini-signal:hover {
-    background: #d97706;
 }
 
 body.mini-mode .btn-mini-repeat {

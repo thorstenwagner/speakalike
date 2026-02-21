@@ -165,7 +165,7 @@ const elements = {
     
     // Mini-Modus
     miniModeBtn: document.getElementById('miniModeBtn'),
-    miniSignalBtn: document.getElementById('miniSignalBtn'),
+
     miniRepeatBtn: document.getElementById('miniRepeatBtn'),
     miniPositionBtn: document.getElementById('miniPositionBtn'),
     miniExitBtn: document.getElementById('miniExitBtn')
@@ -494,10 +494,12 @@ async function speak() {
             
             // Audio über Backend auf ausgewähltem Gerät abspielen
             try {
+                const volume = elements.volumeSlider.value / 100;
                 await api('/api/tts/play-audio', {
                     method: 'POST',
                     body: JSON.stringify({
-                        audio_url: result.audio_url
+                        audio_url: result.audio_url,
+                        volume: volume
                     })
                 });
                 console.log('Audio wird auf Backend-Gerät abgespielt');
@@ -888,9 +890,10 @@ async function loadHistory() {
 async function playHistoryAudio(audioUrl, text, catalogId) {
     // Audio über Backend auf ausgewähltem Gerät abspielen
     try {
+        const volume = elements.volumeSlider.value / 100;
         await api('/api/tts/play-audio', {
             method: 'POST',
-            body: JSON.stringify({ audio_url: audioUrl })
+            body: JSON.stringify({ audio_url: audioUrl, volume: volume })
         });
     } catch (error) {
         console.error('Backend Play Fehler:', error);
@@ -1006,9 +1009,10 @@ async function playCatalogItem(item) {
     if (item.audio_url) {
         // Audio über Backend auf ausgewähltem Gerät abspielen
         try {
+            const volume = elements.volumeSlider.value / 100;
             await api('/api/tts/play-audio', {
                 method: 'POST',
-                body: JSON.stringify({ audio_url: item.audio_url })
+                body: JSON.stringify({ audio_url: item.audio_url, volume: volume })
             });
         } catch (error) {
             console.error('Backend Play Fehler:', error);
@@ -1156,9 +1160,10 @@ async function playQuickAccessItem(item) {
     if (item.audio_url) {
         // Audio über Backend auf ausgewähltem Gerät abspielen
         try {
+            const volume = elements.volumeSlider.value / 100;
             await api('/api/tts/play-audio', {
                 method: 'POST',
-                body: JSON.stringify({ audio_url: item.audio_url })
+                body: JSON.stringify({ audio_url: item.audio_url, volume: volume })
             });
         } catch (error) {
             console.error('Backend Play Fehler:', error);
@@ -1330,9 +1335,10 @@ async function playCatalogAudio(id, text) {
     
     // Audio über Backend auf ausgewähltem Gerät abspielen
     try {
+        const volume = elements.volumeSlider.value / 100;
         await api('/api/tts/play-audio', {
             method: 'POST',
-            body: JSON.stringify({ audio_url: audioUrl })
+            body: JSON.stringify({ audio_url: audioUrl, volume: volume })
         });
     } catch (error) {
         console.error('Backend Play Fehler:', error);
@@ -2020,10 +2026,12 @@ async function repeatLastMessage() {
         
         // Audio über Backend auf ausgewähltem Gerät abspielen
         try {
+            const volume = elements.volumeSlider.value / 100;
             await api('/api/tts/play-audio', {
                 method: 'POST',
                 body: JSON.stringify({
-                    audio_url: audioPath
+                    audio_url: audioPath,
+                    volume: volume
                 })
             });
         } catch (playError) {
@@ -2180,6 +2188,10 @@ function setupEventListeners() {
             sel.dispatchEvent(new Event('change'));
             showToast(`Sprache: ${sel.options[sel.selectedIndex].text}`, 'info');
             updateTitle();
+        } else if (e.key === 'd' && e.ctrlKey) {
+            // Strg+D = Signalton
+            e.preventDefault();
+            playSignalTone();
         }
     });
     
@@ -2431,9 +2443,6 @@ function setupEventListeners() {
     // Mini-Modus
     if (elements.miniModeBtn) {
         elements.miniModeBtn.addEventListener('click', toggleMiniMode);
-    }
-    if (elements.miniSignalBtn) {
-        elements.miniSignalBtn.addEventListener('click', playSignalTone);
     }
     if (elements.miniRepeatBtn) {
         elements.miniRepeatBtn.addEventListener('click', repeatLastMessage);

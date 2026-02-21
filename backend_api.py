@@ -308,6 +308,11 @@ async def play_audio_on_device(data: dict):
         audio_data, samplerate = sf.read(str(file_path))
         device = tts.output_device if tts else None
         
+        # Lautstärke anwenden
+        volume = data.get("volume", 1.0)
+        if isinstance(volume, (int, float)) and 0 <= volume <= 1:
+            audio_data = audio_data * volume
+        
         # Nicht-blockierend abspielen
         sd.play(audio_data, samplerate, device=device)
         
@@ -791,7 +796,7 @@ async def complete_sentence_endpoint(
         client = anthropic.Anthropic(api_key=api_key)
         
         # Nur erlaubte Modelle zulassen
-        allowed_models = ["claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"]
+        allowed_models = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6"]
         model = request.model if request.model in allowed_models else "claude-haiku-4-5-20251001"
         
         # Versuche mit gewähltem Modell, bei Refusal Fallback auf Haiku
