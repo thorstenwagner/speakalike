@@ -31,28 +31,6 @@
             <!-- Voice & Text kombiniert -->
             <section class="card main-section">
                 <div class="main-row">
-                    <!-- TTS Model Selection -->
-                    <div class="model-compact">
-                        <label>🤖 Modell:</label>
-                        <select class="select" id="ttsModelSelect">
-                            <option value="xtts_v2">XTTS v2 (Standard)</option>
-                            <option value="xtts_v1.1">XTTS v1.1</option>
-                            <option value="bark">Bark (Kreativ)</option>
-                            <option value="tortoise_v2">Tortoise v2 (Langsam)</option>
-                            <option value="vits_de">VITS Deutsch (Schnell)</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Voice Selection -->
-                    <div class="voice-compact">
-                        <label>🎤 Stimme:</label>
-                        <select class="select" id="voiceSelect">
-                            <option value="">Standard (XTTS)</option>
-                        </select>
-                        <button class="btn btn-secondary btn-icon" id="newVoiceBtn" title="Neue Stimme">+</button>
-                        <button class="btn btn-danger btn-icon" id="deleteVoiceBtn" title="Stimme löschen">🗑</button>
-                    </div>
-                    
                     <!-- Language Selection -->
                     <div class="language-compact">
                         <label>🌍 Sprache:</label>
@@ -162,6 +140,28 @@
                 <button class="btn btn-icon modal-close" id="closeSettingsBtn">✕</button>
             </div>
             <div class="modal-body settings-body">
+                <div class="settings-model-voice-row">
+                    <div class="setting-group">
+                        <label>🤖 TTS-Modell</label>
+                        <select class="select" id="ttsModelSelect">
+                            <option value="xtts_v2">XTTS v2 (Standard)</option>
+                            <option value="xtts_v1.1">XTTS v1.1</option>
+                            <option value="bark">Bark (Kreativ)</option>
+                            <option value="tortoise_v2">Tortoise v2 (Langsam)</option>
+                            <option value="vits_de">VITS Deutsch (Schnell)</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label>🎤 Stimme</label>
+                        <div class="device-select-row">
+                            <select class="select" id="voiceSelect">
+                                <option value="">Standard (XTTS)</option>
+                            </select>
+                            <button class="btn btn-small btn-icon" id="newVoiceBtn" title="Neue Stimme">+</button>
+                            <button class="btn btn-small btn-icon btn-danger" id="deleteVoiceBtn" title="Stimme löschen">🗑</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="setting-group">
                     <label>🔊 Ausgabegerät</label>
                     <div class="device-select-row">

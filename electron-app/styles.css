@@ -1153,6 +1153,25 @@ body {
     overflow: hidden;
 }
 
+.settings-model-voice-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.settings-model-voice-row .setting-group {
+    margin-bottom: 0;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.settings-model-voice-row .select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
 .setting-group {
     margin-bottom: var(--spacing-lg);
 }
