@@ -163,6 +163,16 @@ const elements = {
     searchModeOr: document.getElementById('searchModeOr'),
     searchModeAnd: document.getElementById('searchModeAnd'),
     clearSearchBtn: document.getElementById('clearSearchBtn'),
+    toggleViewBtn: document.getElementById('toggleViewBtn'),
+    
+    // Tag Browser
+    tagBrowserRow: document.getElementById('tagBrowserRow'),
+    tagCloud: document.getElementById('tagCloud'),
+    tagBrowserActiveFilters: document.getElementById('tagBrowserActiveFilters'),
+    clearTagBrowserFilters: document.getElementById('clearTagBrowserFilters'),
+    tagBrowserMessagesList: document.getElementById('tagBrowserMessagesList'),
+    tagBrowserMessagesTitle: document.getElementById('tagBrowserMessagesTitle'),
+    tagBrowserCount: document.getElementById('tagBrowserCount'),
     
     // Mini-Modus
     miniModeBtn: document.getElementById('miniModeBtn'),
@@ -1277,6 +1287,206 @@ function matchesGlobalSearch(item) {
     }
 }
 
+// === Tag-Browser View ===
+let isTagBrowserView = false;
+let tagBrowserSelectedTags = [];
+
+function toggleView() {
+    isTagBrowserView = !isTagBrowserView;
+    
+    const bottomRow = document.querySelector('.bottom-row');
+    if (isTagBrowserView) {
+        bottomRow.style.display = 'none';
+        elements.tagBrowserRow.style.display = 'flex';
+        elements.toggleViewBtn.innerHTML = '📊 Spalten';
+        elements.toggleViewBtn.title = 'Zur Spalten-Ansicht wechseln';
+        loadTagCloud();
+    } else {
+        bottomRow.style.display = 'flex';
+        elements.tagBrowserRow.style.display = 'none';
+        elements.toggleViewBtn.innerHTML = '🏷️ Tag-Browser';
+        elements.toggleViewBtn.title = 'Zum Tag-Browser wechseln';
+    }
+    
+    localStorage.setItem('viewMode', isTagBrowserView ? 'tags' : 'columns');
+}
+
+function loadTagCloud(filteredTags) {
+    // Wenn Tags selektiert sind, zeige nur Tags aus den gefilterten Nachrichten
+    const tags = filteredTags || catalogTags;
+    
+    if (!tags || tags.length === 0) {
+        elements.tagCloud.innerHTML = '<p class="muted">Keine Tags vorhanden</p>';
+        return;
+    }
+    
+    const maxCount = Math.max(...tags.map(t => t.count));
+    const minCount = Math.min(...tags.map(t => t.count));
+    
+    // Tags rendern mit relativer Gewichtung (0-1)
+    elements.tagCloud.innerHTML = '';
+    const tagElements = [];
+    tags.forEach(tag => {
+        const weight = maxCount === minCount ? 1 : (tag.count - minCount) / (maxCount - minCount);
+        const isActive = tagBrowserSelectedTags.includes(tag.name);
+        
+        const el = document.createElement('div');
+        el.className = `tag-cloud-item ${isActive ? 'active' : ''}`;
+        el.dataset.weight = weight;
+        el.innerHTML = `${escapeHtml(tag.name)} <span class="tag-cloud-count">${tag.count}</span>`;
+        el.onclick = () => toggleTagBrowserFilter(tag.name);
+        elements.tagCloud.appendChild(el);
+        tagElements.push(el);
+    });
+    
+    // Auto-Skalierung: Schriftgröße so groß wie möglich ohne Scrollen
+    requestAnimationFrame(() => fitTagCloud(tagElements));
+}
+
+function fitTagCloud(tagElements) {
+    if (!tagElements.length) return;
+    const container = elements.tagCloud;
+    const containerH = container.clientHeight;
+    if (containerH <= 0) return;
+    
+    // Basis-Schriftgrößen: Min und Max in px
+    const MIN_BASE = 0.7;
+    const MAX_BASE = 3.0;
+    let lo = MIN_BASE, hi = MAX_BASE;
+    
+    // Binäre Suche nach optimaler Basisgröße
+    for (let i = 0; i < 10; i++) {
+        const mid = (lo + hi) / 2;
+        applyTagSizes(tagElements, mid);
+        if (container.scrollHeight > containerH + 2) {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    applyTagSizes(tagElements, lo);
+}
+
+function applyTagSizes(tagElements, baseRem) {
+    tagElements.forEach(el => {
+        const w = parseFloat(el.dataset.weight);
+        // Gewichtete Größe: kleine Tags = 60% der Basis, große = 100%
+        const size = baseRem * (0.6 + 0.4 * w);
+        el.style.fontSize = `${size}rem`;
+        const pad = Math.max(4, size * 5);
+        el.style.padding = `${pad * 0.5}px ${pad}px`;
+    });
+}
+
+function toggleTagBrowserFilter(tagName) {
+    const index = tagBrowserSelectedTags.indexOf(tagName);
+    if (index > -1) {
+        tagBrowserSelectedTags.splice(index, 1);
+    } else {
+        tagBrowserSelectedTags.push(tagName);
+    }
+    
+    updateTagBrowserActiveFilters();
+    loadTagBrowserMessages(); // lädt Nachrichten und aktualisiert Tag-Cloud
+}
+
+function updateTagBrowserActiveFilters() {
+    if (tagBrowserSelectedTags.length === 0) {
+        elements.tagBrowserActiveFilters.innerHTML = '';
+        elements.clearTagBrowserFilters.style.display = 'none';
+        return;
+    }
+    
+    elements.clearTagBrowserFilters.style.display = '';
+    elements.tagBrowserActiveFilters.innerHTML = tagBrowserSelectedTags.map(tag => `
+        <span class="tag" onclick="toggleTagBrowserFilter('${escapeHtml(tag)}')">${escapeHtml(tag)} ×</span>
+    `).join('');
+}
+
+function clearAllTagBrowserFilters() {
+    tagBrowserSelectedTags = [];
+    updateTagBrowserActiveFilters();
+    loadTagCloud(); // Alle Tags anzeigen
+    elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Wähle einen Tag um Nachrichten anzuzeigen</p>';
+    elements.tagBrowserCount.textContent = '';
+}
+
+async function loadTagBrowserMessages() {
+    if (tagBrowserSelectedTags.length === 0) {
+        elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Wähle einen Tag um Nachrichten anzuzeigen</p>';
+        elements.tagBrowserCount.textContent = '';
+        return;
+    }
+    
+    try {
+        const params = new URLSearchParams();
+        params.set('tags', tagBrowserSelectedTags.join(','));
+        params.set('tag_mode', 'and');
+        params.set('limit', '100');
+        
+        const messages = await api(`/api/catalog?${params.toString()}`);
+        
+        // Tags aus gefilterten Nachrichten extrahieren und Tag-Cloud aktualisieren
+        const tagCounts = {};
+        messages.forEach(msg => {
+            (msg.tags || []).forEach(t => {
+                tagCounts[t] = (tagCounts[t] || 0) + 1;
+            });
+        });
+        const filteredTags = Object.entries(tagCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count);
+        loadTagCloud(filteredTags);
+        
+        elements.tagBrowserCount.textContent = `${messages.length} Einträge`;
+        
+        if (messages.length === 0) {
+            elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Keine Nachrichten mit diesen Tags</p>';
+            return;
+        }
+        
+        elements.tagBrowserMessagesList.innerHTML = '';
+        messages.forEach(msg => {
+            const tags = msg.tags || [];
+            const item = document.createElement('div');
+            item.className = 'tag-browser-msg-item';
+            item.innerHTML = `
+                <div class="tag-browser-msg-text">${escapeHtml(msg.text)}</div>
+                <div class="tag-browser-msg-tags">
+                    ${tags.map(t => `<span class="tag ${tagBrowserSelectedTags.includes(t) ? 'active-filter' : ''}" onclick="event.stopPropagation(); toggleTagBrowserFilter('${escapeHtml(t)}')">${escapeHtml(t)}</span>`).join('')}
+                </div>
+                <div class="tag-browser-msg-actions">
+                    <button class="btn btn-small play-btn" title="Abspielen">▶️</button>
+                    <button class="btn btn-small" title="Zum Schnellzugriff">➕</button>
+                    <button class="btn btn-small" title="In Textfeld übernehmen">📝</button>
+                </div>
+            `;
+            
+            // Action handlers
+            item.querySelector('.play-btn').onclick = (e) => {
+                e.stopPropagation();
+                playCatalogAudio(msg.id, msg.text);
+            };
+            item.querySelectorAll('.tag-browser-msg-actions .btn')[1].onclick = (e) => {
+                e.stopPropagation();
+                addToQuickAccess(msg);
+                showToast('Zum Schnellzugriff hinzugefügt', 'success');
+            };
+            item.querySelectorAll('.tag-browser-msg-actions .btn')[2].onclick = (e) => {
+                e.stopPropagation();
+                elements.textInput.value = msg.text;
+                if (elements.charCount) elements.charCount.textContent = `${msg.text.length} Zeichen`;
+                showToast('Text übernommen', 'info');
+            };
+            
+            elements.tagBrowserMessagesList.appendChild(item);
+        });
+    } catch (error) {
+        console.error('Failed to load tag browser messages:', error);
+        elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Fehler beim Laden</p>';
+    }
+}
+
 let currentHistoryItem = null;
 
 async function openSaveCatalogModalForHistory(item) {
@@ -2069,6 +2279,83 @@ async function repeatLastMessage() {
     }
 }
 
+// === Tipp-Geräusch (Tastatur-Klick-Sound in Dauerschleife beim Tippen) ===
+let typingSoundCtx = null;
+let typingSoundInterval = null;
+let typingSoundTimeout = null;
+const TYPING_SOUND_INTERVAL_MS = 90;  // Abstand zwischen Klicks
+const TYPING_STOP_DELAY_MS = 800;     // Verzögerung bis Sound stoppt nach letztem Tastendruck
+
+function playTypingClick() {
+    if (!typingSoundCtx) return;
+    try {
+        const now = typingSoundCtx.currentTime;
+        
+        // Kurzer Klick-Sound (White Noise Burst) – klingt wie Tastaturanschlag
+        const bufferSize = typingSoundCtx.sampleRate * 0.012; // 12ms
+        const buffer = typingSoundCtx.createBuffer(1, bufferSize, typingSoundCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+        }
+        
+        const source = typingSoundCtx.createBufferSource();
+        source.buffer = buffer;
+        
+        // Bandpass-Filter für realistischeren Klick
+        const filter = typingSoundCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 3000;
+        filter.Q.value = 0.8;
+        
+        const gain = typingSoundCtx.createGain();
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
+        
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(typingSoundCtx.destination);
+        
+        source.start(now);
+        source.stop(now + 0.015);
+    } catch (e) {
+        // Ignorieren
+    }
+}
+
+function startTypingSound() {
+    if (typingSoundInterval) return; // Läuft bereits
+    
+    typingSoundCtx = new (window.AudioContext || window.webkitAudioContext)();
+    playTypingClick(); // Sofort ersten Klick abspielen
+    typingSoundInterval = setInterval(playTypingClick, TYPING_SOUND_INTERVAL_MS);
+}
+
+function stopTypingSound() {
+    if (typingSoundInterval) {
+        clearInterval(typingSoundInterval);
+        typingSoundInterval = null;
+    }
+    if (typingSoundCtx) {
+        typingSoundCtx.close().catch(() => {});
+        typingSoundCtx = null;
+    }
+}
+
+function onTypingActivity() {
+    // Timeout zurücksetzen
+    if (typingSoundTimeout) {
+        clearTimeout(typingSoundTimeout);
+    }
+    // Sound starten falls noch nicht läuft
+    startTypingSound();
+    // Sound stoppen nach Pause
+    typingSoundTimeout = setTimeout(() => {
+        stopTypingSound();
+        typingSoundTimeout = null;
+    }, TYPING_STOP_DELAY_MS);
+}
+
 // Signalton abspielen (Aufmerksamkeit erregen)
 function playSignalTone() {
     try {
@@ -2163,6 +2450,8 @@ function setupEventListeners() {
         if (elements.charCount) {
             elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
         }
+        // Tipp-Geräusch abspielen
+        onTypingActivity();
     });
     
     // Tastatur starten bei Fokus
@@ -2173,6 +2462,7 @@ function setupEventListeners() {
     // Tastatur stoppen bei Fokusverlust
     elements.textInput.addEventListener('blur', () => {
         stopKeyboard();
+        stopTypingSound(); // Tipp-Geräusch sofort stoppen
     });
     
     // Enter key to speak, Ctrl+Enter for AI completion
@@ -2474,6 +2764,14 @@ function setupEventListeners() {
         elements.clearSearchBtn.addEventListener('click', clearGlobalSearch);
     }
     
+    // View Toggle (Spalten / Tag-Browser)
+    if (elements.toggleViewBtn) {
+        elements.toggleViewBtn.addEventListener('click', toggleView);
+    }
+    if (elements.clearTagBrowserFilters) {
+        elements.clearTagBrowserFilters.addEventListener('click', clearAllTagBrowserFilters);
+    }
+    
     // Initial search mode
     updateSearchModeButtons();
     
@@ -2551,7 +2849,7 @@ async function init() {
     
     if (connected) {
         // Katalog und History können sofort geladen werden
-        loadCatalogTags();
+        await loadCatalogTags();
         loadCatalogPreview();
         loadHistory();
         loadFavorites();
@@ -2559,6 +2857,11 @@ async function init() {
         // Quick Access aus localStorage laden
         loadQuickAccessFromStorage();
         renderQuickAccess();
+        
+        // Gespeicherte Ansicht wiederherstellen
+        if (localStorage.getItem('viewMode') === 'tags') {
+            toggleView();
+        }
         
         // Voice-Models erst laden wenn TTS bereit ist
         await waitForTTSAndLoadModels();
