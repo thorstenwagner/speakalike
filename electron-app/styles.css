@@ -186,6 +186,41 @@ body {
     resize: none;
 }
 
+/* Context Compact (in main-row) */
+.context-compact {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.context-compact label {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    cursor: default;
+}
+
+.context-input {
+    flex: 1;
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    height: 28px;
+    min-width: 0;
+}
+
+.context-clear {
+    opacity: 0.5;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    flex-shrink: 0;
+}
+
+.context-clear:hover {
+    opacity: 1;
+}
+
 .speak-buttons {
     display: flex;
     flex-direction: row;

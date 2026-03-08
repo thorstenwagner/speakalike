@@ -27,7 +27,7 @@ function checkBackend() {
 }
 
 // Wartet bis Backend erreichbar ist
-async function waitForBackend(maxAttempts = 60, interval = 1000) {
+async function waitForBackend(maxAttempts = 30, interval = 500) {
     for (let i = 0; i < maxAttempts; i++) {
         const isReady = await checkBackend();
         if (isReady) {

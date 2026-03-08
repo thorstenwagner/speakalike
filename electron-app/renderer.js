@@ -138,6 +138,7 @@ const elements = {
 
     apiKeyInput: document.getElementById('apiKeyInput'),
     aiModelSelect: document.getElementById('aiModelSelect'),
+    aiContextInput: document.getElementById('aiContextInput'),
     
     // AI Confirm Modal
     aiConfirmModal: document.getElementById('aiConfirmModal'),
@@ -416,13 +417,34 @@ async function completeWithAI(text) {
         return null;
     }
     
+    // Letzte 5 Minuten Nachrichten als Kontext holen
+    let recentMessages = [];
+    try {
+        const history = await api('/api/history');
+        if (history && history.length > 0) {
+            const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+            recentMessages = history
+                .filter(item => new Date(item.timestamp).getTime() > fiveMinAgo)
+                .map(item => item.text)
+                .reverse(); // älteste zuerst
+        }
+    } catch (e) {
+        console.warn('Could not load recent history for AI context:', e);
+    }
+    
     try {
         const result = await api('/api/ai/complete-sentence', {
             method: 'POST',
             headers: {
                 'X-API-Key': apiKey
             },
-            body: JSON.stringify({ text, model: localStorage.getItem('claudeModel') || 'claude-haiku-4-5-20251001', language: elements.languageSelect.value || 'de' })
+            body: JSON.stringify({
+                text,
+                model: localStorage.getItem('claudeModel') || 'claude-haiku-4-5-20251001',
+                language: elements.languageSelect.value || 'de',
+                context: localStorage.getItem('aiContext') || '',
+                recent_messages: recentMessages
+            })
         });
         return result.completed;
     } catch (error) {
@@ -2193,6 +2215,21 @@ function setupEventListeners() {
             e.preventDefault();
             playSignalTone();
         }
+    });
+    
+    // Context input - live save to localStorage
+    elements.aiContextInput.value = localStorage.getItem('aiContext') || '';
+    elements.aiContextInput.addEventListener('input', () => {
+        const ctx = elements.aiContextInput.value.trim();
+        if (ctx) {
+            localStorage.setItem('aiContext', ctx);
+        } else {
+            localStorage.removeItem('aiContext');
+        }
+    });
+    document.getElementById('clearContextBtn').addEventListener('click', () => {
+        elements.aiContextInput.value = '';
+        localStorage.removeItem('aiContext');
     });
     
     // TTS Model select

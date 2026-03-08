@@ -27,7 +27,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
-from main import TextToSpeech
+# Lazy import: TextToSpeech wird erst beim TTS-Start geladen, nicht beim Serverstart
+# from main import TextToSpeech  # -> wird in init_tts_async() importiert
 from audio_processor import prepare_samples_for_cloning, get_audio_info
 from catalog import MessageCatalog
 from tag_generator import generate_tags
@@ -44,7 +45,7 @@ app.add_middleware(
 )
 
 # Globale Instanzen
-tts: Optional[TextToSpeech] = None
+tts = None
 catalog: Optional[MessageCatalog] = None
 _whisper_model = None  # Lazy-loaded für Transkription
 
@@ -109,6 +110,8 @@ class SentenceCompletionRequest(BaseModel):
     text: str
     model: str = "claude-haiku-4-5-20251001"
     language: str = "de"
+    context: str = ""
+    recent_messages: list = []
 
 
 # === Lifecycle ===
@@ -117,18 +120,27 @@ async def init_tts_async():
     """Lädt TTS Engine im Hintergrund"""
     global tts
     import asyncio
+    import time
     
-    current_status["message"] = "XTTS v2 Modell wird geladen..."
+    current_status["message"] = "TTS-Bibliotheken werden geladen..."
     current_status["loading"] = True
+    
+    start_time = time.time()
     
     # TTS in Thread Pool ausführen um Event Loop nicht zu blockieren
     loop = asyncio.get_event_loop()
-    tts = await loop.run_in_executor(None, TextToSpeech)
+    
+    def create_tts():
+        from main import TextToSpeech
+        return TextToSpeech()
+    
+    tts = await loop.run_in_executor(None, create_tts)
     tts.headless_mode = True
     
+    elapsed = time.time() - start_time
     current_status["message"] = "Bereit"
     current_status["loading"] = False
-    print("TTS Engine geladen und bereit!")
+    print(f"TTS Engine geladen und bereit! ({elapsed:.1f}s)")
 
 
 @app.on_event("startup")
@@ -784,6 +796,13 @@ async def complete_sentence_endpoint(
     if not prompt_path.exists():
         prompt_path = Path(__file__).parent / "prompt_de.txt"
     system_prompt = prompt_path.read_text(encoding="utf-8")
+    
+    # Dynamischen Kontext einfügen, falls vorhanden
+    if request.context:
+        context_line = f"Aktueller Gesprächskontext: {request.context}. Berücksichtige diesen Kontext bei der Vervollständigung, aber der Nutzer kann auch Dinge sagen, die nicht direkt zum Kontext passen."
+        system_prompt = system_prompt.replace("{DYNAMIC_CONTEXT}", context_line)
+    else:
+        system_prompt = system_prompt.replace("{DYNAMIC_CONTEXT}", "")
 
     try:
         # API Key aus Header oder Umgebungsvariable
@@ -806,13 +825,19 @@ async def complete_sentence_endpoint(
         
         for try_model in models_to_try:
             print(f"[AI] Sende an Claude (model={try_model})...")
+            
+            # Nachrichten aufbauen: vorherige Nachrichten als Kontext + aktuelle Anfrage
+            messages = []
+            for msg in request.recent_messages:
+                messages.append({"role": "user", "content": msg})
+                messages.append({"role": "assistant", "content": msg})
+            messages.append({"role": "user", "content": f"Bitte vervollständige folgenden abgekürzten Text: {request.text}"})
+            
             message = client.messages.create(
                 model=try_model,
                 max_tokens=1024,
                 system=system_prompt,
-                messages=[
-                    {"role": "user", "content": f"Bitte vervollständige folgenden abgekürzten Text: {request.text}"}
-                ]
+                messages=messages
             )
             
             print(f"[AI] Antwort: stop_reason={message.stop_reason}, content_blocks={len(message.content)}")
