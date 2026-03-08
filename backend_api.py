@@ -286,12 +286,17 @@ async def speak(request: TTSRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Mikrofon-Ausgabe: Zweites Ausgabegerät (z.B. VB-Cable) für Telefonie
+mic_output_device = None  # Device-Index für Mikrofon-Ausgabe
+mic_output_enabled = False  # Ob Mikrofon-Ausgabe aktiv ist
+
 @app.post("/api/tts/play-audio")
 async def play_audio_on_device(data: dict):
     """Spielt eine Audio-Datei auf dem ausgewählten Gerät ab"""
     try:
         import sounddevice as sd
         import soundfile as sf
+        import threading
         
         audio_url = data.get("audio_url", "")
         file_path = None
@@ -325,10 +330,173 @@ async def play_audio_on_device(data: dict):
         if isinstance(volume, (int, float)) and 0 <= volume <= 1:
             audio_data = audio_data * volume
         
-        # Nicht-blockierend abspielen
-        sd.play(audio_data, samplerate, device=device)
+        import numpy as np
         
-        return {"success": True, "device": device}
+        def resample_audio(audio, orig_sr, target_sr):
+            """Einfaches Resampling per Interpolation"""
+            if orig_sr == target_sr:
+                return audio
+            ratio = target_sr / orig_sr
+            n_samples = int(len(audio) * ratio)
+            indices = np.arange(n_samples) / ratio
+            indices = np.clip(indices, 0, len(audio) - 1)
+            return np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
+        
+        def get_device_samplerate(dev_index):
+            """Gibt die native Samplerate eines Geräts zurück"""
+            if dev_index is None:
+                return None
+            try:
+                dev_info = sd.query_devices(dev_index)
+                return int(dev_info['default_samplerate'])
+            except:
+                return None
+        
+        # Gleichzeitig auf Lautsprecher UND Mikrofon-Gerät abspielen
+        print(f"[Audio-Play] mic_output_enabled={mic_output_enabled}, mic_output_device={mic_output_device}, samplerate={samplerate}")
+        
+        if mic_output_enabled and mic_output_device is not None:
+            # Mono konvertieren falls Stereo (für Mic-Ausgabe)
+            if len(audio_data.shape) > 1:
+                mic_audio = audio_data.mean(axis=1)
+            else:
+                mic_audio = audio_data.copy()
+            
+            mic_audio = mic_audio.astype(np.float32)
+            
+            # Lautsprecher: Resample falls nötig und sd.play (non-blocking)
+            try:
+                speaker_sr = get_device_samplerate(device)
+                speaker_data = audio_data
+                play_sr = samplerate
+                if speaker_sr and speaker_sr != samplerate:
+                    # Resample für Mono/Stereo
+                    if len(audio_data.shape) > 1:
+                        speaker_data = np.column_stack([
+                            resample_audio(audio_data[:, ch], samplerate, speaker_sr)
+                            for ch in range(audio_data.shape[1])
+                        ])
+                    else:
+                        speaker_data = resample_audio(audio_data, samplerate, speaker_sr)
+                    play_sr = speaker_sr
+                    print(f"[Audio-Play] Lautsprecher resampled: {samplerate} -> {speaker_sr} Hz")
+                sd.play(speaker_data, play_sr, device=device)
+                print(f"[Audio-Play] Lautsprecher-Wiedergabe gestartet (device={device}, sr={play_sr})")
+            except Exception as e:
+                print(f"[Audio-Play] Lautsprecher sd.play Fehler: {e}")
+                # Fallback: ohne explizites Device
+                try:
+                    sd.play(audio_data, samplerate)
+                    print(f"[Audio-Play] Lautsprecher Fallback (Standard-Device) ok")
+                except Exception as e2:
+                    print(f"[Audio-Play] Auch Lautsprecher Fallback fehlgeschlagen: {e2}")
+            
+            # Mikrofon-Ausgabe auf separatem Thread
+            def play_on_mic():
+                nonlocal mic_audio, samplerate
+                
+                # Resample für Mic-Device falls nötig
+                mic_sr = get_device_samplerate(mic_output_device)
+                mic_play_sr = samplerate
+                if mic_sr and mic_sr != samplerate:
+                    mic_audio = resample_audio(mic_audio, samplerate, mic_sr)
+                    mic_play_sr = mic_sr
+                    print(f"[Audio-Play] Mic resampled: {samplerate} -> {mic_sr} Hz")
+                
+                # Versuch 1: sd.play (einfachster Weg, funktionierte als Fallback)
+                try:
+                    sd.play(mic_audio, mic_play_sr, device=mic_output_device)
+                    sd.wait()
+                    print(f"[Audio-Play] Mikrofon-Ausgabe via sd.play erfolgreich (device={mic_output_device}, sr={mic_play_sr})")
+                    return
+                except Exception as e1:
+                    print(f"[Audio-Play] sd.play fehlgeschlagen (device={mic_output_device}): {e1}")
+                
+                # Versuch 2: OutputStream
+                try:
+                    mic_stream = sd.OutputStream(
+                        samplerate=mic_play_sr,
+                        channels=1,
+                        device=mic_output_device
+                    )
+                    mic_stream.start()
+                    mic_stream.write(mic_audio.reshape(-1, 1))
+                    mic_stream.stop()
+                    mic_stream.close()
+                    print(f"[Audio-Play] Mikrofon-Ausgabe erfolgreich (OutputStream)")
+                    return
+                except Exception as e2:
+                    print(f"[Audio-Play] OutputStream fehlgeschlagen: {e2}")
+                
+                # Versuch 3: Alternatives Device mit kompatibler Host-API
+                try:
+                    target_name = None
+                    all_devices = sd.query_devices()
+                    if mic_output_device < len(all_devices):
+                        target_name = all_devices[mic_output_device]['name'].split(',')[0].strip()
+                    
+                    if target_name:
+                        host_apis = sd.query_hostapis()
+                        for idx, dev in enumerate(all_devices):
+                            if idx == mic_output_device:
+                                continue
+                            if dev['max_output_channels'] <= 0:
+                                continue
+                            dev_base = dev['name'].split(',')[0].strip()
+                            if dev_base == target_name:
+                                api_name = host_apis[dev.get('hostapi', 0)]['name'].lower()
+                                if 'wdm' not in api_name and 'ks' not in api_name:
+                                    alt_sr = int(dev['default_samplerate'])
+                                    alt_audio = resample_audio(mic_audio, mic_play_sr, alt_sr) if alt_sr != mic_play_sr else mic_audio
+                                    print(f"[Audio-Play] Versuche alternatives Device {idx} ({dev['name']}, API: {api_name}, sr={alt_sr})")
+                                    sd.play(alt_audio, alt_sr, device=idx)
+                                    sd.wait()
+                                    print(f"[Audio-Play] Mikrofon-Ausgabe über alternatives Device {idx} erfolgreich")
+                                    return
+                except Exception as e3:
+                    print(f"[Audio-Play] Alle Mic-Fallbacks fehlgeschlagen: {e3}")
+            
+            threading.Thread(target=play_on_mic, daemon=True).start()
+        else:
+            # Nur Lautsprecher (kein Mic konfiguriert oder deaktiviert)
+            try:
+                speaker_sr = get_device_samplerate(device)
+                play_data = audio_data
+                play_sr = samplerate
+                if speaker_sr and speaker_sr != samplerate:
+                    if len(audio_data.shape) > 1:
+                        play_data = np.column_stack([
+                            resample_audio(audio_data[:, ch], samplerate, speaker_sr)
+                            for ch in range(audio_data.shape[1])
+                        ])
+                    else:
+                        play_data = resample_audio(audio_data, samplerate, speaker_sr)
+                    play_sr = speaker_sr
+                    print(f"[Audio-Play] Lautsprecher resampled: {samplerate} -> {speaker_sr} Hz")
+                sd.play(play_data, play_sr, device=device)
+            except Exception as e:
+                print(f"[Audio-Play] Lautsprecher Fehler: {e}, versuche Standard-Device...")
+                try:
+                    default_sr = get_device_samplerate(None)
+                    if default_sr and default_sr != samplerate:
+                        if len(audio_data.shape) > 1:
+                            play_data = np.column_stack([
+                                resample_audio(audio_data[:, ch], samplerate, default_sr)
+                                for ch in range(audio_data.shape[1])
+                            ])
+                        else:
+                            play_data = resample_audio(audio_data, samplerate, default_sr)
+                        sd.play(play_data, default_sr)
+                    else:
+                        sd.play(audio_data, samplerate)
+                except Exception as e2:
+                    print(f"[Audio-Play] Auch Fallback fehlgeschlagen: {e2}")
+            if not mic_output_enabled:
+                print(f"[Audio-Play] Mikrofon-Ausgabe deaktiviert (🎤 Button nicht aktiv)")
+            elif mic_output_device is None:
+                print(f"[Audio-Play] Kein Mikrofon-Gerät konfiguriert")
+        
+        return {"success": True, "device": device, "mic_device": mic_output_device if mic_output_enabled else None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -343,6 +511,15 @@ async def stop_speaking():
     current_status["is_speaking"] = False
     current_status["message"] = "Gestoppt"
     return {"success": True}
+
+
+@app.get("/api/typing-sound")
+async def get_typing_sound():
+    """Liefert die Typing-Sound MP3-Datei"""
+    sound_path = Path(os.path.dirname(os.path.abspath(__file__))) / "electron-app" / "typing-sound.mp3"
+    if not sound_path.exists():
+        raise HTTPException(status_code=404, detail="typing-sound.mp3 nicht gefunden")
+    return FileResponse(str(sound_path), media_type="audio/mpeg")
 
 
 @app.get("/api/audio/{filename}")
@@ -904,8 +1081,24 @@ async def get_audio_devices():
     try:
         import sounddevice as sd
         devices = []
-        seen_names = set()
+        seen_names = {}  # base_name -> (index, hostapi_priority)
         device_list = sd.query_devices()
+        host_apis = sd.query_hostapis()
+        
+        # Host-API Prioritäten: WASAPI > MME > DirectSound > Rest
+        # WDM-KS wird vermieden (unterstützt kein blocking API)
+        def hostapi_priority(hostapi_index):
+            name = host_apis[hostapi_index]['name'].lower() if hostapi_index < len(host_apis) else ''
+            if 'wasapi' in name:
+                return 0  # Beste Wahl
+            elif 'mme' in name:
+                return 1
+            elif 'directsound' in name:
+                return 2
+            elif 'wdm' in name or 'ks' in name:
+                return 99  # Vermeiden - unterstützt kein blocking API
+            return 3
+        
         for i, device in enumerate(device_list):
             # Nur Ausgabegeräte (max_output_channels > 0)
             if device['max_output_channels'] > 0:
@@ -914,17 +1107,25 @@ async def get_audio_devices():
                 # Nur den Hauptnamen verwenden (vor API-Typ wie "MME", "Windows DirectSound" etc.)
                 base_name = name.split(',')[0].strip() if ',' in name else name
                 
-                # Überspringe wenn wir dieses Gerät schon haben (anhand des Basisnamens)
-                if base_name in seen_names:
-                    continue
-                seen_names.add(base_name)
+                priority = hostapi_priority(device.get('hostapi', 0))
                 
-                devices.append({
-                    'index': i,
-                    'name': name,
-                    'channels': device['max_output_channels'],
-                    'samplerate': device['default_samplerate']
-                })
+                # Überspringe wenn wir dieses Gerät schon haben mit besserer Priorität
+                if base_name in seen_names:
+                    existing_priority = seen_names[base_name]['priority']
+                    if priority >= existing_priority:
+                        continue
+                
+                seen_names[base_name] = {
+                    'priority': priority,
+                    'device': {
+                        'index': i,
+                        'name': name,
+                        'channels': device['max_output_channels'],
+                        'samplerate': device['default_samplerate']
+                    }
+                }
+        
+        devices = [v['device'] for v in seen_names.values()]
         return {"devices": devices, "current": tts.output_device if tts else None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -940,6 +1141,244 @@ async def set_audio_device(device: dict):
     # None = Standard-Gerät
     tts.output_device = device_index if device_index != -1 else None
     return {"success": True, "device": tts.output_device}
+
+
+# === Mikrofon-Ausgabe (für Telefonie) ===
+
+@app.get("/api/mic-device")
+async def get_mic_device():
+    """Gibt das aktuelle Mikrofon-Ausgabegerät und Status zurück"""
+    return {
+        "device": mic_output_device,
+        "enabled": mic_output_enabled
+    }
+
+
+@app.put("/api/mic-device")
+async def set_mic_device(data: dict):
+    """Setzt das Mikrofon-Ausgabegerät (z.B. VB-Cable)"""
+    global mic_output_device, mic_output_enabled
+    
+    device_index = data.get("index")
+    mic_output_device = device_index if device_index is not None and device_index != -1 else None
+    
+    if "enabled" in data:
+        mic_output_enabled = bool(data["enabled"])
+    
+    return {"success": True, "device": mic_output_device, "enabled": mic_output_enabled}
+
+
+@app.put("/api/mic-device/toggle")
+async def toggle_mic_output(data: dict = {}):
+    """Schaltet Mikrofon-Ausgabe ein/aus"""
+    global mic_output_enabled
+    
+    if "enabled" in data:
+        mic_output_enabled = bool(data["enabled"])
+    else:
+        mic_output_enabled = not mic_output_enabled
+    
+    return {"success": True, "enabled": mic_output_enabled, "device": mic_output_device}
+
+
+# === Tipp-Geräusch über Mikrofon ===
+_typing_thread = None
+_typing_active = False
+_typing_audio_data = None  # Geladene Tastatur-Aufnahme
+_typing_audio_sr = None
+
+def _load_typing_sound():
+    """Lädt die Tastatur-Sound-Datei"""
+    global _typing_audio_data, _typing_audio_sr
+    if _typing_audio_data is not None:
+        return True
+    
+    import soundfile as sf
+    from pathlib import Path
+    
+    sound_path = Path(__file__).parent / "electron-app" / "typing-sound.mp3"
+    if not sound_path.exists():
+        print(f"[Typing-Mic] Sound-Datei nicht gefunden: {sound_path}")
+        return False
+    
+    try:
+        # MP3 laden (soundfile kann mp3 über libsndfile lesen)
+        data, sr = sf.read(str(sound_path), dtype='float32')
+        # Mono konvertieren
+        if len(data.shape) > 1:
+            data = data.mean(axis=1)
+        _typing_audio_data = data
+        _typing_audio_sr = sr
+        print(f"[Typing-Mic] Sound geladen: {len(data)/sr:.2f}s, {sr} Hz")
+        return True
+    except Exception as e:
+        print(f"[Typing-Mic] Fehler beim Laden: {e}")
+        # Fallback: mit pydub probieren
+        try:
+            from pydub import AudioSegment
+            import numpy as np
+            
+            audio = AudioSegment.from_mp3(str(sound_path))
+            audio = audio.set_channels(1)
+            samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+            samples /= 32768.0
+            _typing_audio_data = samples
+            _typing_audio_sr = audio.frame_rate
+            print(f"[Typing-Mic] Sound via pydub geladen: {len(samples)/audio.frame_rate:.2f}s, {audio.frame_rate} Hz")
+            return True
+        except Exception as e2:
+            print(f"[Typing-Mic] Auch pydub Fallback fehlgeschlagen: {e2}")
+            return False
+
+def _typing_loop():
+    """Spielt zufällige Ausschnitte der Tastatur-Aufnahme auf dem Mic-Device ab"""
+    import sounddevice as sd
+    import numpy as np
+    import time
+    import random
+    global _typing_active
+    
+    device = mic_output_device
+    if device is None:
+        return
+    
+    if not _load_typing_sound():
+        print("[Typing-Mic] Kein Sound verfügbar, verwende synthetisch")
+        return
+    
+    audio = _typing_audio_data
+    sr = _typing_audio_sr
+    
+    # Samplerate des Mic-Geräts ermitteln
+    try:
+        dev_info = sd.query_devices(device)
+        dev_sr = int(dev_info['default_samplerate'])
+    except:
+        dev_sr = sr
+    
+    # Resample wenn nötig
+    if dev_sr != sr:
+        ratio = dev_sr / sr
+        n_samples = int(len(audio) * ratio)
+        indices = np.arange(n_samples) / ratio
+        indices = np.clip(indices, 0, len(audio) - 1)
+        audio = np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
+        sr = dev_sr
+    
+    print(f"[Typing-Mic] Tipp-Sound gestartet auf Device {device} ({sr} Hz)")
+    
+    try:
+        while _typing_active:
+            # Zufälligen Ausschnitt wählen (60-120ms Clip)
+            clip_duration = 0.06 + random.random() * 0.06
+            clip_samples = int(sr * clip_duration)
+            max_start = max(0, len(audio) - clip_samples - int(sr * 0.1))
+            start = random.randint(0, max_start) if max_start > 0 else 0
+            
+            clip = audio[start:start + clip_samples].copy()
+            
+            # Fade-Out (letzte 20%)
+            fade_len = int(len(clip) * 0.2)
+            if fade_len > 0:
+                clip[-fade_len:] *= np.linspace(1, 0, fade_len)
+            
+            # Lautstärke-Variation
+            clip *= 0.3 + random.random() * 0.2
+            
+            # Stille-Pause zwischen Klicks (60-130ms)
+            gap = int(sr * (0.06 + random.random() * 0.07))
+            chunk = np.concatenate([clip, np.zeros(gap, dtype=np.float32)])
+            
+            try:
+                sd.play(chunk, sr, device=device)
+                sd.wait()
+            except:
+                time.sleep(0.085)
+    except Exception as e:
+        print(f"[Typing-Mic] Fehler: {e}")
+    
+    print(f"[Typing-Mic] Tipp-Sound gestoppt")
+
+@app.post("/api/mic-device/typing/start")
+async def start_typing_on_mic():
+    """Startet Tipp-Geräusch auf dem Mikrofon-Ausgabegerät"""
+    global _typing_thread, _typing_active
+    import threading
+    
+    if not mic_output_enabled or mic_output_device is None:
+        return {"success": False, "reason": "Mikrofon-Ausgabe nicht aktiv"}
+    
+    if _typing_active:
+        return {"success": True, "already_running": True}
+    
+    _typing_active = True
+    _typing_thread = threading.Thread(target=_typing_loop, daemon=True)
+    _typing_thread.start()
+    return {"success": True}
+
+@app.post("/api/mic-device/typing/stop")
+async def stop_typing_on_mic():
+    """Stoppt Tipp-Geräusch auf dem Mikrofon-Ausgabegerät"""
+    global _typing_active, _typing_thread
+    _typing_active = False
+    if _typing_thread:
+        _typing_thread.join(timeout=1)
+        _typing_thread = None
+    return {"success": True}
+
+
+@app.post("/api/mic-device/echo-test")
+async def mic_echo_test():
+    """Spielt einen Testton auf dem Mikrofon-Ausgabegerät ab und nimmt ihn gleichzeitig auf,
+    dann gibt er das aufgenommene Audio auf dem Lautsprecher wieder."""
+    import sounddevice as sd
+    import numpy as np
+    import threading
+    
+    if mic_output_device is None:
+        raise HTTPException(status_code=400, detail="Kein Mikrofon-Gerät konfiguriert")
+    
+    sample_rate = 24000
+    duration = 1.5  # Sekunden
+    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+    
+    # Erkennbarer Testton: drei aufsteigende Töne (Ding-Ding-Ding)
+    tone = np.zeros_like(t)
+    freqs = [523.25, 659.25, 783.99]  # C5, E5, G5
+    note_len = int(sample_rate * 0.4)
+    gap_len = int(sample_rate * 0.05)
+    for i, freq in enumerate(freqs):
+        start = i * (note_len + gap_len)
+        end = start + note_len
+        if end > len(t):
+            end = len(t)
+        segment = t[start:end] - t[start]
+        # Hüllkurve (Attack/Release)
+        env = np.ones(end - start)
+        attack = min(int(sample_rate * 0.02), len(env))
+        release = min(int(sample_rate * 0.05), len(env))
+        env[:attack] = np.linspace(0, 1, attack)
+        env[-release:] = np.linspace(1, 0, release)
+        tone[start:end] = np.sin(2 * np.pi * freq * segment) * 0.5 * env
+    
+    tone = tone.astype(np.float32)
+    
+    # Testton auf Mikrofon-Gerät abspielen
+    try:
+        sd.play(tone, sample_rate, device=mic_output_device)
+        sd.wait()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fehler beim Abspielen auf Mic-Gerät: {e}")
+    
+    # Gleichen Testton auf Lautsprecher abspielen (damit User hört was gesendet wurde)
+    try:
+        output_device = tts.output_device if tts else None
+        sd.play(tone, sample_rate, device=output_device)
+        sd.wait()
+    except Exception as e:
+        print(f"Lautsprecher-Wiedergabe Fehler: {e}")
+    
+    return {"success": True, "message": "Testton wurde auf Mic-Gerät und Lautsprecher abgespielt"}
 
 
 # === Settings ===

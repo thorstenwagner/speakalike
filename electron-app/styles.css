@@ -653,6 +653,180 @@ body {
     margin-top: auto;
 }
 
+/* Tag-Browser View */
+.tag-browser-row {
+    display: flex;
+    gap: var(--spacing-md);
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.tag-cloud-section {
+    flex: 3;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.tag-cloud-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.tag-cloud-header > span:first-child {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tag-browser-active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+}
+
+.tag-browser-active-filters .tag {
+    cursor: pointer;
+    background: var(--color-primary);
+    color: white;
+}
+
+.tag-browser-active-filters .tag:hover {
+    opacity: 0.8;
+}
+
+.tag-cloud {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-content: flex-start;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--color-bg);
+    border-radius: var(--radius);
+}
+
+.tag-cloud .tag-cloud-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: var(--color-tag);
+    color: var(--color-tag-text);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.tag-cloud .tag-cloud-item:hover {
+    background: var(--color-primary);
+    color: white;
+    transform: scale(1.05);
+}
+
+.tag-cloud .tag-cloud-item.active {
+    background: var(--color-primary);
+    color: white;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}
+
+.tag-cloud .tag-cloud-item .tag-cloud-count {
+    opacity: 0.7;
+    font-weight: 400;
+    font-size: 0.75em;
+}
+
+.tag-browser-messages-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 250px;
+    overflow: hidden;
+}
+
+.tag-browser-messages-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 600;
+}
+
+.tag-browser-messages-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    background: var(--color-bg);
+    border-radius: var(--radius);
+}
+
+.tag-browser-msg-item {
+    padding: var(--spacing-sm);
+    background: var(--color-white);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.tag-browser-msg-item:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow);
+}
+
+.tag-browser-msg-text {
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.tag-browser-msg-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.tag-browser-msg-tags .tag {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    cursor: pointer;
+}
+
+.tag-browser-msg-tags .tag:hover {
+    background: var(--color-primary);
+    color: white;
+}
+
+.tag-browser-msg-tags .tag.active-filter {
+    background: var(--color-primary);
+    color: white;
+}
+
+.tag-browser-msg-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+    margin-top: 4px;
+}
+
+.tag-browser-msg-actions .btn {
+    padding: 2px 6px;
+    min-height: 24px;
+    font-size: 0.7rem;
+}
+
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
@@ -1318,6 +1492,29 @@ body {
 }
 
 /* Volume Control */
+
+/* Mikrofon-Toggle Button */
+.btn-mic-toggle {
+    font-size: 1.2rem;
+    padding: var(--spacing-sm) var(--spacing-md);
+    min-height: 48px;
+    min-width: 48px;
+    border-radius: var(--radius);
+    transition: all 0.2s;
+}
+
+.btn-mic-toggle.mic-active {
+    background: var(--color-success);
+    color: white;
+    border-color: var(--color-success);
+    animation: mic-pulse 2s infinite;
+}
+
+@keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+}
+
 .volume-control {
     display: flex;
     align-items: center;
@@ -1621,6 +1818,7 @@ body.mini-mode .header,
 body.mini-mode .main-row,
 body.mini-mode .global-search-bar,
 body.mini-mode .bottom-row,
+body.mini-mode .tag-browser-row,
 body.mini-mode .hide-in-mini {
     display: none !important;
 }

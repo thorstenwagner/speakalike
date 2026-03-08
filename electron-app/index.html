@@ -67,6 +67,7 @@
                     <button class="btn btn-primary btn-generate hide-in-mini" id="generateBtn" title="Nur generieren, nicht abspielen">
                         💾 Generieren
                     </button>
+                    <button class="btn btn-secondary btn-mic-toggle hide-in-mini" id="micToggleBtn" title="Mikrofon-Ausgabe (für Telefonie)">🎤</button>
                     <div class="volume-control hide-in-mini">
                         <span class="volume-icon" id="volumeIcon" title="Stumm schalten">🔊</span>
                         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Lautstärke">
@@ -90,6 +91,7 @@
                     <button class="btn btn-small search-mode-btn" id="searchModeAnd" data-mode="and">UND</button>
                 </div>
                 <button class="btn btn-small btn-secondary" id="clearSearchBtn" title="Suche leeren">✕</button>
+                <button class="btn btn-small btn-secondary" id="toggleViewBtn" title="Ansicht wechseln">🏷️ Tag-Browser</button>
             </div>
 
             <!-- History & Catalog & Favoriten nebeneinander -->
@@ -136,6 +138,32 @@
                     </div>
                 </section>
             </div>
+
+            <!-- Tag-Browser Ansicht (alternative zu bottom-row) -->
+            <div class="tag-browser-row" id="tagBrowserRow" style="display: none;">
+                <!-- Tag-Cloud Bereich -->
+                <section class="card tag-cloud-section">
+                    <div class="tag-cloud-header">
+                        <span>🏷️ Tags</span>
+                        <div class="tag-browser-active-filters" id="tagBrowserActiveFilters"></div>
+                        <button class="btn btn-small btn-secondary" id="clearTagBrowserFilters" title="Alle Filter entfernen" style="display: none;">✕ Alle</button>
+                    </div>
+                    <div class="tag-cloud" id="tagCloud">
+                        <p class="muted">Lade Tags...</p>
+                    </div>
+                </section>
+
+                <!-- Nachrichten-Spalte -->
+                <section class="card tag-browser-messages-section">
+                    <div class="tag-browser-messages-header">
+                        <span id="tagBrowserMessagesTitle">📋 Nachrichten</span>
+                        <span class="muted" id="tagBrowserCount"></span>
+                    </div>
+                    <div class="tag-browser-messages-list" id="tagBrowserMessagesList">
+                        <p class="muted">Wähle einen Tag um Nachrichten anzuzeigen</p>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
 
@@ -176,6 +204,16 @@
                             <option value="-1">Standard</option>
                         </select>
                         <button class="btn btn-small btn-icon" id="refreshDevicesBtn" title="Geräte aktualisieren">🔄</button>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>🎤 Mikrofon-Ausgabe (für Telefonie)</label>
+                    <p class="muted" style="font-size: 0.8rem; margin-bottom: 8px;">Wähle ein virtuelles Audiokabel (z.B. VB-Cable) um Sprachnachrichten als Mikrofon-Eingang zu nutzen.</p>
+                    <div class="device-select-row">
+                        <select class="select" id="micDeviceSelect">
+                            <option value="-1">Nicht konfiguriert</option>
+                        </select>
+                        <button class="btn btn-small" id="micEchoTestBtn" title="Testton über das virtuelle Mikrofon abspielen">🔊 Test</button>
                     </div>
                 </div>
                 <div class="settings-sliders">

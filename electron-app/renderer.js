@@ -53,6 +53,8 @@ const elements = {
     closeSettingsBtn: document.getElementById('closeSettingsBtn'),
     audioDeviceSelect: document.getElementById('audioDeviceSelect'),
     refreshDevicesBtn: document.getElementById('refreshDevicesBtn'),
+    micDeviceSelect: document.getElementById('micDeviceSelect'),
+    micToggleBtn: document.getElementById('micToggleBtn'),
     speedSlider: document.getElementById('speedSlider'),
     speedValue: document.getElementById('speedValue'),
     temperatureSlider: document.getElementById('temperatureSlider'),
@@ -2004,9 +2006,11 @@ async function loadAudioDevices() {
     try {
         const data = await api('/api/audio-devices');
         const select = elements.audioDeviceSelect;
+        const micSelect = elements.micDeviceSelect;
         
         // Leere die Liste und füge Standard hinzu
         select.innerHTML = '<option value="-1">Standard</option>';
+        micSelect.innerHTML = '<option value="-1">Nicht konfiguriert</option>';
         
         // Füge alle Geräte hinzu
         data.devices.forEach(device => {
@@ -2014,6 +2018,12 @@ async function loadAudioDevices() {
             option.value = device.index;
             option.textContent = device.name;
             select.appendChild(option);
+            
+            // Auch zum Mikrofon-Select hinzufügen
+            const micOption = document.createElement('option');
+            micOption.value = device.index;
+            micOption.textContent = device.name;
+            micSelect.appendChild(micOption);
         });
         
         // Wähle aktuelles Gerät aus
@@ -2021,6 +2031,20 @@ async function loadAudioDevices() {
             select.value = data.current;
         } else {
             select.value = '-1';
+        }
+        
+        // Mikrofon-Gerät laden
+        try {
+            const micData = await api('/api/mic-device');
+            if (micData.device !== null && micData.device !== undefined) {
+                micSelect.value = micData.device;
+            } else {
+                micSelect.value = '-1';
+            }
+            // Toggle-Button Status aktualisieren
+            updateMicToggleUI(micData.enabled, micData.device);
+        } catch (e) {
+            console.log('Mikrofon-Gerät konnte nicht geladen werden');
         }
     } catch (error) {
         console.error('Failed to load audio devices:', error);
@@ -2078,6 +2102,14 @@ async function saveSettings() {
         
         // Audio-Gerät speichern
         await setAudioDevice(elements.audioDeviceSelect.value);
+        
+        // Mikrofon-Gerät speichern
+        const micIndex = parseInt(elements.micDeviceSelect.value);
+        await api('/api/mic-device', {
+            method: 'PUT',
+            body: JSON.stringify({ index: micIndex })
+        });
+        updateMicToggleUI(undefined, micIndex !== -1 ? micIndex : null);
         
         // API Key und Modell lokal speichern (nicht an Server senden)
         const apiKey = elements.apiKeyInput.value.trim();
@@ -2279,45 +2311,63 @@ async function repeatLastMessage() {
     }
 }
 
-// === Tipp-Geräusch (Tastatur-Klick-Sound in Dauerschleife beim Tippen) ===
-let typingSoundCtx = null;
+// === Tipp-Geräusch (HTML5 Audio) ===
 let typingSoundInterval = null;
 let typingSoundTimeout = null;
-const TYPING_SOUND_INTERVAL_MS = 90;  // Abstand zwischen Klicks
-const TYPING_STOP_DELAY_MS = 800;     // Verzögerung bis Sound stoppt nach letztem Tastendruck
+let typingSoundReady = false;
+let typingSoundPool = []; // Pool von Audio-Elementen
+const TYPING_SOUND_INTERVAL_MS = 85;
+const TYPING_STOP_DELAY_MS = 800;
+const TYPING_POOL_SIZE = 4;
 
-function playTypingClick() {
-    if (!typingSoundCtx) return;
+// Sound beim App-Start vorladen
+function preloadTypingSound() {
+    if (typingSoundReady) return;
     try {
-        const now = typingSoundCtx.currentTime;
-        
-        // Kurzer Klick-Sound (White Noise Burst) – klingt wie Tastaturanschlag
-        const bufferSize = typingSoundCtx.sampleRate * 0.012; // 12ms
-        const buffer = typingSoundCtx.createBuffer(1, bufferSize, typingSoundCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+        const url = `${window.API_URL}/api/typing-sound`;
+        console.log('[Typing] Lade Sound via:', url);
+        for (let i = 0; i < TYPING_POOL_SIZE; i++) {
+            const audio = new Audio(url);
+            audio.volume = 0.3;
+            audio.preload = 'auto';
+            typingSoundPool.push(audio);
         }
+        // Warte bis mindestens eines geladen ist
+        typingSoundPool[0].addEventListener('canplaythrough', () => {
+            typingSoundReady = true;
+            console.log('[Typing] Sound bereit, Dauer:', typingSoundPool[0].duration.toFixed(2) + 's');
+        }, { once: true });
+        typingSoundPool[0].addEventListener('error', (e) => {
+            console.error('[Typing] Laden fehlgeschlagen:', e);
+        }, { once: true });
+    } catch (e) {
+        console.error('[Typing] preloadTypingSound Fehler:', e);
+    }
+}
+
+let typingPoolIndex = 0;
+function playTypingClick() {
+    if (!typingSoundReady || typingSoundPool.length === 0) return;
+    try {
+        const audio = typingSoundPool[typingPoolIndex];
+        typingPoolIndex = (typingPoolIndex + 1) % typingSoundPool.length;
         
-        const source = typingSoundCtx.createBufferSource();
-        source.buffer = buffer;
+        const duration = audio.duration || 2;
+        // Zufälligen Startpunkt wählen
+        const clipLen = 0.08;
+        const maxStart = Math.max(0, duration - clipLen - 0.1);
+        audio.currentTime = Math.random() * maxStart;
+        audio.volume = 0.2 + Math.random() * 0.15;
+        audio.playbackRate = 0.9 + Math.random() * 0.2;
         
-        // Bandpass-Filter für realistischeren Klick
-        const filter = typingSoundCtx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.value = 3000;
-        filter.Q.value = 0.8;
-        
-        const gain = typingSoundCtx.createGain();
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
-        
-        source.connect(filter);
-        filter.connect(gain);
-        gain.connect(typingSoundCtx.destination);
-        
-        source.start(now);
-        source.stop(now + 0.015);
+        const playPromise = audio.play();
+        if (playPromise) {
+            playPromise.catch(() => {});
+        }
+        // Nach kurzem Clip stoppen
+        setTimeout(() => {
+            audio.pause();
+        }, clipLen * 1000);
     } catch (e) {
         // Ignorieren
     }
@@ -2326,9 +2376,17 @@ function playTypingClick() {
 function startTypingSound() {
     if (typingSoundInterval) return; // Läuft bereits
     
-    typingSoundCtx = new (window.AudioContext || window.webkitAudioContext)();
-    playTypingClick(); // Sofort ersten Klick abspielen
+    // Sicherstellen dass Sound geladen ist
+    if (!typingSoundReady) {
+        preloadTypingSound();
+    }
+    
     typingSoundInterval = setInterval(playTypingClick, TYPING_SOUND_INTERVAL_MS);
+    
+    // Auch über Mic-Device abspielen wenn aktiv
+    if (micOutputEnabled) {
+        api('/api/mic-device/typing/start', { method: 'POST' }).catch(() => {});
+    }
 }
 
 function stopTypingSound() {
@@ -2336,10 +2394,9 @@ function stopTypingSound() {
         clearInterval(typingSoundInterval);
         typingSoundInterval = null;
     }
-    if (typingSoundCtx) {
-        typingSoundCtx.close().catch(() => {});
-        typingSoundCtx = null;
-    }
+    
+    // Mic-Device Typing stoppen
+    api('/api/mic-device/typing/stop', { method: 'POST' }).catch(() => {});
 }
 
 function onTypingActivity() {
@@ -2354,6 +2411,100 @@ function onTypingActivity() {
         stopTypingSound();
         typingSoundTimeout = null;
     }, TYPING_STOP_DELAY_MS);
+}
+
+// === Mikrofon-Ausgabe (für Telefonie) ===
+let micOutputEnabled = false;
+
+function updateMicToggleUI(enabled, device) {
+    if (enabled !== undefined) {
+        micOutputEnabled = enabled;
+    }
+    
+    const btn = elements.micToggleBtn;
+    if (!btn) return;
+    
+    const hasDevice = device !== null && device !== undefined && device !== -1;
+    
+    if (micOutputEnabled && hasDevice) {
+        btn.classList.add('mic-active');
+        btn.title = 'Mikrofon-Ausgabe aktiv (Klick zum Deaktivieren)';
+        btn.innerHTML = '🎙️';
+    } else if (hasDevice) {
+        btn.classList.remove('mic-active');
+        btn.title = 'Mikrofon-Ausgabe aktivieren (für Telefonie)';
+        btn.innerHTML = '🎤';
+    } else {
+        btn.classList.remove('mic-active');
+        btn.title = 'Kein Mikrofon-Gerät konfiguriert (in Einstellungen setzen)';
+        btn.innerHTML = '🎤';
+        btn.style.opacity = '0.4';
+        return;
+    }
+    btn.style.opacity = '1';
+}
+
+async function toggleMicOutput() {
+    try {
+        // Prüfe ob ein Mic-Device konfiguriert ist
+        const micData = await api('/api/mic-device');
+        if (micData.device === null || micData.device === undefined) {
+            showToast('Bitte zuerst ein Mikrofon-Gerät in den Einstellungen konfigurieren (z.B. VB-Cable)', 'error');
+            openSettingsModal();
+            return;
+        }
+        
+        const result = await api('/api/mic-device/toggle', {
+            method: 'PUT',
+            body: JSON.stringify({})
+        });
+        
+        updateMicToggleUI(result.enabled, result.device);
+        
+        if (result.enabled) {
+            showToast('🎙️ Mikrofon-Ausgabe aktiviert – Sprache wird auch über das virtuelle Mikrofon ausgegeben', 'success');
+        } else {
+            showToast('🎤 Mikrofon-Ausgabe deaktiviert', 'info');
+        }
+    } catch (error) {
+        console.error('Mikrofon-Toggle Fehler:', error);
+        showToast('Fehler beim Umschalten der Mikrofon-Ausgabe', 'error');
+    }
+}
+
+// Echo-Test für Mikrofon-Ausgabe
+async function micEchoTest() {
+    const btn = document.getElementById('micEchoTestBtn');
+    if (!btn) return;
+    
+    const micIndex = parseInt(elements.micDeviceSelect.value);
+    if (micIndex === -1) {
+        showToast('Bitte zuerst ein Mikrofon-Gerät auswählen', 'error');
+        return;
+    }
+    
+    // Erst Mic-Device setzen (falls noch nicht gespeichert)
+    await api('/api/mic-device', {
+        method: 'PUT',
+        body: JSON.stringify({ index: micIndex })
+    });
+    
+    btn.disabled = true;
+    btn.textContent = '⏳ Test...';
+    showToast('🔊 Testton wird auf Mic-Gerät abgespielt...', 'info');
+    
+    try {
+        const result = await api('/api/mic-device/echo-test', {
+            method: 'POST'
+        });
+        showToast('✅ Testton abgespielt – wenn du ihn in der Telefon-App hörst, funktioniert die Verbindung!', 'success');
+    } catch (error) {
+        console.error('Echo-Test Fehler:', error);
+        showToast('❌ Testton fehlgeschlagen: ' + (error.message || error), 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔊 Test';
+    }
 }
 
 // Signalton abspielen (Aufmerksamkeit erregen)
@@ -2584,6 +2735,17 @@ function setupEventListeners() {
     elements.closeSettingsBtn.addEventListener('click', closeSettingsModal);
     elements.saveSettingsBtn.addEventListener('click', saveSettings);
     elements.refreshDevicesBtn.addEventListener('click', loadAudioDevices);
+    
+    // Echo-Test Button
+    const echoTestBtn = document.getElementById('micEchoTestBtn');
+    if (echoTestBtn) {
+        echoTestBtn.addEventListener('click', micEchoTest);
+    }
+    
+    // Mikrofon-Ausgabe Toggle
+    if (elements.micToggleBtn) {
+        elements.micToggleBtn.addEventListener('click', toggleMicOutput);
+    }
     
     elements.speedSlider.addEventListener('input', (e) => {
         elements.speedValue.textContent = `${e.target.value}x`;
@@ -2847,6 +3009,11 @@ async function init() {
         await new Promise(r => setTimeout(r, 1000));
     }
     
+    // Typing-Sound verzögert im Hintergrund vorladen
+    setTimeout(() => {
+        try { preloadTypingSound(); } catch(e) { console.error('[Typing] Init-Fehler:', e); }
+    }, 2000);
+    
     if (connected) {
         // Katalog und History können sofort geladen werden
         await loadCatalogTags();
@@ -2857,6 +3024,14 @@ async function init() {
         // Quick Access aus localStorage laden
         loadQuickAccessFromStorage();
         renderQuickAccess();
+        
+        // Mikrofon-Ausgabe Status laden
+        try {
+            const micData = await api('/api/mic-device');
+            updateMicToggleUI(micData.enabled, micData.device);
+        } catch (e) {
+            console.log('Mikrofon-Status konnte nicht geladen werden');
+        }
         
         // Gespeicherte Ansicht wiederherstellen
         if (localStorage.getItem('viewMode') === 'tags') {
