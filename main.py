@@ -152,6 +152,11 @@ class TextToSpeech:
         """Initialisiert XTTS mit direktem Modell-Zugriff für beste Qualität"""
         import torch
         
+        # GPU-Optimierungen aktivieren
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        
         model_name = self._get_model_name()
         
         # Lade Modell über TTS API (lädt automatisch herunter)
@@ -159,12 +164,14 @@ class TextToSpeech:
         
         # Direkter Zugriff auf das XTTS-Modell für erweiterte Kontrolle
         self.model = self.tts_api.synthesizer.tts_model
+        
         self.use_coqui = True
         self.use_direct = True
         
         gpu_name = torch.cuda.get_device_name(0)
         model_info = self.AVAILABLE_TTS_MODELS.get(self.current_tts_model_id, {})
         print(f"{model_info.get('name', 'TTS')} initialisiert (Direkter Zugriff) mit GPU: {gpu_name}")
+        print(f"  - cudnn.benchmark: aktiviert")
         print(f"  - gpt_cond_len: {self.gpt_cond_len}s (mehr Kontext)")
         print(f"  - gpt_cond_chunk_len: {self.gpt_cond_chunk_len}s (stabilere Latents)")
         print(f"  - max_ref_len: {self.max_ref_len}s (längere Referenz)")
@@ -708,22 +715,27 @@ class TextToSpeech:
             print(f"  Generierung abgeschlossen in {time.time() - start_time:.2f}s (Streaming)")
             return
         
+        # --- TIMING: XTTS Inference ---
+        t_inference = time.time()
         # Generiere den gesamten Text in einem Stück (mit Stop-Marker)
-        out = self.model.inference(
-            text=text_with_marker,
-            language=language,
-            gpt_cond_latent=self.gpt_cond_latent,
-            speaker_embedding=self.speaker_embedding,
-            temperature=self.temperature,
-            length_penalty=self.length_penalty,
-            repetition_penalty=self.repetition_penalty,
-            top_k=self.top_k,
-            top_p=self.top_p,
-            speed=self.speed,
-            enable_text_splitting=True
-        )
+        with torch.inference_mode():
+            out = self.model.inference(
+                text=text_with_marker,
+                language=language,
+                gpt_cond_latent=self.gpt_cond_latent,
+                speaker_embedding=self.speaker_embedding,
+                temperature=self.temperature,
+                length_penalty=self.length_penalty,
+                repetition_penalty=self.repetition_penalty,
+                top_k=self.top_k,
+                top_p=self.top_p,
+                speed=self.speed,
+                enable_text_splitting=True
+            )
+        t_inference = time.time() - t_inference
         
         wav = np.array(out["wav"])
+        audio_duration = len(wav) / 24000
         
         # DEBUG: Speichere Audio VOR dem Trimming auf Desktop
         import os
@@ -732,16 +744,28 @@ class TextToSpeech:
         wav_debug = np.clip(wav, -1.0, 1.0)
         wav_debug_int16 = (wav_debug * 32767).astype(np.int16)
         wavfile.write(debug_path, 24000, wav_debug_int16)
-        print(f"  DEBUG: Audio vor Trimming gespeichert: {debug_path}")
         
+        # --- TIMING: Whisper Trimming ---
+        t_whisper = time.time()
         # Artefakte am Ende entfernen (sucht nach Stop-Marker)
         wav = self._remove_artifacts_with_transcription(wav, original_text, sample_rate=24000, language=language)
+        t_whisper = time.time() - t_whisper
         
+        # --- TIMING: WAV speichern ---
+        t_save = time.time()
         # Speichern als Standard-PCM WAV (16-bit) für maximale Kompatibilität
         wav = np.clip(wav, -1.0, 1.0)
         wav_int16 = (wav * 32767).astype(np.int16)
         wavfile.write(output_path, 24000, wav_int16)
-        print(f"  Generierung abgeschlossen in {time.time() - start_time:.2f}s")
+        t_save = time.time() - t_save
+        
+        total = time.time() - start_time
+        print(f"\n  ⏱ TIMING-Übersicht:")
+        print(f"    XTTS Inference:    {t_inference:.2f}s  ({t_inference/total*100:.0f}%)")
+        print(f"    Audio-Dauer:       {audio_duration:.2f}s  (Realtime-Faktor: {t_inference/audio_duration:.1f}x)")
+        print(f"    Whisper Trimming:  {t_whisper:.2f}s  ({t_whisper/total*100:.0f}%)")
+        print(f"    WAV speichern:     {t_save:.2f}s  ({t_save/total*100:.0f}%)")
+        print(f"    GESAMT:            {total:.2f}s")
     
     def _inference_direct_streaming(self, text, language, output_path):
         """Streaming-Inference für schnellere erste Audioausgabe"""
@@ -999,16 +1023,22 @@ class TextToSpeech:
             return audio
         
         try:
-            # Lazy-Load Whisper beim ersten Aufruf
+            # Lazy-Load faster-whisper beim ersten Aufruf
             if not hasattr(self, '_whisper_model') or self._whisper_model is None:
-                print("  Lade Whisper-Modell für Artefakt-Erkennung...")
-                import whisper
-                import torch
-                # Verwende das base Modell - gut für Deutsch
-                self._whisper_model = whisper.load_model("base", device="cuda" if torch.cuda.is_available() else "cpu")
-                print("  Whisper-Modell geladen.")
+                print("  Lade faster-whisper-Modell für Artefakt-Erkennung...")
+                import os
+                # CTranslate2 ROCm-Pfad-Bug auf NVIDIA umgehen
+                os.environ["CT2_SUPPRESS_ROCM_INIT"] = "1"
+                from faster_whisper import WhisperModel
+                # base Modell mit CTranslate2 - deutlich schneller als OpenAI Whisper
+                try:
+                    self._whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
+                    print("  faster-whisper-Modell (base, CUDA float16) geladen.")
+                except Exception:
+                    # Fallback auf CPU falls CUDA-Probleme
+                    self._whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+                    print("  faster-whisper-Modell (base, CPU int8) geladen.")
             
-            # Whisper erwartet Audio bei 16kHz als float32 im Bereich [-1, 1]
             import torch
             import torchaudio
             
@@ -1038,37 +1068,34 @@ class TextToSpeech:
             if language == "zh-cn":
                 whisper_lang = "zh"
             
-            # Transkribiere mit Wort-Zeitstempeln
-            result = self._whisper_model.transcribe(
+            # Transkribiere mit faster-whisper (word_timestamps)
+            segments, info = self._whisper_model.transcribe(
                 audio_16k,
                 language=whisper_lang,
                 word_timestamps=True,
-                fp16=torch.cuda.is_available(),
-                verbose=False
+                vad_filter=False
             )
-            
-            # Debug: Zeige was erkannt wurde
-            if result.get("text"):
-                print(f"  Whisper erkannt: '{result['text'][:100]}...' " if len(result.get("text", "")) > 100 else f"  Whisper erkannt: '{result.get('text', '')}'")
-            else:
-                print("  Whisper: Kein Text erkannt")
-            
-            if not result.get("segments"):
-                print("  Keine Segmente erkannt, verwende Fallback-Trimming")
-                return self._remove_trailing_artifacts(audio, sample_rate)
             
             # Sammle alle erkannten Wörter mit Zeitstempeln
             recognized_words = []
-            for segment in result["segments"]:
-                if "words" in segment:
-                    for word_info in segment["words"]:
-                        word = word_info["word"].strip()
+            full_text = ""
+            for segment in segments:
+                full_text += segment.text
+                if segment.words:
+                    for word_info in segment.words:
+                        word = word_info.word.strip()
                         if word:
                             recognized_words.append({
                                 "word": word,
-                                "start": word_info["start"],
-                                "end": word_info["end"]
+                                "start": word_info.start,
+                                "end": word_info.end
                             })
+            
+            # Debug: Zeige was erkannt wurde
+            if full_text:
+                print(f"  Whisper erkannt: '{full_text[:100]}...' " if len(full_text) > 100 else f"  Whisper erkannt: '{full_text}'")
+            else:
+                print("  Whisper: Kein Text erkannt")
             
             if not recognized_words:
                 print("  Keine Wörter erkannt, verwende Fallback-Trimming")
