@@ -44,6 +44,9 @@ class TextToSpeech:
     LAST_MODEL_FILE = Path(__file__).parent / "voice_models" / ".last_model"
     LAST_TTS_MODEL_FILE = Path(__file__).parent / "voice_models" / ".last_tts_model"
     
+    # ElevenLabs Konfigurationsdateien
+    ELEVENLABS_CONFIG_FILE = Path(__file__).parent / "voice_models" / ".elevenlabs_config"
+    
     # Verfügbare TTS-Modelle für Voice Cloning
     AVAILABLE_TTS_MODELS = {
         "xtts_v2": {
@@ -94,6 +97,20 @@ class TextToSpeech:
         # Aktuelles TTS-Modell
         self.current_tts_model_id = model_id
         
+        # TTS Provider: "elevenlabs" oder "coqui"
+        self.tts_provider = "coqui"  # Standard
+        
+        # ElevenLabs State
+        self.elevenlabs_client = None
+        self.elevenlabs_api_key = None
+        self.elevenlabs_voice_id = None
+        self.elevenlabs_model_id = "eleven_multilingual_v2"
+        self.elevenlabs_stability = 0.5
+        self.elevenlabs_similarity_boost = 0.75
+        self.elevenlabs_style = 0.0
+        self.elevenlabs_use_speaker_boost = False
+        self._load_elevenlabs_config()
+        
         # Speaker Embedding Cache für bessere Qualität und Performance
         self.gpt_cond_latent = None
         self.speaker_embedding = None
@@ -112,7 +129,7 @@ class TextToSpeech:
         self.temperature = 0.65  # Standard-Wert für bessere Generierung
         self.top_k = 50  # Standard-Wert
         self.top_p = 0.8  # Standard-Wert
-        self.repetition_penalty = 2.0  # Gegen Stottern/Wiederholungen
+        self.repetition_penalty = 1.5  # Reduziert von 2.0 - zu hohe Werte können Wörter verschlucken
         self.speed = 1.0  # Sprechgeschwindigkeit
         self.length_penalty = 1.0  # Standard-Wert
         
@@ -541,6 +558,238 @@ class TextToSpeech:
             traceback.print_exc()
             return False
     
+    # === ElevenLabs Integration ===
+    
+    def _load_elevenlabs_config(self):
+        """Lädt ElevenLabs-Konfiguration von Disk"""
+        try:
+            if self.ELEVENLABS_CONFIG_FILE.exists():
+                import json
+                config = json.loads(self.ELEVENLABS_CONFIG_FILE.read_text(encoding='utf-8'))
+                self.elevenlabs_api_key = config.get('api_key')
+                self.elevenlabs_voice_id = config.get('voice_id')
+                self.elevenlabs_model_id = config.get('model_id', 'eleven_multilingual_v2')
+                self.elevenlabs_stability = config.get('stability', 0.5)
+                self.elevenlabs_similarity_boost = config.get('similarity_boost', 0.75)
+                self.elevenlabs_style = config.get('style', 0.0)
+                self.elevenlabs_use_speaker_boost = config.get('use_speaker_boost', False)
+                if self.elevenlabs_api_key:
+                    self.tts_provider = config.get('provider', 'elevenlabs')
+                    self._init_elevenlabs()
+        except Exception as e:
+            print(f"Fehler beim Laden der ElevenLabs-Konfiguration: {e}")
+    
+    def _save_elevenlabs_config(self):
+        """Speichert ElevenLabs-Konfiguration auf Disk"""
+        try:
+            import json
+            config = {
+                'api_key': self.elevenlabs_api_key,
+                'voice_id': self.elevenlabs_voice_id,
+                'model_id': self.elevenlabs_model_id,
+                'provider': self.tts_provider,
+                'stability': self.elevenlabs_stability,
+                'similarity_boost': self.elevenlabs_similarity_boost,
+                'style': self.elevenlabs_style,
+                'use_speaker_boost': self.elevenlabs_use_speaker_boost
+            }
+            self.ELEVENLABS_CONFIG_FILE.write_text(
+                json.dumps(config), encoding='utf-8'
+            )
+        except Exception as e:
+            print(f"Fehler beim Speichern der ElevenLabs-Konfiguration: {e}")
+    
+    def _init_elevenlabs(self):
+        """Initialisiert den ElevenLabs-Client"""
+        if not self.elevenlabs_api_key:
+            print("ElevenLabs: Kein API-Key konfiguriert")
+            return False
+        try:
+            from elevenlabs.client import ElevenLabs
+            self.elevenlabs_client = ElevenLabs(api_key=self.elevenlabs_api_key)
+            print("ElevenLabs-Client initialisiert")
+            return True
+        except Exception as e:
+            print(f"Fehler bei ElevenLabs-Initialisierung: {e}")
+            self.elevenlabs_client = None
+            return False
+    
+    def set_elevenlabs_config(self, api_key=None, voice_id=None, model_id=None,
+                               stability=None, similarity_boost=None, style=None,
+                               use_speaker_boost=None):
+        """
+        Konfiguriert ElevenLabs API-Key, Voice-ID und Modell.
+        
+        Returns:
+            bool: True bei Erfolg
+        """
+        if api_key is not None:
+            self.elevenlabs_api_key = api_key
+        if voice_id is not None:
+            self.elevenlabs_voice_id = voice_id
+        if model_id is not None:
+            self.elevenlabs_model_id = model_id
+        if stability is not None:
+            self.elevenlabs_stability = stability
+        if similarity_boost is not None:
+            self.elevenlabs_similarity_boost = similarity_boost
+        if style is not None:
+            self.elevenlabs_style = style
+        if use_speaker_boost is not None:
+            self.elevenlabs_use_speaker_boost = use_speaker_boost
+        
+        self._save_elevenlabs_config()
+        
+        if self.elevenlabs_api_key:
+            return self._init_elevenlabs()
+        return True
+    
+    def set_tts_provider(self, provider):
+        """
+        Wechselt den TTS-Provider.
+        
+        Args:
+            provider: "elevenlabs" oder "coqui"
+        """
+        if provider not in ("elevenlabs", "coqui"):
+            return False
+        self.tts_provider = provider
+        self._save_elevenlabs_config()
+        print(f"TTS-Provider gewechselt zu: {provider}")
+        return True
+    
+    def list_elevenlabs_voices(self):
+        """
+        Listet alle ElevenLabs-Stimmen auf.
+        
+        Returns:
+            list: Liste von Dictionaries mit 'voice_id' und 'name'
+        """
+        if not self.elevenlabs_client:
+            if not self._init_elevenlabs():
+                return []
+        try:
+            response = self.elevenlabs_client.voices.search()
+            voices = []
+            for v in response.voices:
+                voices.append({
+                    'voice_id': v.voice_id,
+                    'name': v.name,
+                    'category': getattr(v, 'category', 'unknown')
+                })
+            return voices
+        except Exception as e:
+            print(f"Fehler beim Abrufen der ElevenLabs-Stimmen: {e}")
+            return []
+    
+    def _speak_elevenlabs_and_save(self, text, language):
+        """
+        Generiert Audio über ElevenLabs API und speichert als WAV.
+        Fällt bei Fehler automatisch auf Coqui zurück.
+        """
+        import time
+        start_time = time.time()
+        
+        if not self.elevenlabs_client:
+            if not self._init_elevenlabs():
+                print("ElevenLabs nicht verfügbar, Fallback auf Coqui...")
+                return self._speak_coqui_and_save(text, language)
+        
+        if not self.elevenlabs_voice_id:
+            print("ElevenLabs: Keine Voice-ID konfiguriert, Fallback auf Coqui...")
+            return self._speak_coqui_and_save(text, language)
+        
+        try:
+            print(f"ElevenLabs: Generiere Audio...")
+            print(f"  Voice-ID: {self.elevenlabs_voice_id}")
+            print(f"  Modell: {self.elevenlabs_model_id}")
+            
+            # Sprachcode-Mapping: v3 nutzt ISO 639-3 (3-Buchstaben), v2 nutzt ISO 639-1 (2-Buchstaben)
+            is_v3 = 'v3' in (self.elevenlabs_model_id or '')
+            if is_v3:
+                lang_map = {"de": "deu", "en": "eng", "es": "spa", "fr": "fra", "it": "ita",
+                            "pt": "por", "nl": "nld", "pl": "pol", "ru": "rus", "ja": "jpn",
+                            "zh": "cmn", "ko": "kor", "sv": "swe", "da": "dan", "fi": "fin",
+                            "tr": "tur", "ar": "ara", "hi": "hin", "cs": "ces", "el": "ell",
+                            "hu": "hun", "ro": "ron", "uk": "ukr", "no": "nor", "vi": "vie"}
+            else:
+                lang_map = {"de": "de", "en": "en", "es": "es", "fr": "fr", "it": "it"}
+            language_code = lang_map.get(language, language)
+            
+            # Text für TTS vorbereiten
+            tts_text = text.strip()
+            word_count = len(tts_text.split())
+            
+            if is_v3 and word_count <= 3 and language_code != "eng":
+                # v3: Audio-Tag für Sprachsteuerung bei kurzen Texten
+                accent_map = {"deu": "German", "spa": "Spanish", "fra": "French",
+                              "ita": "Italian", "por": "Portuguese", "nld": "Dutch",
+                              "pol": "Polish", "rus": "Russian", "jpn": "Japanese"}
+                accent = accent_map.get(language_code)
+                if accent:
+                    tts_text = f"[strong {accent} accent] {tts_text}"
+            elif not is_v3 and word_count <= 3 and language_code != "en":
+                # v2: Punkt am Ende erzwingen bei kurzen Texten
+                if tts_text and tts_text[-1] not in '.!?…':
+                    tts_text = tts_text + '.'
+            
+            from elevenlabs import VoiceSettings
+            voice_settings = VoiceSettings(
+                stability=self.elevenlabs_stability,
+                similarity_boost=self.elevenlabs_similarity_boost,
+                style=self.elevenlabs_style,
+                use_speaker_boost=self.elevenlabs_use_speaker_boost
+            )
+            
+            audio_generator = self.elevenlabs_client.text_to_speech.convert(
+                text=tts_text,
+                voice_id=self.elevenlabs_voice_id,
+                model_id=self.elevenlabs_model_id,
+                output_format="pcm_24000",
+                language_code=language_code,
+                voice_settings=voice_settings
+            )
+            
+            # Audio-Bytes sammeln
+            audio_bytes = b""
+            for chunk in audio_generator:
+                if isinstance(chunk, bytes):
+                    audio_bytes += chunk
+            
+            if not audio_bytes:
+                print("ElevenLabs: Keine Audio-Daten erhalten, Fallback auf Coqui...")
+                return self._speak_coqui_and_save(text, language)
+            
+            # PCM 24kHz 16-bit mono → WAV speichern
+            import numpy as np
+            import scipy.io.wavfile as wavfile
+            
+            wav_data = np.frombuffer(audio_bytes, dtype=np.int16)
+            
+            temp_dir = tempfile.gettempdir()
+            output_path = os.path.join(temp_dir, "speakalike_last_audio.wav")
+            wavfile.write(output_path, 24000, wav_data)
+            
+            elapsed = time.time() - start_time
+            audio_duration = len(wav_data) / 24000
+            print(f"  ElevenLabs Audio generiert in {elapsed:.2f}s ({audio_duration:.1f}s Audio)")
+            
+            # Audio abspielen (nur wenn nicht headless/API-Modus)
+            if not getattr(self, 'headless_mode', False):
+                import sounddevice as sd
+                import soundfile as sf
+                data, samplerate = sf.read(output_path)
+                sd.play(data, samplerate, device=self.output_device)
+                sd.wait()
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"ElevenLabs Fehler: {e}, Fallback auf Coqui...")
+            import traceback
+            traceback.print_exc()
+            return self._speak_coqui_and_save(text, language)
+    
     def load_last_model(self):
         """
         Lädt automatisch das zuletzt genutzte Voice-Modell
@@ -602,6 +851,11 @@ class TextToSpeech:
         self.is_speaking = True
         
         try:
+            # ElevenLabs als primärer Provider
+            if self.tts_provider == "elevenlabs":
+                return self._speak_elevenlabs_and_save(text, language)
+            
+            # Coqui als Standard/Fallback
             if self.use_coqui:
                 return self._speak_coqui_and_save(text, language)
             else:
@@ -807,195 +1061,60 @@ class TextToSpeech:
             wav = self._remove_artifacts_with_transcription(wav, original_text, sample_rate=24000, language=language)
             torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
 
-    # Stop-Marker-Sätze für verschiedene Sprachen
-    # Diese werden zum Text hinzugefügt und beim Trimming erkannt
-    STOP_MARKERS = {
-        "de": "Ende der Nachricht.",
-        "en": "End of message.",
-        "es": "Fin del mensaje.",
-        "fr": "Fin du message.",
-        "it": "Fine del messaggio.",
-        "pt": "Fim da mensagem.",
-        "pl": "Koniec wiadomości.",
-        "nl": "Einde bericht.",
-        "ru": "Конец сообщения.",
-        "ja": "メッセージ終了。",
-        "zh-cn": "消息结束。",
-        "ar": "نهاية الرسالة.",
-        "tr": "Mesaj sonu.",
-        "ko": "메시지 끝.",
-    }
+    # Universeller Stop-Marker für alle Sprachen
+    # "Tango Tango Tango" ist phonetisch einzigartig, klingt in jeder Sprache gleich,
+    # und interferiert NICHT mit XTTS (im Gegensatz zu "Ende der Nachricht" das Wörter verschluckte)
+    STOP_MARKER = "Tango Tango Tango."
     
-    # Erkennungsmuster für Stop-Marker (normalisiert, für Whisper-Erkennung)
-    # Erweitert um häufige Whisper-Fehltranskriptionen
-    STOP_MARKER_PATTERNS = {
-        "de": {
-            "first_words": ["ende", "ände", "hände", "ender", "endet", "erinnert", "erinnernd", "erinnere"],  # "erinnert" = häufige Fehltranskription von "Ende"
-            "second_words": ["nachricht", "nachrich", "naricht", "nach", "danach", 
-                           "richter", "richt", "richtig", "deiner", "dein"]  # Whisper hört oft "deiner Richter"
-        },
-        "en": {
-            "first_words": ["end"],
-            "second_words": ["message", "messag"]
-        },
-        "es": {
-            "first_words": ["fin"],
-            "second_words": ["mensaje"]
-        },
-        "fr": {
-            "first_words": ["fin"],
-            "second_words": ["message"]
-        },
-        "it": {
-            "first_words": ["fine"],
-            "second_words": ["messaggio"]
-        },
-        "pt": {
-            "first_words": ["fim"],
-            "second_words": ["mensagem"]
-        },
-        "pl": {
-            "first_words": ["koniec"],
-            "second_words": ["wiadomości", "wiadomosci"]
-        },
-        "nl": {
-            "first_words": ["einde"],
-            "second_words": ["bericht"]
-        },
-        "ru": {
-            "first_words": ["конец"],
-            "second_words": ["сообщения"]
-        },
-        "ja": {
-            "first_words": ["メッセージ"],
-            "second_words": ["終了"]
-        },
-        "zh-cn": {
-            "first_words": ["消息"],
-            "second_words": ["结束"]
-        },
-        "ar": {
-            "first_words": ["نهاية"],
-            "second_words": ["الرسالة"]
-        },
-        "tr": {
-            "first_words": ["mesaj"],
-            "second_words": ["sonu"]
-        },
-        "ko": {
-            "first_words": ["메시지"],
-            "second_words": ["끝"]
-        },
-    }
+    # Erkennungsmuster: Whisper kann "Tango" leicht variiert transkribieren
+    STOP_MARKER_WORDS = ["tango", "tangoo", "tanco", "ango", "tanga", "ango", "tangutan"]
 
     def _add_stop_marker(self, text, language):
         """
-        Fügt einen Stop-Marker-Satz am Ende des Textes hinzu.
-        
-        Args:
-            text: Der Originaltext
-            language: Sprachcode (z.B. 'de', 'en')
-            
-        Returns:
-            Text mit Stop-Marker
+        Fügt den universellen Stop-Marker am Ende des Textes hinzu.
         """
-        stop_marker = self.STOP_MARKERS.get(language, self.STOP_MARKERS["en"])
+        marker = self.STOP_MARKER
         
-        # Prüfe, ob der Text BEREITS einen Stop-Marker enthält
-        if stop_marker.lower() in text.lower():
-            print(f"  WARNUNG: Text enthält bereits Stop-Marker '{stop_marker}'!")
-            print(f"  Original-Text: '{text}'")
-            return text  # Nicht nochmal hinzufügen
+        # Prüfe, ob der Text BEREITS den Stop-Marker enthält
+        if "tango" in text.lower():
+            print(f"  WARNUNG: Text enthält bereits 'tango'!")
+            return text
         
-        # Füge Stop-Marker mit einfachem Punkt an (... kann XTTS verwirren)
-        result = f"{text.rstrip()}. {stop_marker}"
-        print(f"  DEBUG _add_stop_marker: Eingabe='{text}'")
-        print(f"  DEBUG _add_stop_marker: Ausgabe='{result}'")
+        result = f"{text.rstrip()}... {marker}"
+        print(f"  Stop-Marker: '{marker}' angehängt (mit '...' Pause)")
         return result
 
     def _find_stop_marker_position(self, recognized_words, language):
         """
-        Findet die Position des LETZTEN Stop-Markers in den erkannten Wörtern.
+        Findet die Position des Stop-Markers "Tango Tango Tango" in den erkannten Wörtern.
+        Sucht nach mindestens 2 aufeinanderfolgenden "tango"-Wörtern.
         
-        Wichtig: Wir suchen den LETZTEN Marker, da Whisper manchmal fälschlicherweise
-        "Ende" oder ähnliche Wörter mitten im Text erkennt.
-        
-        Args:
-            recognized_words: Liste von {"word": str, "start": float, "end": float}
-            language: Sprachcode
-            
         Returns:
-            Tuple (Start-Zeit des Stop-Markers, Index des ersten Stop-Marker-Wortes) oder (None, None) wenn nicht gefunden
+            Tuple (Start-Zeit, Index) oder (None, None)
         """
         import re
-        patterns = self.STOP_MARKER_PATTERNS.get(language, self.STOP_MARKER_PATTERNS.get("en"))
         
-        # Normalisiere alle Wörter (Kleinbuchstaben, nur Buchstaben)
         def normalize(w):
             return re.sub(r'[^\w]', '', w.lower())
         
         words_text = [normalize(w["word"]) for w in recognized_words]
         
-        print(f"  Suche Stop-Marker in: {words_text[-15:] if len(words_text) > 15 else words_text}")
-        print(f"  Muster für '{language}': {patterns}")
+        print(f"  Suche Stop-Marker 'tango' in: {words_text[-10:] if len(words_text) > 10 else words_text}")
         
-        # Hole die Pattern-Listen
-        first_words = patterns.get("first_words", ["ende"])
-        second_words = patterns.get("second_words", ["nachricht"])
+        def is_tango(word):
+            return any(t in word for t in self.STOP_MARKER_WORDS)
         
-        # Hilfsfunktion: Prüft ob ein Wort einem der Muster entspricht
-        def matches_any(word, patterns_list):
-            for pattern in patterns_list:
-                if word == pattern or pattern in word:
-                    return True
-            return False
+        # Suche nach mindestens 2 aufeinanderfolgenden "tango"-Wörtern
+        for i in range(len(words_text) - 1):
+            if is_tango(words_text[i]) and is_tango(words_text[i + 1]):
+                print(f"  -> Stop-Marker '{words_text[i]}' + '{words_text[i+1]}' bei {recognized_words[i]['start']:.2f}s (Index {i})")
+                return recognized_words[i]["start"], i
         
-        # Mittlere Wörter die zwischen first_word und second_word kommen können
-        middle_words = ["der", "of", "du", "del", "de", "deiner", "da", "danach"]
-        
-        print(f"  Suche nach Stop-Marker in {len(recognized_words)} Wörtern")
-        
-        # STRATEGIE: Suche nach der VOLLSTÄNDIGEN Sequenz "ende" + "der" + "nachricht"
-        # Das ist robuster als einzelne Wörter, da der Inhalt selbst "ende" enthalten könnte
-        
-        # Suche ALLE vollständigen Stop-Marker-Sequenzen und nimm den ERSTEN
-        for i in range(len(recognized_words) - 2):  # Brauche mindestens 3 Wörter
-            word = words_text[i]
-            
-            # Prüfe: first_word + middle_word + second_word (vollständige Sequenz)
-            if matches_any(word, first_words):
-                if i + 1 < len(words_text) and i + 2 < len(words_text):
-                    next_word = words_text[i + 1]
-                    word_after = words_text[i + 2]
-                    
-                    # Vollständige Sequenz: "ende" + "der" + "nachricht"
-                    if next_word in middle_words and matches_any(word_after, second_words):
-                        print(f"  -> VOLLSTÄNDIGER Stop-Marker '{word}' + '{next_word}' + '{word_after}' bei {recognized_words[i]['start']:.2f}s (Index {i})")
-                        return recognized_words[i]["start"], i
-        
-        # Fallback 1: Suche nach "ende" + "der" (2 Wörter) - von HINTEN
-        # Das ist sicherer als von vorne, falls der Inhalt "ende" enthält
-        for i in range(len(recognized_words) - 1, 0, -1):
-            word = words_text[i]
-            if word in middle_words:
-                prev_word = words_text[i - 1]
-                if matches_any(prev_word, first_words):
-                    print(f"  -> Stop-Marker '{prev_word}' + '{word}' gefunden bei {recognized_words[i-1]['start']:.2f}s (Index {i-1})")
-                    return recognized_words[i - 1]["start"], i - 1
-        
-        # Fallback 2: Suche nach second_word alleine (von hinten)
-        for i in range(len(recognized_words) - 1, 0, -1):
-            word = words_text[i]
-            if matches_any(word, second_words):
-                print(f"  -> Stop-Marker second_word '{word}' gefunden bei Index {i}")
-                # Suche nach dem Anfang des Markers ("ende") in den 3 Wörtern davor
-                for j in range(max(0, i - 3), i):
-                    prev_word = words_text[j]
-                    if matches_any(prev_word, first_words):
-                        print(f"  -> Marker-Anfang gefunden bei {recognized_words[j]['start']:.2f}s (Index {j})")
-                        return recognized_words[j]["start"], j
-                # Falls "ende" nicht direkt davor, nutze dieses Wort
-                print(f"  -> Kein Marker-Anfang gefunden, schneide bei '{word}' ({recognized_words[i]['start']:.2f}s)")
+        # Fallback: Einzelnes "tango" in den letzten 30% der Wörter
+        search_start = max(1, int(len(words_text) * 0.7))
+        for i in range(len(words_text) - 1, search_start - 1, -1):
+            if is_tango(words_text[i]):
+                print(f"  -> Einzelnes Stop-Marker-Wort '{words_text[i]}' bei {recognized_words[i]['start']:.2f}s (Index {i}) [Fallback]")
                 return recognized_words[i]["start"], i
         
         print(f"  -> Stop-Marker NICHT gefunden!")
@@ -1030,14 +1149,14 @@ class TextToSpeech:
                 # CTranslate2 ROCm-Pfad-Bug auf NVIDIA umgehen
                 os.environ["CT2_SUPPRESS_ROCM_INIT"] = "1"
                 from faster_whisper import WhisperModel
-                # base Modell mit CTranslate2 - deutlich schneller als OpenAI Whisper
+                # medium Modell mit CTranslate2 - erkennt Stop-Marker zuverlässiger als base
                 try:
-                    self._whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
-                    print("  faster-whisper-Modell (base, CUDA float16) geladen.")
+                    self._whisper_model = WhisperModel("medium", device="cuda", compute_type="float16")
+                    print("  faster-whisper-Modell (medium, CUDA float16) geladen.")
                 except Exception:
                     # Fallback auf CPU falls CUDA-Probleme
-                    self._whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
-                    print("  faster-whisper-Modell (base, CPU int8) geladen.")
+                    self._whisper_model = WhisperModel("medium", device="cpu", compute_type="int8")
+                    print("  faster-whisper-Modell (medium, CPU int8) geladen.")
             
             import torch
             import torchaudio
@@ -1112,18 +1231,12 @@ class TextToSpeech:
                 
                 # Finde das Ende des letzten Wortes VOR dem Stop-Marker
                 # WICHTIG: Überspringe Wörter die auch zum Stop-Marker gehören könnten
-                # (z.B. wenn Whisper "Ende der Nachricht" doppelt erkennt)
                 import re
                 def normalize(w):
                     return re.sub(r'[^\w]', '', w.lower())
                 
-                patterns = self.STOP_MARKER_PATTERNS.get(language, self.STOP_MARKER_PATTERNS["en"])
-                stop_words = set()
-                for p in patterns:
-                    for word in p.split():
-                        stop_words.add(normalize(word))
-                # Füge auch "der", "of" etc. hinzu
-                stop_words.update(["der", "of", "du", "del", "de", "la", "le"])
+                # Stop-Marker-Wörter die übersprungen werden sollen
+                stop_words = set(self.STOP_MARKER_WORDS)
                 
                 # Suche rückwärts nach dem ersten Wort das NICHT zum Stop-Marker gehört
                 last_content_index = stop_marker_index - 1

@@ -347,14 +347,19 @@ ipcMain.handle('toggle-mini-position', async () => {
     const display = screen.getPrimaryDisplay();
     const workArea = display.workAreaSize;
     const workAreaPos = display.workArea;
-    const bounds = mainWindow.getBounds();
+    
+    // Feste Mini-Größe erzwingen, damit das Fenster nicht wächst
+    const miniWidth = 850;
+    const miniHeight = 120;
+    mainWindow.setSize(miniWidth, miniHeight);
     
     miniModePosition = miniModePosition === 'top' ? 'bottom' : 'top';
+    const x = workAreaPos.x + Math.round((workArea.width - miniWidth) / 2);
     const y = miniModePosition === 'top' 
         ? workAreaPos.y + 5 
-        : workAreaPos.y + workArea.height - bounds.height - 5;
+        : workAreaPos.y + workArea.height - miniHeight - 5;
     
-    mainWindow.setPosition(bounds.x, y);
+    mainWindow.setPosition(x, y);
     
     return miniModePosition;
 });

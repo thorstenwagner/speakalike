@@ -166,7 +166,9 @@ async def get_status():
         **current_status,
         "gpu_available": tts.gpu_available if tts else False,
         "voice_loaded": tts.current_voice_name if tts else None,
-        "tts_model": tts.current_tts_model_id if tts else "xtts_v2"
+        "tts_model": tts.current_tts_model_id if tts else "xtts_v2",
+        "tts_provider": tts.tts_provider if tts else "coqui",
+        "elevenlabs_configured": bool(tts.elevenlabs_api_key) if tts else False
     }
 
 
@@ -1394,7 +1396,15 @@ async def get_settings():
         "speed": tts.speed,
         "top_k": tts.top_k,
         "top_p": tts.top_p,
-        "repetition_penalty": tts.repetition_penalty
+        "repetition_penalty": tts.repetition_penalty,
+        "tts_provider": tts.tts_provider,
+        "elevenlabs_configured": bool(tts.elevenlabs_api_key),
+        "elevenlabs_voice_id": tts.elevenlabs_voice_id,
+        "elevenlabs_model_id": tts.elevenlabs_model_id,
+        "elevenlabs_stability": tts.elevenlabs_stability,
+        "elevenlabs_similarity_boost": tts.elevenlabs_similarity_boost,
+        "elevenlabs_style": tts.elevenlabs_style,
+        "elevenlabs_use_speaker_boost": tts.elevenlabs_use_speaker_boost
     }
 
 
@@ -1418,6 +1428,134 @@ async def update_settings(settings: dict):
         tts.repetition_penalty = penalty
     
     return {"success": True}
+
+
+# === ElevenLabs Provider ===
+
+class ElevenLabsConfigRequest(BaseModel):
+    api_key: Optional[str] = None
+    voice_id: Optional[str] = None
+    model_id: Optional[str] = None
+    stability: Optional[float] = None
+    similarity_boost: Optional[float] = None
+    style: Optional[float] = None
+    use_speaker_boost: Optional[bool] = None
+
+
+class ProviderSwitchRequest(BaseModel):
+    provider: str  # "elevenlabs" oder "coqui"
+
+
+@app.get("/api/tts/provider")
+async def get_provider():
+    """Gibt den aktuellen TTS-Provider zurück"""
+    if not tts:
+        return {"provider": "coqui", "elevenlabs_configured": False}
+    
+    return {
+        "provider": tts.tts_provider,
+        "elevenlabs_configured": bool(tts.elevenlabs_api_key),
+        "elevenlabs_voice_id": tts.elevenlabs_voice_id,
+        "elevenlabs_model_id": tts.elevenlabs_model_id
+    }
+
+
+@app.post("/api/tts/provider/switch")
+async def switch_provider(request: ProviderSwitchRequest):
+    """Wechselt den TTS-Provider"""
+    if request.provider not in ("elevenlabs", "coqui"):
+        raise HTTPException(status_code=400, detail="Ungültiger Provider. Erlaubt: 'elevenlabs', 'coqui'")
+    
+    if tts:
+        if request.provider == "elevenlabs" and not tts.elevenlabs_api_key:
+            raise HTTPException(status_code=400, detail="ElevenLabs API-Key nicht konfiguriert")
+        success = tts.set_tts_provider(request.provider)
+        return {"success": success, "provider": tts.tts_provider}
+    
+    # TTS noch nicht geladen — Provider in Config speichern
+    try:
+        import json
+        from main import TextToSpeech
+        config_file = TextToSpeech.ELEVENLABS_CONFIG_FILE
+        config = {}
+        if config_file.exists():
+            config = json.loads(config_file.read_text(encoding='utf-8'))
+        config['provider'] = request.provider
+        config_file.write_text(json.dumps(config), encoding='utf-8')
+        return {"success": True, "provider": request.provider}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/elevenlabs/config")
+async def set_elevenlabs_config(request: ElevenLabsConfigRequest):
+    """Konfiguriert ElevenLabs API-Key, Voice-ID und Modell"""
+    if tts:
+        success = tts.set_elevenlabs_config(
+            api_key=request.api_key,
+            voice_id=request.voice_id,
+            model_id=request.model_id,
+            stability=request.stability,
+            similarity_boost=request.similarity_boost,
+            style=request.style,
+            use_speaker_boost=request.use_speaker_boost
+        )
+        return {"success": success}
+    
+    # TTS noch nicht geladen — Config direkt auf Disk speichern
+    try:
+        import json
+        from main import TextToSpeech
+        config_file = TextToSpeech.ELEVENLABS_CONFIG_FILE
+        config = {}
+        if config_file.exists():
+            config = json.loads(config_file.read_text(encoding='utf-8'))
+        if request.api_key is not None:
+            config['api_key'] = request.api_key
+        if request.voice_id is not None:
+            config['voice_id'] = request.voice_id
+        if request.model_id is not None:
+            config['model_id'] = request.model_id
+        if request.stability is not None:
+            config['stability'] = request.stability
+        if request.similarity_boost is not None:
+            config['similarity_boost'] = request.similarity_boost
+        if request.style is not None:
+            config['style'] = request.style
+        if request.use_speaker_boost is not None:
+            config['use_speaker_boost'] = request.use_speaker_boost
+        config_file.write_text(json.dumps(config), encoding='utf-8')
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/elevenlabs/voices")
+async def get_elevenlabs_voices():
+    """Listet alle ElevenLabs-Stimmen auf"""
+    if tts:
+        voices = tts.list_elevenlabs_voices()
+        return {"voices": voices, "current_voice_id": tts.elevenlabs_voice_id}
+    
+    # TTS noch nicht geladen — direkt ElevenLabs SDK nutzen
+    try:
+        import json
+        from main import TextToSpeech
+        config_file = TextToSpeech.ELEVENLABS_CONFIG_FILE
+        if not config_file.exists():
+            return {"voices": [], "current_voice_id": None}
+        config = json.loads(config_file.read_text(encoding='utf-8'))
+        api_key = config.get('api_key')
+        if not api_key:
+            return {"voices": [], "current_voice_id": None}
+        
+        from elevenlabs.client import ElevenLabs
+        client = ElevenLabs(api_key=api_key)
+        response = client.voices.search()
+        voices = [{'voice_id': v.voice_id, 'name': v.name, 'category': getattr(v, 'category', 'unknown')} for v in response.voices]
+        return {"voices": voices, "current_voice_id": config.get('voice_id')}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # === Main ===

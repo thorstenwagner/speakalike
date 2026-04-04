@@ -20,6 +20,7 @@
                     <span class="status-dot"></span>
                     <span class="status-text">Verbinde...</span>
                 </div>
+                <button class="btn btn-icon" id="toggleInputPositionBtn" title="Texteingabe oben/unten">⬇️</button>
                 <button class="btn btn-icon" id="miniModeBtn" title="Mini-Modus">📌</button>
                 <button class="btn btn-icon" id="settingsBtn" title="Einstellungen">⚙️</button>
             </div>
@@ -175,7 +176,72 @@
                 <button class="btn btn-icon modal-close" id="closeSettingsBtn">✕</button>
             </div>
             <div class="modal-body settings-body">
-                <div class="settings-model-voice-row">
+                <div class="setting-group">
+                    <label>🔌 TTS-Provider</label>
+                    <div class="device-select-row">
+                        <select class="select" id="ttsProviderSelect">
+                            <option value="elevenlabs">☁️ ElevenLabs (Cloud)</option>
+                            <option value="coqui">💻 Coqui XTTS (Lokal)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="elevenlabsSettings" class="settings-elevenlabs">
+                    <div class="settings-model-voice-row">
+                        <div class="setting-group">
+                            <label>🔑 ElevenLabs API Key</label>
+                            <input type="password" class="input" id="elevenlabsApiKeyInput" placeholder="sk_...">
+                        </div>
+                        <div class="setting-group">
+                            <label>🎤 ElevenLabs Stimme</label>
+                            <div class="device-select-row">
+                                <select class="select" id="elevenlabsVoiceSelect">
+                                    <option value="">Stimme wählen...</option>
+                                </select>
+                                <button class="btn btn-small btn-icon" id="refreshElevenVoicesBtn" title="Stimmen laden">🔄</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label>🧠 ElevenLabs Modell</label>
+                        <select class="select" id="elevenlabsModelSelect">
+                            <option value="eleven_multilingual_v2">Multilingual v2 (Standard)</option>
+                            <option value="eleven_v3">Eleven v3 (Kreativ)</option>
+                            <option value="eleven_flash_v2_5">Flash v2.5 (Schnell)</option>
+                            <option value="eleven_turbo_v2_5">Turbo v2.5 (Balance)</option>
+                        </select>
+                    </div>
+                    <div class="settings-sliders">
+                        <div class="setting-group-compact">
+                            <label>Stabilität</label>
+                            <div class="slider-row">
+                                <input type="range" id="elevenStabilitySlider" min="0" max="1" step="0.05" value="0.5">
+                                <span id="elevenStabilityValue" class="slider-value">0.50</span>
+                            </div>
+                        </div>
+                        <div class="setting-group-compact">
+                            <label>Ähnlichkeit</label>
+                            <div class="slider-row">
+                                <input type="range" id="elevenSimilaritySlider" min="0" max="1" step="0.05" value="0.75">
+                                <span id="elevenSimilarityValue" class="slider-value">0.75</span>
+                            </div>
+                        </div>
+                        <div class="setting-group-compact">
+                            <label>Stilübertreibung</label>
+                            <div class="slider-row">
+                                <input type="range" id="elevenStyleSlider" min="0" max="1" step="0.05" value="0.0">
+                                <span id="elevenStyleValue" class="slider-value">0.00</span>
+                            </div>
+                        </div>
+                        <div class="setting-group-compact">
+                            <label>Sprachüberschreibung</label>
+                            <div class="slider-row">
+                                <input type="checkbox" id="elevenSpeakerBoostCheckbox">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="coquiSettings">
+                    <div class="settings-model-voice-row">
                     <div class="setting-group">
                         <label>🤖 TTS-Modell</label>
                         <select class="select" id="ttsModelSelect">
@@ -195,25 +261,6 @@
                             <button class="btn btn-small btn-icon" id="newVoiceBtn" title="Neue Stimme">+</button>
                             <button class="btn btn-small btn-icon btn-danger" id="deleteVoiceBtn" title="Stimme löschen">🗑</button>
                         </div>
-                    </div>
-                </div>
-                <div class="setting-group">
-                    <label>🔊 Ausgabegerät</label>
-                    <div class="device-select-row">
-                        <select class="select" id="audioDeviceSelect">
-                            <option value="-1">Standard</option>
-                        </select>
-                        <button class="btn btn-small btn-icon" id="refreshDevicesBtn" title="Geräte aktualisieren">🔄</button>
-                    </div>
-                </div>
-                <div class="setting-group">
-                    <label>🎤 Mikrofon-Ausgabe (für Telefonie)</label>
-                    <p class="muted" style="font-size: 0.8rem; margin-bottom: 8px;">Wähle ein virtuelles Audiokabel (z.B. VB-Cable) um Sprachnachrichten als Mikrofon-Eingang zu nutzen.</p>
-                    <div class="device-select-row">
-                        <select class="select" id="micDeviceSelect">
-                            <option value="-1">Nicht konfiguriert</option>
-                        </select>
-                        <button class="btn btn-small" id="micEchoTestBtn" title="Testton über das virtuelle Mikrofon abspielen">🔊 Test</button>
                     </div>
                 </div>
                 <div class="settings-sliders">
@@ -237,6 +284,26 @@
                             <input type="range" id="repetitionSlider" min="1.0" max="1.9" step="0.1" value="1.5">
                             <span id="repetitionValue">1.5</span>
                         </div>
+                    </div>
+                </div>
+                </div><!-- /coquiSettings -->
+                <div class="setting-group">
+                    <label>🔊 Ausgabegerät</label>
+                    <div class="device-select-row">
+                        <select class="select" id="audioDeviceSelect">
+                            <option value="-1">Standard</option>
+                        </select>
+                        <button class="btn btn-small btn-icon" id="refreshDevicesBtn" title="Geräte aktualisieren">🔄</button>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>🎤 Mikrofon-Ausgabe (für Telefonie)</label>
+                    <p class="muted" style="font-size: 0.8rem; margin-bottom: 8px;">Wähle ein virtuelles Audiokabel (z.B. VB-Cable) um Sprachnachrichten als Mikrofon-Eingang zu nutzen.</p>
+                    <div class="device-select-row">
+                        <select class="select" id="micDeviceSelect">
+                            <option value="-1">Nicht konfiguriert</option>
+                        </select>
+                        <button class="btn btn-small" id="micEchoTestBtn" title="Testton über das virtuelle Mikrofon abspielen">🔊 Test</button>
                     </div>
                 </div>
                 <div class="settings-ai-row">

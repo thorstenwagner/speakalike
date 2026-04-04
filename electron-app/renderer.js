@@ -142,6 +142,22 @@ const elements = {
     aiModelSelect: document.getElementById('aiModelSelect'),
     aiContextInput: document.getElementById('aiContextInput'),
     
+    // ElevenLabs
+    ttsProviderSelect: document.getElementById('ttsProviderSelect'),
+    elevenlabsSettings: document.getElementById('elevenlabsSettings'),
+    coquiSettings: document.getElementById('coquiSettings'),
+    elevenlabsApiKeyInput: document.getElementById('elevenlabsApiKeyInput'),
+    elevenlabsVoiceSelect: document.getElementById('elevenlabsVoiceSelect'),
+    elevenlabsModelSelect: document.getElementById('elevenlabsModelSelect'),
+    refreshElevenVoicesBtn: document.getElementById('refreshElevenVoicesBtn'),
+    elevenStabilitySlider: document.getElementById('elevenStabilitySlider'),
+    elevenStabilityValue: document.getElementById('elevenStabilityValue'),
+    elevenSimilaritySlider: document.getElementById('elevenSimilaritySlider'),
+    elevenSimilarityValue: document.getElementById('elevenSimilarityValue'),
+    elevenStyleSlider: document.getElementById('elevenStyleSlider'),
+    elevenStyleValue: document.getElementById('elevenStyleValue'),
+    elevenSpeakerBoostCheckbox: document.getElementById('elevenSpeakerBoostCheckbox'),
+    
     // AI Confirm Modal
     aiConfirmModal: document.getElementById('aiConfirmModal'),
     closeAiConfirmBtn: document.getElementById('closeAiConfirmBtn'),
@@ -181,7 +197,8 @@ const elements = {
 
     miniRepeatBtn: document.getElementById('miniRepeatBtn'),
     miniPositionBtn: document.getElementById('miniPositionBtn'),
-    miniExitBtn: document.getElementById('miniExitBtn')
+    miniExitBtn: document.getElementById('miniExitBtn'),
+    toggleInputPositionBtn: document.getElementById('toggleInputPositionBtn')
 };
 
 // === Tag Filter State ===
@@ -2081,6 +2098,42 @@ async function loadSettings() {
         const savedModel = localStorage.getItem('claudeModel') || 'claude-haiku-4-5-20251001';
         elements.aiModelSelect.value = savedModel;
         
+        // ElevenLabs Provider & Settings laden
+        const provider = settings.tts_provider || 'coqui';
+        elements.ttsProviderSelect.value = provider;
+        updateProviderUI(provider);
+        
+        if (settings.elevenlabs_model_id) {
+            elements.elevenlabsModelSelect.value = settings.elevenlabs_model_id;
+        }
+        // ElevenLabs Voice Settings laden
+        const stability = settings.elevenlabs_stability ?? 0.5;
+        const similarity = settings.elevenlabs_similarity_boost ?? 0.75;
+        const style = settings.elevenlabs_style ?? 0.0;
+        const speakerBoost = settings.elevenlabs_use_speaker_boost ?? false;
+        elements.elevenStabilitySlider.value = stability;
+        elements.elevenStabilityValue.textContent = stability.toFixed(2);
+        elements.elevenSimilaritySlider.value = similarity;
+        elements.elevenSimilarityValue.textContent = similarity.toFixed(2);
+        elements.elevenStyleSlider.value = style;
+        elements.elevenStyleValue.textContent = style.toFixed(2);
+        elements.elevenSpeakerBoostCheckbox.checked = speakerBoost;
+        // API Key aus localStorage laden
+        const savedElevenKey = localStorage.getItem('elevenlabsApiKey') || '';
+        elements.elevenlabsApiKeyInput.value = savedElevenKey;
+
+        // ElevenLabs Stimmen automatisch laden wenn konfiguriert
+        if (savedElevenKey || settings.elevenlabs_configured) {
+            await loadElevenLabsVoices();
+        } else if (settings.elevenlabs_voice_id) {
+            // Fallback: Temporäre Option setzen wenn kein API Key vorhanden
+            const opt = document.createElement('option');
+            opt.value = settings.elevenlabs_voice_id;
+            opt.textContent = settings.elevenlabs_voice_id;
+            opt.selected = true;
+            elements.elevenlabsVoiceSelect.appendChild(opt);
+        }
+        
         // Audio-Geräte laden
         await loadAudioDevices();
     } catch (error) {
@@ -2120,10 +2173,87 @@ async function saveSettings() {
         }
         localStorage.setItem('claudeModel', elements.aiModelSelect.value);
         
+        // ElevenLabs Konfiguration speichern
+        const elevenApiKey = elements.elevenlabsApiKeyInput.value.trim();
+        if (elevenApiKey) {
+            localStorage.setItem('elevenlabsApiKey', elevenApiKey);
+        } else {
+            localStorage.removeItem('elevenlabsApiKey');
+        }
+        
+        // ElevenLabs Config an Backend senden
+        await api('/api/elevenlabs/config', {
+            method: 'POST',
+            body: JSON.stringify({
+                api_key: elevenApiKey || null,
+                voice_id: elements.elevenlabsVoiceSelect.value || null,
+                model_id: elements.elevenlabsModelSelect.value,
+                stability: parseFloat(elements.elevenStabilitySlider.value),
+                similarity_boost: parseFloat(elements.elevenSimilaritySlider.value),
+                style: parseFloat(elements.elevenStyleSlider.value),
+                use_speaker_boost: elements.elevenSpeakerBoostCheckbox.checked
+            })
+        });
+        
+        // Provider wechseln
+        const provider = elements.ttsProviderSelect.value;
+        await api('/api/tts/provider/switch', {
+            method: 'POST',
+            body: JSON.stringify({ provider: provider })
+        });
+        
         closeSettingsModal();
         showToast('Einstellungen gespeichert', 'success');
     } catch (error) {
         alert(`Fehler: ${error.message}`);
+    }
+}
+
+// === ElevenLabs Functions ===
+
+function updateProviderUI(provider) {
+    if (provider === 'elevenlabs') {
+        elements.elevenlabsSettings.classList.remove('hidden');
+        elements.coquiSettings.classList.add('hidden');
+    } else {
+        elements.elevenlabsSettings.classList.add('hidden');
+        elements.coquiSettings.classList.remove('hidden');
+    }
+}
+
+async function loadElevenLabsVoices() {
+    try {
+        // Erst API Key ans Backend senden, falls noch nicht gespeichert
+        const apiKey = elements.elevenlabsApiKeyInput.value.trim();
+        if (apiKey) {
+            await api('/api/elevenlabs/config', {
+                method: 'POST',
+                body: JSON.stringify({ api_key: apiKey })
+            });
+        }
+        
+        const result = await api('/api/elevenlabs/voices');
+        const currentVoiceId = result.current_voice_id;
+        
+        elements.elevenlabsVoiceSelect.innerHTML = '<option value="">Stimme wählen...</option>';
+        for (const voice of result.voices) {
+            const option = document.createElement('option');
+            option.value = voice.voice_id;
+            option.textContent = `${voice.name} (${voice.category})`;
+            if (voice.voice_id === currentVoiceId) {
+                option.selected = true;
+            }
+            elements.elevenlabsVoiceSelect.appendChild(option);
+        }
+        
+        if (result.voices.length > 0) {
+            showToast(`${result.voices.length} Stimmen geladen`, 'success');
+        } else {
+            showToast('Keine Stimmen gefunden. API Key korrekt?', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to load ElevenLabs voices:', error);
+        showToast('Fehler beim Laden der Stimmen', 'error');
     }
 }
 
@@ -2680,6 +2810,29 @@ function setupEventListeners() {
         });
     }
     
+    // TTS Provider select
+    if (elements.ttsProviderSelect) {
+        elements.ttsProviderSelect.addEventListener('change', (e) => {
+            updateProviderUI(e.target.value);
+        });
+    }
+    
+    // ElevenLabs Voices refresh
+    if (elements.refreshElevenVoicesBtn) {
+        elements.refreshElevenVoicesBtn.addEventListener('click', loadElevenLabsVoices);
+    }
+    
+    // ElevenLabs Slider-Werte anzeigen
+    elements.elevenStabilitySlider.addEventListener('input', (e) => {
+        elements.elevenStabilityValue.textContent = parseFloat(e.target.value).toFixed(2);
+    });
+    elements.elevenSimilaritySlider.addEventListener('input', (e) => {
+        elements.elevenSimilarityValue.textContent = parseFloat(e.target.value).toFixed(2);
+    });
+    elements.elevenStyleSlider.addEventListener('input', (e) => {
+        elements.elevenStyleValue.textContent = parseFloat(e.target.value).toFixed(2);
+    });
+    
     // Voice select
     elements.voiceSelect.addEventListener('change', (e) => {
         loadVoiceModel(e.target.value);
@@ -2941,6 +3094,22 @@ function setupEventListeners() {
     if (elements.miniModeBtn) {
         elements.miniModeBtn.addEventListener('click', toggleMiniMode);
     }
+    
+    // Texteingabe Position toggle (oben/unten)
+    if (elements.toggleInputPositionBtn) {
+        elements.toggleInputPositionBtn.addEventListener('click', () => {
+            const main = document.querySelector('.main');
+            const isBottom = main.classList.toggle('input-bottom');
+            elements.toggleInputPositionBtn.textContent = isBottom ? '⬆️' : '⬇️';
+            localStorage.setItem('inputPosition', isBottom ? 'bottom' : 'top');
+        });
+        // Gespeicherte Position wiederherstellen
+        if (localStorage.getItem('inputPosition') === 'bottom') {
+            document.querySelector('.main').classList.add('input-bottom');
+            elements.toggleInputPositionBtn.textContent = '⬆️';
+        }
+    }
+    
     if (elements.miniRepeatBtn) {
         elements.miniRepeatBtn.addEventListener('click', repeatLastMessage);
     }

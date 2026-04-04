@@ -34,6 +34,11 @@
     box-sizing: border-box;
 }
 
+html, body {
+    height: 100vh;
+    overflow: hidden;
+}
+
 body {
     font-family: var(--font-family);
     background: var(--color-bg);
@@ -43,9 +48,10 @@ body {
 
 /* App Layout */
 .app {
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 /* Header - Kompakt */
@@ -120,6 +126,20 @@ body {
     margin: 0 auto;
     width: 100%;
     overflow: hidden;
+}
+
+/* Input-Bereich unten: verschiebt main-section ans Ende */
+.main.input-bottom .main-section {
+    order: 99;
+}
+
+.main.input-bottom .global-search-bar {
+    order: 1;
+}
+
+.main.input-bottom .bottom-row,
+.main.input-bottom .tag-browser-row {
+    order: 2;
 }
 
 /* Cards */
@@ -549,7 +569,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
-    overflow-y: auto;
+    overflow: hidden;
     min-height: 100px;
 }
 
@@ -575,7 +595,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
-    overflow-y: auto;
+    overflow: hidden;
     min-height: 100px;
 }
 
@@ -607,7 +627,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
-    overflow-y: auto;
+    overflow: hidden;
     min-height: 100px;
     margin-bottom: var(--spacing-sm);
 }
@@ -894,7 +914,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 .catalog-preview-item {
@@ -1360,6 +1380,15 @@ body {
     margin-bottom: 0;
     min-width: 0;
     overflow: hidden;
+}
+
+.settings-elevenlabs {
+    margin-bottom: var(--spacing-md);
+}
+
+#coquiSettings.hidden,
+#elevenlabsSettings.hidden {
+    display: none;
 }
 
 .settings-model-voice-row {
