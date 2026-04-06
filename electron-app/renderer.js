@@ -2382,8 +2382,13 @@ async function toggleMiniMode() {
         if (isMiniMode) {
             document.body.classList.add('mini-mode');
             updateMiniPositionUI(currentMiniPosition);
+            // Halbtransparent wenn Textfeld nicht fokussiert
+            if (document.activeElement !== elements.textInput) {
+                window.electronAPI.setOpacity(0.3);
+            }
         } else {
             document.body.classList.remove('mini-mode', 'mini-top', 'mini-bottom');
+            window.electronAPI.setOpacity(1);
         }
     } catch (error) {
         console.error('Fehler beim Mini-Modus Toggle:', error);
@@ -2829,6 +2834,18 @@ function setupEventListeners() {
 
     // Privacy overlay bei Texteingabe aktualisieren
     elements.textInput.addEventListener('input', updatePrivacyOverlay);
+
+    // Mini-Modus Transparenz: fokussiert = opak, unfokussiert = halbtransparent
+    elements.textInput.addEventListener('focus', () => {
+        if (document.body.classList.contains('mini-mode')) {
+            window.electronAPI.setOpacity(1);
+        }
+    });
+    elements.textInput.addEventListener('blur', () => {
+        if (document.body.classList.contains('mini-mode')) {
+            window.electronAPI.setOpacity(0.3);
+        }
+    });
     
     // Context input - live save to localStorage
     elements.aiContextInput.value = localStorage.getItem('aiContext') || '';

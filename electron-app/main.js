@@ -369,3 +369,9 @@ ipcMain.handle('get-mini-mode-status', async () => {
     return { isMiniMode, position: miniModePosition };
 });
 
+ipcMain.handle('set-opacity', async (event, opacity) => {
+    if (mainWindow) {
+        mainWindow.setOpacity(Math.max(0.1, Math.min(1, opacity)));
+    }
+});
+
