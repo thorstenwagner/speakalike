@@ -2,6 +2,9 @@
  * SpeakAlike Renderer - Frontend Logic
  */
 
+// Theme sofort anwenden (vor Rendering)
+document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');
+
 // API_URL kommt vom preload.js als window.API_URL
 
 // State
@@ -143,6 +146,7 @@ const elements = {
 
     apiKeyInput: document.getElementById('apiKeyInput'),
     aiModelSelect: document.getElementById('aiModelSelect'),
+    themeSelect: document.getElementById('themeSelect'),
     aiContextInput: document.getElementById('aiContextInput'),
     
     // ElevenLabs
@@ -2102,6 +2106,10 @@ async function loadSettings() {
         elements.apiKeyInput.value = savedApiKey;
         const savedModel = localStorage.getItem('claudeModel') || 'claude-haiku-4-5-20251001';
         elements.aiModelSelect.value = savedModel;
+
+        // Theme laden
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        elements.themeSelect.value = savedTheme;
         
         // ElevenLabs Provider & Settings laden
         const provider = settings.tts_provider || 'coqui';
@@ -2177,6 +2185,11 @@ async function saveSettings() {
             localStorage.removeItem('claudeApiKey');
         }
         localStorage.setItem('claudeModel', elements.aiModelSelect.value);
+
+        // Theme speichern und anwenden
+        const theme = elements.themeSelect.value;
+        localStorage.setItem('theme', theme);
+        document.documentElement.setAttribute('data-theme', theme);
         
         // ElevenLabs Konfiguration speichern
         const elevenApiKey = elements.elevenlabsApiKeyInput.value.trim();
@@ -2849,6 +2862,14 @@ function setupEventListeners() {
     
     // Context input - live save to localStorage
     elements.aiContextInput.value = localStorage.getItem('aiContext') || '';
+
+    // Theme live-Wechsel
+    elements.themeSelect.addEventListener('change', () => {
+        const theme = elements.themeSelect.value;
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+    });
+
     elements.aiContextInput.addEventListener('input', () => {
         const ctx = elements.aiContextInput.value.trim();
         if (ctx) {

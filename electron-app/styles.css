@@ -1,7 +1,9 @@
 /* SpeakAlike Electron App Styles */
 
-:root {
+/* Light Theme */
+:root, [data-theme="light"] {
     --color-bg: #f5f5f5;
+    --color-bg-secondary: #e5e7eb;
     --color-white: #ffffff;
     --color-primary: #2563eb;
     --color-primary-hover: #1d4ed8;
@@ -26,6 +28,31 @@
     --spacing-md: 16px;
     --spacing-lg: 24px;
     --spacing-xl: 32px;
+}
+
+/* Dark Theme (Default) */
+[data-theme="dark"] {
+    --color-bg: #1a1b1e;
+    --color-bg-secondary: #2b2d31;
+    --color-white: #2b2d31;
+    --color-primary: #5b8def;
+    --color-primary-hover: #4a7de0;
+    --color-success: #2ecc71;
+    --color-success-hover: #27ae60;
+    --color-danger: #e74c3c;
+    --color-danger-hover: #c0392b;
+    --color-text: #e0e0e0;
+    --color-text-muted: #9ca3af;
+    --color-border: #3f4147;
+    --color-tag: #2d3250;
+    --color-tag-text: #8b9cf7;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+[data-theme="dark"] select option {
+    background: var(--color-white);
+    color: var(--color-text);
 }
 
 * {
@@ -296,6 +323,8 @@ body {
     font-size: 1rem;
     resize: vertical;
     transition: border-color 0.2s;
+    background: var(--color-white);
+    color: var(--color-text);
 }
 
 .text-input:focus {
@@ -347,6 +376,8 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
+    background: var(--color-bg);
+    color: var(--color-text);
 }
 
 .btn:disabled {
@@ -431,6 +462,7 @@ body {
     font-family: inherit;
     font-size: 1rem;
     background: var(--color-white);
+    color: var(--color-text);
 }
 
 .input:focus, .select:focus {
