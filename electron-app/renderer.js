@@ -12,6 +12,7 @@ let catalogTags = [];
 let selectedFiles = [];
 let currentTTSModel = 'xtts_v2';
 let availableTTSModels = {};
+let privacyMode = false;
 
 // DOM Elements
 const elements = {
@@ -30,6 +31,8 @@ const elements = {
     
     // Text
     textInput: document.getElementById('textInput'),
+    privacyLastWord: document.getElementById('privacyLastWord'),
+    privacyIndicator: document.getElementById('privacyIndicator'),
     languageSelect: document.getElementById('languageSelect'),
     charCount: document.getElementById('charCount'),
     speakBtn: document.getElementById('speakBtn'),
@@ -569,6 +572,7 @@ async function speak() {
             
             // Textfeld leeren
             elements.textInput.value = '';
+            updatePrivacyOverlay();
             if (elements.charCount) {
                 elements.charCount.textContent = '0 Zeichen';
             }
@@ -617,6 +621,7 @@ async function generateOnly() {
             
             // Textfeld leeren
             elements.textInput.value = '';
+            updatePrivacyOverlay();
             if (elements.charCount) {
                 elements.charCount.textContent = '0 Zeichen';
             }
@@ -2673,6 +2678,36 @@ function playSignalTone() {
     }
 }
 
+// === Privacy Mode ===
+function togglePrivacyMode() {
+    privacyMode = !privacyMode;
+    const wrapper = elements.textInput.closest('.text-input-wrapper');
+    if (privacyMode) {
+        wrapper.classList.add('privacy-active');
+        updatePrivacyOverlay();
+        showToast('🔒 Privacy-Modus aktiviert', 'info');
+    } else {
+        wrapper.classList.remove('privacy-active');
+        elements.privacyLastWord.textContent = '';
+        elements.privacyLastWord.classList.remove('has-word');
+        showToast('🔓 Privacy-Modus deaktiviert', 'info');
+    }
+}
+
+function updatePrivacyOverlay() {
+    if (!privacyMode) return;
+    const text = elements.textInput.value;
+    if (!text || !text.trim()) {
+        elements.privacyLastWord.textContent = '';
+        elements.privacyLastWord.classList.remove('has-word');
+        return;
+    }
+    const words = text.trimEnd().split(/\s+/);
+    const lastWord = words[words.length - 1] || '';
+    elements.privacyLastWord.textContent = lastWord;
+    elements.privacyLastWord.classList.toggle('has-word', !!lastWord);
+}
+
 // === Event Listeners ===
 
 // Tastatur API URL
@@ -2785,8 +2820,15 @@ function setupEventListeners() {
             // Strg+D = Signalton
             e.preventDefault();
             playSignalTone();
+        } else if (e.key === 'p' && e.ctrlKey) {
+            // Strg+P = Privacy-Modus
+            e.preventDefault();
+            togglePrivacyMode();
         }
     });
+
+    // Privacy overlay bei Texteingabe aktualisieren
+    elements.textInput.addEventListener('input', updatePrivacyOverlay);
     
     // Context input - live save to localStorage
     elements.aiContextInput.value = localStorage.getItem('aiContext') || '';

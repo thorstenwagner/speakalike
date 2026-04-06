@@ -56,12 +56,16 @@
                 
                 <!-- Text Input -->
                 <div class="text-row">
-                    <textarea 
-                        class="text-input" 
-                        id="textInput" 
-                        placeholder="Strg+Enter=KI | Strg+L=Sprache | Strg+D=Signal"
-                        rows="2"
-                    ></textarea>
+                    <div class="text-input-wrapper">
+                        <textarea 
+                            class="text-input" 
+                            id="textInput" 
+                            placeholder="Strg+Enter=KI | Strg+L=Sprache | Strg+D=Signal | Strg+P=Privat"
+                            rows="2"
+                        ></textarea>
+                        <div class="privacy-last-word" id="privacyLastWord"></div>
+                        <span class="privacy-indicator" id="privacyIndicator">🔒</span>
+                    </div>
                     <button class="btn btn-success btn-speak" id="speakBtn">
                         🔊 <span class="hide-in-mini">Sprechen</span>
                     </button>
