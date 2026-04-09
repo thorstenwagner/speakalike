@@ -16,6 +16,9 @@ let selectedFiles = [];
 let currentTTSModel = 'xtts_v2';
 let availableTTSModels = {};
 let privacyMode = false;
+let _suggestTimer = null;
+let _suggestions = [];
+let _suggestIndex = -1;
 
 // DOM Elements
 const elements = {
@@ -34,6 +37,7 @@ const elements = {
     
     // Text
     textInput: document.getElementById('textInput'),
+    suggestionsDropdown: document.getElementById('suggestionsDropdown'),
     privacyLastWord: document.getElementById('privacyLastWord'),
     privacyIndicator: document.getElementById('privacyIndicator'),
     languageSelect: document.getElementById('languageSelect'),
@@ -524,6 +528,7 @@ function showAiConfirmModal(original, completed) {
 }
 
 async function speak() {
+    hideSuggestions();
     let text = elements.textInput.value.trim();
     if (!text) {
         showToast('Bitte geben Sie einen Text ein.', 'error');
@@ -2397,7 +2402,7 @@ async function toggleMiniMode() {
             updateMiniPositionUI(currentMiniPosition);
             // Halbtransparent wenn Textfeld nicht fokussiert
             if (document.activeElement !== elements.textInput) {
-                window.electronAPI.setOpacity(0.3);
+                window.electronAPI.setOpacity(0.4);
             }
         } else {
             document.body.classList.remove('mini-mode', 'mini-top', 'mini-bottom');
@@ -2697,6 +2702,53 @@ function playSignalTone() {
 }
 
 // === Privacy Mode ===
+// === Suggestions ===
+async function fetchSuggestions(query) {
+    try {
+        const res = await fetch(`${window.API_URL}/api/history/suggest?query=${encodeURIComponent(query)}&limit=3`);
+        if (!res.ok) return;
+        _suggestions = await res.json();
+        _suggestIndex = -1;
+        renderSuggestions();
+    } catch (e) {
+        // Netzwerkfehler ignorieren
+    }
+}
+
+function renderSuggestions() {
+    const dd = elements.suggestionsDropdown;
+    if (!_suggestions.length) {
+        hideSuggestions();
+        return;
+    }
+    dd.innerHTML = '<div class="suggestion-hint"><span>Tab ↹ wechseln · Enter ↵ übernehmen · Esc schließen</span></div>' +
+        _suggestions.map((s, i) =>
+            `<div class="suggestion-item${i === _suggestIndex ? ' active' : ''}" data-index="${i}">${escapeHtml(s.text)}</div>`
+        ).join('');
+    dd.classList.add('visible');
+
+    dd.querySelectorAll('.suggestion-item').forEach(el => {
+        el.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const idx = parseInt(el.dataset.index);
+            elements.textInput.value = _suggestions[idx].text;
+            hideSuggestions();
+            if (elements.charCount) {
+                elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
+            }
+            updatePrivacyOverlay();
+            elements.textInput.focus();
+        });
+    });
+}
+
+function hideSuggestions() {
+    _suggestions = [];
+    _suggestIndex = -1;
+    elements.suggestionsDropdown.classList.remove('visible');
+    elements.suggestionsDropdown.innerHTML = '';
+}
+
 function togglePrivacyMode() {
     privacyMode = !privacyMode;
     const wrapper = elements.textInput.closest('.text-input-wrapper');
@@ -2801,6 +2853,30 @@ function setupEventListeners() {
     
     // Enter key to speak, Ctrl+Enter for AI completion
     elements.textInput.addEventListener('keydown', async (e) => {
+        // Suggestions-Navigation
+        if (_suggestions.length > 0 && elements.suggestionsDropdown.classList.contains('visible')) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                _suggestIndex = (_suggestIndex + 1) % _suggestions.length;
+                renderSuggestions();
+                return;
+            }
+            if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey && _suggestIndex >= 0) {
+                e.preventDefault();
+                elements.textInput.value = _suggestions[_suggestIndex].text;
+                hideSuggestions();
+                if (elements.charCount) {
+                    elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
+                }
+                updatePrivacyOverlay();
+                return;
+            }
+            if (e.key === 'Escape') {
+                hideSuggestions();
+                return;
+            }
+        }
+
         if (e.key === 'Enter' && e.ctrlKey) {
             // Ctrl+Enter = KI-Vervollständigung (unabhängig von Checkbox)
             e.preventDefault();
@@ -2848,6 +2924,22 @@ function setupEventListeners() {
     // Privacy overlay bei Texteingabe aktualisieren
     elements.textInput.addEventListener('input', updatePrivacyOverlay);
 
+    // Suggestions bei Texteingabe laden
+    elements.textInput.addEventListener('input', () => {
+        clearTimeout(_suggestTimer);
+        const text = elements.textInput.value.trim();
+        if (text.length < 3) {
+            hideSuggestions();
+            return;
+        }
+        _suggestTimer = setTimeout(() => fetchSuggestions(text), 300);
+    });
+
+    // Suggestions verstecken bei Blur (mit Delay für Klick-Events)
+    elements.textInput.addEventListener('blur', () => {
+        setTimeout(() => hideSuggestions(), 150);
+    });
+
     // Mini-Modus Transparenz: fokussiert = opak, unfokussiert = halbtransparent
     elements.textInput.addEventListener('focus', () => {
         if (document.body.classList.contains('mini-mode')) {
@@ -2856,7 +2948,7 @@ function setupEventListeners() {
     });
     elements.textInput.addEventListener('blur', () => {
         if (document.body.classList.contains('mini-mode')) {
-            window.electronAPI.setOpacity(0.3);
+            window.electronAPI.setOpacity(0.5);
         }
     });
     

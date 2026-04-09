@@ -4,6 +4,7 @@ SpeakAlike Katalog - Speicherung und Verwaltung von Sprachnachrichten
 import os
 import sqlite3
 import json
+import numpy as np
 from datetime import datetime
 from typing import List, Optional, Tuple
 import shutil
@@ -104,9 +105,16 @@ class MessageCatalog:
                     audio_url TEXT NOT NULL,
                     catalog_id INTEGER,
                     played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    embedding BLOB,
                     FOREIGN KEY (catalog_id) REFERENCES messages(id) ON DELETE SET NULL
                 )
             ''')
+            
+            # Migration: embedding-Spalte hinzufügen falls nicht vorhanden
+            cursor.execute("PRAGMA table_info(playback_history)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'embedding' not in columns:
+                cursor.execute('ALTER TABLE playback_history ADD COLUMN embedding BLOB')
             
             conn.commit()
     
@@ -434,7 +442,7 @@ class MessageCatalog:
             
             return results
     
-    def add_to_playback_history(self, text: str, audio_url: str, catalog_id: int = None):
+    def add_to_playback_history(self, text: str, audio_url: str, catalog_id: int = None, embedding: np.ndarray = None):
         """
         Fügt einen Eintrag zum Wiedergabe-Verlauf hinzu.
         
@@ -442,13 +450,15 @@ class MessageCatalog:
             text: Der abgespielte Text
             audio_url: URL zur Audio-Datei
             catalog_id: Optional - ID der Katalog-Nachricht falls vorhanden
+            embedding: Optional - vorberechnetes Embedding
         """
+        emb_blob = embedding.astype(np.float32).tobytes() if embedding is not None else None
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO playback_history (text, audio_url, catalog_id)
-                VALUES (?, ?, ?)
-            ''', (text, audio_url, catalog_id))
+                INSERT INTO playback_history (text, audio_url, catalog_id, embedding)
+                VALUES (?, ?, ?, ?)
+            ''', (text, audio_url, catalog_id, emb_blob))
             conn.commit()
     
     def get_playback_history(self, limit: int = 10) -> List[dict]:
@@ -471,6 +481,63 @@ class MessageCatalog:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
     
+    def get_history_without_embeddings(self) -> List[dict]:
+        """Holt alle Verlaufs-Einträge ohne Embedding."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, text FROM playback_history
+                WHERE embedding IS NULL
+                ORDER BY id ASC
+            ''')
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def update_embedding(self, history_id: int, embedding: np.ndarray):
+        """Speichert ein Embedding für einen Verlaufs-Eintrag."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'UPDATE playback_history SET embedding = ? WHERE id = ?',
+                (embedding.astype(np.float32).tobytes(), history_id)
+            )
+            conn.commit()
+    
+    def update_embeddings_batch(self, entries: List[Tuple[int, np.ndarray]]):
+        """Speichert Embeddings für mehrere Einträge auf einmal."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.executemany(
+                'UPDATE playback_history SET embedding = ? WHERE id = ?',
+                [(emb.astype(np.float32).tobytes(), hid) for hid, emb in entries]
+            )
+            conn.commit()
+
+    def search_similar(self, query_embedding: np.ndarray, limit: int = 3, min_similarity: float = 0.3) -> List[dict]:
+        """Sucht semantisch ähnliche Verlaufs-Einträge per Cosine Similarity."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, text, embedding FROM playback_history
+                WHERE embedding IS NOT NULL
+            ''')
+            
+            q_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-10)
+            results = []
+            seen_texts = set()
+            
+            for row in cursor:
+                emb = np.frombuffer(row['embedding'], dtype=np.float32)
+                similarity = float(np.dot(q_norm, emb / (np.linalg.norm(emb) + 1e-10)))
+                text = row['text']
+                if similarity >= min_similarity and text not in seen_texts and len(text.split()) > 3:
+                    seen_texts.add(text)
+                    results.append({'text': text, 'similarity': similarity})
+            
+            results.sort(key=lambda x: x['similarity'], reverse=True)
+            return results[:limit]
+
     def get_stats(self) -> dict:
         """Gibt Statistiken zum Katalog zurück."""
         with sqlite3.connect(self.db_path) as conn:

@@ -48,6 +48,7 @@ app.add_middleware(
 tts = None
 catalog: Optional[MessageCatalog] = None
 _whisper_model = None  # Lazy-loaded für Transkription
+_embedding_model = None  # Lazy-loaded Sentence Transformer
 
 # Temporäre Audio-Dateien
 TEMP_DIR = Path(tempfile.gettempdir()) / "speakalike"
@@ -155,6 +156,48 @@ async def startup():
     
     # TTS im Hintergrund laden
     asyncio.create_task(init_tts_async())
+    
+    # Embeddings im Hintergrund berechnen
+    asyncio.create_task(backfill_embeddings())
+
+
+async def backfill_embeddings():
+    """Berechnet Embeddings für alle Verlaufs-Einträge ohne Embedding."""
+    import asyncio
+    global _embedding_model
+    
+    loop = asyncio.get_event_loop()
+    
+    def _backfill():
+        global _embedding_model
+        if not catalog:
+            return
+        
+        missing = catalog.get_history_without_embeddings()
+        if not missing:
+            print("Embeddings: Alle Einträge haben bereits Embeddings.")
+            return
+        
+        print(f"Embeddings: {len(missing)} Einträge ohne Embedding gefunden, berechne...")
+        
+        from sentence_transformers import SentenceTransformer
+        if _embedding_model is None:
+            _embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+        
+        # Batch-Verarbeitung
+        batch_size = 64
+        for i in range(0, len(missing), batch_size):
+            batch = missing[i:i + batch_size]
+            texts = [entry['text'] for entry in batch]
+            embeddings = _embedding_model.encode(texts, show_progress_bar=False)
+            
+            updates = [(entry['id'], emb) for entry, emb in zip(batch, embeddings)]
+            catalog.update_embeddings_batch(updates)
+            print(f"Embeddings: {min(i + batch_size, len(missing))}/{len(missing)} berechnet")
+        
+        print(f"Embeddings: Fertig! {len(missing)} Einträge aktualisiert.")
+    
+    await loop.run_in_executor(None, _backfill)
 
 
 # === Status Endpoints ===
@@ -554,10 +597,52 @@ async def get_history():
 
 @app.post("/api/history/add")
 async def add_to_history(text: str, audio_url: str, catalog_id: int = None):
-    """Fügt einen Eintrag zum Wiedergabe-Verlauf hinzu"""
+    """Fügt einen Eintrag zum Wiedergabe-Verlauf hinzu und berechnet Embedding"""
     if catalog:
-        catalog.add_to_playback_history(text, audio_url, catalog_id)
+        import asyncio
+        global _embedding_model
+        
+        loop = asyncio.get_event_loop()
+        
+        def _embed_and_add():
+            global _embedding_model
+            embedding = None
+            try:
+                from sentence_transformers import SentenceTransformer
+                if _embedding_model is None:
+                    _embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                embedding = _embedding_model.encode(text, show_progress_bar=False)
+            except Exception as e:
+                print(f"Embedding-Fehler: {e}")
+            catalog.add_to_playback_history(text, audio_url, catalog_id, embedding)
+        
+        await loop.run_in_executor(None, _embed_and_add)
     return {"status": "ok"}
+
+
+@app.get("/api/history/suggest")
+async def suggest_similar(query: str, limit: int = 3):
+    """Gibt semantisch ähnliche Verlaufs-Einträge als Vorschläge zurück"""
+    if not catalog or not query.strip():
+        return []
+    
+    import asyncio
+    global _embedding_model
+    loop = asyncio.get_event_loop()
+    
+    def _search():
+        global _embedding_model
+        try:
+            from sentence_transformers import SentenceTransformer
+            if _embedding_model is None:
+                _embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+            query_emb = _embedding_model.encode(query.strip(), show_progress_bar=False)
+            return catalog.search_similar(query_emb, limit=limit)
+        except Exception as e:
+            print(f"Suggest-Fehler: {e}")
+            return []
+    
+    return await loop.run_in_executor(None, _search)
 
 
 # === Voice Model Endpoints ===

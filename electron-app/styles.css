@@ -2045,3 +2045,67 @@ body.mini-mode.mini-bottom {
 .privacy-active .privacy-indicator {
     display: block;
 }
+
+/* Suggestions Dropdown */
+.suggestions-dropdown {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background: var(--color-white);
+    border: 1px solid var(--color-border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: var(--shadow-lg);
+    z-index: 10;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.suggestions-dropdown.visible {
+    display: block;
+}
+
+.suggestion-item {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text);
+    border-bottom: 1px solid var(--color-border);
+    transition: background 0.1s;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item.active {
+    background: var(--color-primary);
+    color: white;
+}
+
+.suggestion-item:hover:not(.active) {
+    background: var(--color-bg);
+}
+
+.suggestion-hint {
+    display: flex;
+    justify-content: flex-end;
+    padding: 2px 8px;
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Input bottom: suggestions above → below */
+.main.input-bottom .suggestions-dropdown {
+    bottom: auto;
+    top: 100%;
+    border-radius: 0 0 var(--radius) var(--radius);
+    border: 1px solid var(--color-border);
+    border-top: none;
+}
