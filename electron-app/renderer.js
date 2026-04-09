@@ -1190,7 +1190,7 @@ function renderQuickAccess() {
         div.className = 'quick-access-item';
         
         const textPreview = item.text.substring(0, 50) + (item.text.length > 50 ? '...' : '');
-        const badge = idx < QUICK_ACCESS_KEYS.length ? `<span class="quick-shortcut-badge">Ctrl+Shift+${QUICK_ACCESS_KEYS[idx]}</span>` : '';
+        const badge = idx < QUICK_ACCESS_KEYS.length ? `<span class="quick-shortcut-badge">${QUICK_ACCESS_KEYS[idx]}</span>` : '';
         
         div.innerHTML = `
             ${badge}
@@ -2911,6 +2911,16 @@ function setupEventListeners() {
         } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             const text = elements.textInput.value.trim();
+            // Einzelner Buchstabe = Schnellzugriff
+            if (text.length === 1) {
+                const keyIdx = QUICK_ACCESS_KEYS.indexOf(text.toUpperCase());
+                if (keyIdx >= 0 && keyIdx < quickAccessItems.length) {
+                    elements.textInput.value = '';
+                    if (elements.charCount) elements.charCount.textContent = '0 Zeichen';
+                    playQuickAccessItem(quickAccessItems[keyIdx]);
+                    return;
+                }
+            }
             if (text) {
                 speak();
             } else if (currentAudioUrl) {
@@ -2934,13 +2944,6 @@ function setupEventListeners() {
             // Strg+P = Privacy-Modus
             e.preventDefault();
             togglePrivacyMode();
-        } else if (e.ctrlKey && e.shiftKey) {
-            // Ctrl+Shift+Q/E/T/U/I/Y/C/N = Schnellzugriff
-            const keyIdx = QUICK_ACCESS_KEYS.indexOf(e.key.toUpperCase());
-            if (keyIdx >= 0 && keyIdx < quickAccessItems.length) {
-                e.preventDefault();
-                playQuickAccessItem(quickAccessItems[keyIdx]);
-            }
         }
     });
 

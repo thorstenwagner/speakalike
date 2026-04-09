@@ -1993,11 +1993,12 @@ body.mini-mode.mini-bottom {
 /* Shortcut Badges */
 .quick-shortcut-badge {
     display: none;
-    font-size: 0.6rem;
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: var(--color-gray-200);
-    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #000000;
     font-family: monospace;
     margin-right: 6px;
     flex-shrink: 0;
