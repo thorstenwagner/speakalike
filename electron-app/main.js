@@ -5,6 +5,7 @@ const http = require('http');
 
 let mainWindow;
 let splashWindow;
+let quickAccessWindow;
 let pythonProcess;
 let isMiniMode = false;
 let miniModePosition = 'top'; // 'top' oder 'bottom'
@@ -178,6 +179,10 @@ function createWindow() {
     });
 
     mainWindow.on('closed', () => {
+        if (quickAccessWindow && !quickAccessWindow.isDestroyed()) {
+            quickAccessWindow.close();
+            quickAccessWindow = null;
+        }
         mainWindow = null;
     });
 }
@@ -335,6 +340,12 @@ ipcMain.handle('toggle-mini-mode', async () => {
         await new Promise(r => setTimeout(r, 100));
         mainWindow.maximize();
         isMiniMode = false;
+        
+        // Schnellzugriff-Fenster schließen
+        if (quickAccessWindow && !quickAccessWindow.isDestroyed()) {
+            quickAccessWindow.close();
+            quickAccessWindow = null;
+        }
     }
     
     return isMiniMode;
@@ -372,6 +383,74 @@ ipcMain.handle('get-mini-mode-status', async () => {
 ipcMain.handle('set-opacity', async (event, opacity) => {
     if (mainWindow) {
         mainWindow.setOpacity(Math.max(0.1, Math.min(1, opacity)));
+    }
+});
+
+// Schnellzugriff-Popup im Mini-Modus
+ipcMain.handle('show-quick-access-window', async (event, items) => {
+    if (!isMiniMode || !mainWindow) return;
+    
+    const mainBounds = mainWindow.getBounds();
+    const popupWidth = mainBounds.width;
+    const itemHeight = 32;
+    const popupHeight = Math.min(items.length * itemHeight + 8, 300);
+    
+    const x = mainBounds.x;
+    const y = miniModePosition === 'top' 
+        ? mainBounds.y + mainBounds.height + 2
+        : mainBounds.y - popupHeight - 2;
+    
+    if (quickAccessWindow && !quickAccessWindow.isDestroyed()) {
+        quickAccessWindow.webContents.send('update-items', items);
+        quickAccessWindow.setBounds({ x, y, width: popupWidth, height: popupHeight });
+        quickAccessWindow.show();
+        quickAccessWindow.moveTop();
+        return;
+    }
+    
+    quickAccessWindow = new BrowserWindow({
+        parent: mainWindow,
+        x, y,
+        width: popupWidth,
+        height: popupHeight,
+        frame: false,
+        transparent: false,
+        resizable: false,
+        skipTaskbar: true,
+        focusable: false,
+        backgroundColor: '#2b2d31',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
+    
+    // Gleicher Level wie mainWindow damit es davor erscheint
+    quickAccessWindow.setAlwaysOnTop(true, 'screen-saver');
+    quickAccessWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    quickAccessWindow.loadFile(path.join(__dirname, 'quick-access.html'));
+    
+    quickAccessWindow.webContents.once('did-finish-load', () => {
+        quickAccessWindow.webContents.send('update-items', items);
+        // Nochmal explizit nach vorne bringen nach dem Laden
+        quickAccessWindow.moveTop();
+    });
+    
+    quickAccessWindow.on('closed', () => {
+        quickAccessWindow = null;
+    });
+});
+
+ipcMain.handle('hide-quick-access-window', async () => {
+    if (quickAccessWindow && !quickAccessWindow.isDestroyed()) {
+        quickAccessWindow.hide();
+    }
+});
+
+ipcMain.on('quick-access-play', (event, index) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('quick-access-play', index);
     }
 });
 

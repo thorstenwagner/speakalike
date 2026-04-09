@@ -1990,6 +1990,23 @@ body.mini-mode.mini-bottom {
     border-top: 2px solid var(--color-primary);
 }
 
+/* Shortcut Badges */
+.quick-shortcut-badge {
+    display: none;
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--color-gray-200);
+    color: var(--color-text-muted);
+    font-family: monospace;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+body.mini-mode .quick-shortcut-badge {
+    display: inline-block;
+}
+
 /* Privacy Mode */
 .text-input-wrapper {
     position: relative;

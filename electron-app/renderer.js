@@ -1090,7 +1090,6 @@ async function playCatalogItem(item) {
         await api(`/api/catalog/${item.id}/play`, { method: 'POST' });
         loadFavorites();
         loadCatalogPreview();
-        loadQuickAccess();
     }
 }
 
@@ -1186,13 +1185,15 @@ function renderQuickAccess() {
     }
     
     elements.quickAccessList.innerHTML = '';
-    filteredItems.forEach(item => {
+    filteredItems.forEach((item, idx) => {
         const div = document.createElement('div');
         div.className = 'quick-access-item';
         
         const textPreview = item.text.substring(0, 50) + (item.text.length > 50 ? '...' : '');
+        const badge = idx < QUICK_ACCESS_KEYS.length ? `<span class="quick-shortcut-badge">Ctrl+Shift+${QUICK_ACCESS_KEYS[idx]}</span>` : '';
         
         div.innerHTML = `
+            ${badge}
             <span class="quick-text" title="${escapeHtml(item.text)}">${escapeHtml(textPreview)}</span>
             <div class="quick-actions">
                 <button class="btn btn-success btn-small play-btn" title="Abspielen">▶️</button>
@@ -2407,6 +2408,8 @@ async function toggleMiniMode() {
         } else {
             document.body.classList.remove('mini-mode', 'mini-top', 'mini-bottom');
             window.electronAPI.setOpacity(1);
+            hideMiniQuickDropdown();
+            renderQuickAccess();
         }
     } catch (error) {
         console.error('Fehler beim Mini-Modus Toggle:', error);
@@ -2749,6 +2752,19 @@ function hideSuggestions() {
     elements.suggestionsDropdown.innerHTML = '';
 }
 
+// === Mini-Modus Schnellzugriff-Fenster ===
+const QUICK_ACCESS_KEYS = ['Q', 'E', 'T', 'U', 'I', 'Y', 'C', 'N'];
+
+function showMiniQuickDropdown() {
+    const items = quickAccessItems.slice(0, QUICK_ACCESS_KEYS.length);
+    if (items.length === 0) return;
+    window.electronAPI.showQuickAccessWindow(items);
+}
+
+function hideMiniQuickDropdown() {
+    window.electronAPI.hideQuickAccessWindow();
+}
+
 function togglePrivacyMode() {
     privacyMode = !privacyMode;
     const wrapper = elements.textInput.closest('.text-input-wrapper');
@@ -2918,6 +2934,13 @@ function setupEventListeners() {
             // Strg+P = Privacy-Modus
             e.preventDefault();
             togglePrivacyMode();
+        } else if (e.ctrlKey && e.shiftKey) {
+            // Ctrl+Shift+Q/E/T/U/I/Y/C/N = Schnellzugriff
+            const keyIdx = QUICK_ACCESS_KEYS.indexOf(e.key.toUpperCase());
+            if (keyIdx >= 0 && keyIdx < quickAccessItems.length) {
+                e.preventDefault();
+                playQuickAccessItem(quickAccessItems[keyIdx]);
+            }
         }
     });
 
@@ -2941,14 +2964,24 @@ function setupEventListeners() {
     });
 
     // Mini-Modus Transparenz: fokussiert = opak, unfokussiert = halbtransparent
+    // + Schnellzugriff-Dropdown ein-/ausblenden
     elements.textInput.addEventListener('focus', () => {
         if (document.body.classList.contains('mini-mode')) {
             window.electronAPI.setOpacity(1);
+            showMiniQuickDropdown();
         }
     });
     elements.textInput.addEventListener('blur', () => {
         if (document.body.classList.contains('mini-mode')) {
             window.electronAPI.setOpacity(0.5);
+            setTimeout(() => hideMiniQuickDropdown(), 150);
+        }
+    });
+
+    // Schnellzugriff-Popup: Play-Request vom separaten Fenster
+    window.electronAPI.onQuickAccessPlay((index) => {
+        if (index >= 0 && index < quickAccessItems.length) {
+            playQuickAccessItem(quickAccessItems[index]);
         }
     });
     
