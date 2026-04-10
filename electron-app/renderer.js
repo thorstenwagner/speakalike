@@ -396,7 +396,9 @@ async function loadVoiceModels() {
             option.textContent = `${model.name} (${model.sample_count} Samples)`;
             if (model.is_active) {
                 option.selected = true;
-                elements.currentVoice.querySelector('.voice-name').textContent = model.name;
+                if (currentProvider !== 'elevenlabs') {
+                    elements.currentVoice.querySelector('.voice-name').textContent = model.name;
+                }
                 hasActiveVoice = true;
             }
             elements.voiceSelect.appendChild(option);
@@ -415,14 +417,18 @@ async function loadVoiceModels() {
 
 async function loadVoiceModel(name) {
     if (!name) {
-        elements.currentVoice.querySelector('.voice-name').textContent = 'Standard';
+        if (currentProvider !== 'elevenlabs') {
+            elements.currentVoice.querySelector('.voice-name').textContent = 'Standard';
+        }
         return;
     }
     
     try {
         elements.statusText.textContent = `Lade ${name}...`;
         await api(`/api/voice-models/${name}/load`, { method: 'POST' });
-        elements.currentVoice.querySelector('.voice-name').textContent = name;
+        if (currentProvider !== 'elevenlabs') {
+            elements.currentVoice.querySelector('.voice-name').textContent = name;
+        }
         await checkStatus();
     } catch (error) {
         alert(`Fehler beim Laden: ${error.message}`);
@@ -2420,6 +2426,7 @@ async function saveSettings() {
             method: 'POST',
             body: JSON.stringify({ provider: provider })
         });
+        localStorage.setItem('ttsProvider', provider);
         
         // Hauptansicht aktualisieren
         updateProviderUI(provider);
@@ -3673,18 +3680,13 @@ async function init() {
         }
         
         // Provider-abhängige UI in Hauptansicht aktualisieren
-        try {
-            const settings = await api('/api/settings');
-            const provider = settings.tts_provider || 'coqui';
-            updateProviderUI(provider);
-            // ElevenLabs Stimmen laden wenn aktiv
-            if (provider === 'elevenlabs') {
-                const savedKey = localStorage.getItem('elevenlabsApiKey') || '';
-                if (savedKey && elements.elevenlabsApiKeyInput) elements.elevenlabsApiKeyInput.value = savedKey;
-                await loadElevenLabsVoices();
-            }
-        } catch (e) {
-            console.log('Provider-Status konnte nicht geladen werden');
+        // localStorage nutzen da Backend beim Start tts noch nicht geladen hat
+        const savedProvider = localStorage.getItem('ttsProvider') || 'coqui';
+        updateProviderUI(savedProvider);
+        if (savedProvider === 'elevenlabs') {
+            const savedKey = localStorage.getItem('elevenlabsApiKey') || '';
+            if (savedKey && elements.elevenlabsApiKeyInput) elements.elevenlabsApiKeyInput.value = savedKey;
+            await loadElevenLabsVoices();
         }
         
         // Voice-Models erst laden wenn TTS bereit ist
@@ -3700,6 +3702,22 @@ async function waitForTTSAndLoadModels() {
     for (let i = 0; i < 60; i++) {
         const status = await api('/api/status');
         if (!status.loading) {
+            // Provider vom Backend prüfen (jetzt ist TTS geladen)
+            try {
+                const settings = await api('/api/settings');
+                const backendProvider = settings.tts_provider || 'coqui';
+                if (backendProvider !== currentProvider) {
+                    localStorage.setItem('ttsProvider', backendProvider);
+                    updateProviderUI(backendProvider);
+                    if (backendProvider === 'elevenlabs') {
+                        const savedKey = localStorage.getItem('elevenlabsApiKey') || '';
+                        if (savedKey && elements.elevenlabsApiKeyInput) elements.elevenlabsApiKeyInput.value = savedKey;
+                        await loadElevenLabsVoices();
+                    }
+                }
+            } catch (e) {
+                console.log('Provider-Check nach TTS-Load fehlgeschlagen');
+            }
             loadVoiceModels();
             loadTTSModels();
             return;
