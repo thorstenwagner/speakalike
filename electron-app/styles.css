@@ -313,6 +313,17 @@ body {
     color: var(--color-primary);
 }
 
+.elevenlabs-voice-quick {
+    display: flex;
+    align-items: center;
+}
+
+.elevenlabs-voice-quick .select {
+    font-size: 0.85rem;
+    padding: 4px 8px;
+    max-width: 180px;
+}
+
 /* Text Section */
 .text-input {
     width: 100%;
@@ -646,6 +657,19 @@ body {
     align-items: center;
     margin-bottom: var(--spacing-sm);
     font-weight: 600;
+}
+
+.quick-access-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.quick-access-set-select {
+    font-size: 0.75rem;
+    padding: 2px 4px;
+    max-width: 120px;
+    height: 28px;
 }
 
 .quick-access-header .btn {
@@ -1883,7 +1907,8 @@ body.mini-mode .main-row,
 body.mini-mode .global-search-bar,
 body.mini-mode .bottom-row,
 body.mini-mode .tag-browser-row,
-body.mini-mode .hide-in-mini {
+body.mini-mode .hide-in-mini,
+body.mini-mode .char-count {
     display: none !important;
 }
 

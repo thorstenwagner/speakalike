@@ -16,6 +16,7 @@ let selectedFiles = [];
 let currentTTSModel = 'xtts_v2';
 let availableTTSModels = {};
 let privacyMode = false;
+let currentProvider = 'coqui';
 let _suggestTimer = null;
 let _suggestions = [];
 let _suggestIndex = -1;
@@ -34,6 +35,10 @@ const elements = {
     currentVoice: document.getElementById('currentVoice'),
     newVoiceBtn: document.getElementById('newVoiceBtn'),
     deleteVoiceBtn: document.getElementById('deleteVoiceBtn'),
+    elevenlabsVoiceQuick: document.getElementById('elevenlabsVoiceQuick'),
+    elevenlabsVoiceQuickSelect: document.getElementById('elevenlabsVoiceQuickSelect'),
+    elevenlabsVoiceQuick: document.getElementById('elevenlabsVoiceQuick'),
+    elevenlabsVoiceQuickSelect: document.getElementById('elevenlabsVoiceQuickSelect'),
     
     // Text
     textInput: document.getElementById('textInput'),
@@ -186,6 +191,9 @@ const elements = {
     // Quick Access
     quickAccessList: document.getElementById('quickAccessList'),
     clearQuickAccessBtn: document.getElementById('clearQuickAccessBtn'),
+    quickAccessSetSelect: document.getElementById('quickAccessSetSelect'),
+    saveQuickAccessSetBtn: document.getElementById('saveQuickAccessSetBtn'),
+    setManager: document.getElementById('setManager'),
     
     // Global Search
     globalSearchInput: document.getElementById('globalSearchInput'),
@@ -360,7 +368,7 @@ async function checkStatus() {
             elements.status.classList.remove('loading');
         }
         
-        if (status.voice_loaded) {
+        if (status.voice_loaded && currentProvider !== 'elevenlabs') {
             elements.currentVoice.querySelector('.voice-name').textContent = status.voice_loaded;
         }
         
@@ -1170,6 +1178,192 @@ function clearQuickAccess() {
     saveQuickAccessToStorage();
     renderQuickAccess();
     showToast('Schnellzugriff geleert', 'success');
+}
+
+// === Quick Access Sets ===
+
+function getQuickAccessSets() {
+    try {
+        const stored = localStorage.getItem('quickAccessSets');
+        return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveQuickAccessSets(sets) {
+    localStorage.setItem('quickAccessSets', JSON.stringify(sets));
+}
+
+function renderQuickAccessSetSelect() {
+    const sel = elements.quickAccessSetSelect;
+    if (!sel) return;
+    const sets = getQuickAccessSets();
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="__new__">Neues Set...</option>';
+    Object.keys(sets).sort().forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+    });
+    // Wert wiederherstellen falls vorhanden
+    if (currentVal && currentVal !== '__new__') sel.value = currentVal;
+}
+
+function saveQuickAccessSet() {
+    if (quickAccessItems.length === 0) {
+        showToast('Schnellzugriff ist leer', 'info');
+        return;
+    }
+    const selected = elements.quickAccessSetSelect?.value;
+    
+    if (selected && selected !== '__new__') {
+        // Bestehendes Set überschreiben
+        const sets = getQuickAccessSets();
+        sets[selected] = JSON.parse(JSON.stringify(quickAccessItems));
+        saveQuickAccessSets(sets);
+        showToast(`Set "${selected}" aktualisiert`, 'success');
+        return;
+    }
+    
+    // Neues Set: Inline-Input im Header
+    const header = document.querySelector('.quick-access-header-actions');
+    if (header.querySelector('.set-name-input')) return;
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'set-name-input';
+    input.placeholder = 'Set-Name...';
+    input.style.cssText = 'font-size:0.75rem;padding:2px 6px;height:28px;width:100px;border:1px solid var(--color-primary);border-radius:4px;background:var(--color-bg);color:var(--color-text);';
+    header.prepend(input);
+    input.focus();
+    
+    const doSave = () => {
+        const name = input.value.trim();
+        input.remove();
+        if (!name) return;
+        const sets = getQuickAccessSets();
+        sets[name] = JSON.parse(JSON.stringify(quickAccessItems));
+        saveQuickAccessSets(sets);
+        renderQuickAccessSetSelect();
+        elements.quickAccessSetSelect.value = name;
+        showToast(`Set "${name}" gespeichert`, 'success');
+    };
+    
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); doSave(); }
+        if (e.key === 'Escape') input.remove();
+    });
+    input.addEventListener('blur', doSave);
+}
+
+function loadQuickAccessSet(name) {
+    if (!name || name === '__new__') return;
+    const sets = getQuickAccessSets();
+    if (!sets[name]) return;
+    quickAccessItems = JSON.parse(JSON.stringify(sets[name]));
+    saveQuickAccessToStorage();
+    renderQuickAccess();
+    showToast(`Set "${name}" geladen`, 'success');
+}
+
+// Set-Manager in Settings
+function renderSetManager() {
+    const container = elements.setManager;
+    if (!container) return;
+    const sets = getQuickAccessSets();
+    const names = Object.keys(sets).sort();
+    
+    if (names.length === 0) {
+        container.innerHTML = '<p class="muted" style="font-size:0.8rem;">Keine Sets gespeichert</p>';
+        return;
+    }
+    
+    container.innerHTML = '';
+    names.forEach(name => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
+        
+        const label = document.createElement('span');
+        label.textContent = name;
+        label.style.cssText = 'flex:1;font-size:0.85rem;';
+        
+        const count = document.createElement('span');
+        count.textContent = `(${sets[name].length})`;
+        count.style.cssText = 'font-size:0.75rem;color:var(--color-text-muted);';
+        
+        const renameBtn = document.createElement('button');
+        renameBtn.className = 'btn btn-small btn-secondary';
+        renameBtn.textContent = '✏️';
+        renameBtn.title = 'Umbenennen';
+        renameBtn.onclick = () => renameQuickAccessSet(name);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-small btn-danger';
+        deleteBtn.textContent = '✕';
+        deleteBtn.title = 'Löschen';
+        deleteBtn.onclick = () => deleteQuickAccessSet(name);
+        
+        row.appendChild(label);
+        row.appendChild(count);
+        row.appendChild(renameBtn);
+        row.appendChild(deleteBtn);
+        container.appendChild(row);
+    });
+}
+
+function renameQuickAccessSet(oldName) {
+    const container = elements.setManager;
+    // Finde die Zeile mit dem alten Namen
+    const rows = container.children;
+    for (const row of rows) {
+        if (row.querySelector('span')?.textContent === oldName) {
+            const label = row.querySelector('span');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = oldName;
+            input.style.cssText = 'flex:1;font-size:0.85rem;padding:2px 6px;border:1px solid var(--color-primary);border-radius:4px;background:var(--color-bg);color:var(--color-text);';
+            label.replaceWith(input);
+            input.focus();
+            input.select();
+            
+            const doRename = () => {
+                const newName = input.value.trim();
+                if (!newName || newName === oldName) {
+                    renderSetManager();
+                    return;
+                }
+                const sets = getQuickAccessSets();
+                if (sets[newName]) {
+                    showToast('Name existiert bereits', 'info');
+                    return;
+                }
+                sets[newName] = sets[oldName];
+                delete sets[oldName];
+                saveQuickAccessSets(sets);
+                renderQuickAccessSetSelect();
+                renderSetManager();
+                showToast(`"${oldName}" → "${newName}"`, 'success');
+            };
+            
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') doRename();
+                if (e.key === 'Escape') renderSetManager();
+            });
+            input.addEventListener('blur', doRename);
+            break;
+        }
+    }
+}
+
+function deleteQuickAccessSet(name) {
+    const sets = getQuickAccessSets();
+    delete sets[name];
+    saveQuickAccessSets(sets);
+    renderQuickAccessSetSelect();
+    renderSetManager();
+    showToast(`Set "${name}" gelöscht`, 'success');
 }
 
 function renderQuickAccess() {
@@ -2181,6 +2375,7 @@ async function saveSettings() {
             method: 'PUT',
             body: JSON.stringify({ index: micIndex })
         });
+        localStorage.setItem('micDevice', micIndex.toString());
         updateMicToggleUI(undefined, micIndex !== -1 ? micIndex : null);
         
         // API Key und Modell lokal speichern (nicht an Server senden)
@@ -2226,6 +2421,12 @@ async function saveSettings() {
             body: JSON.stringify({ provider: provider })
         });
         
+        // Hauptansicht aktualisieren
+        updateProviderUI(provider);
+        if (provider === 'elevenlabs') {
+            await loadElevenLabsVoices();
+        }
+        
         closeSettingsModal();
         showToast('Einstellungen gespeichert', 'success');
     } catch (error) {
@@ -2236,19 +2437,25 @@ async function saveSettings() {
 // === ElevenLabs Functions ===
 
 function updateProviderUI(provider) {
+    currentProvider = provider;
     if (provider === 'elevenlabs') {
-        elements.elevenlabsSettings.classList.remove('hidden');
-        elements.coquiSettings.classList.add('hidden');
+        if (elements.elevenlabsSettings) elements.elevenlabsSettings.classList.remove('hidden');
+        if (elements.coquiSettings) elements.coquiSettings.classList.add('hidden');
+        // Hauptansicht: ElevenLabs Dropdown statt Voice-Name
+        if (elements.currentVoice) elements.currentVoice.style.display = 'none';
+        if (elements.elevenlabsVoiceQuick) elements.elevenlabsVoiceQuick.style.display = '';
     } else {
-        elements.elevenlabsSettings.classList.add('hidden');
-        elements.coquiSettings.classList.remove('hidden');
+        if (elements.elevenlabsSettings) elements.elevenlabsSettings.classList.add('hidden');
+        if (elements.coquiSettings) elements.coquiSettings.classList.remove('hidden');
+        if (elements.currentVoice) elements.currentVoice.style.display = '';
+        if (elements.elevenlabsVoiceQuick) elements.elevenlabsVoiceQuick.style.display = 'none';
     }
 }
 
 async function loadElevenLabsVoices() {
     try {
         // Erst API Key ans Backend senden, falls noch nicht gespeichert
-        const apiKey = elements.elevenlabsApiKeyInput.value.trim();
+        const apiKey = elements.elevenlabsApiKeyInput?.value?.trim();
         if (apiKey) {
             await api('/api/elevenlabs/config', {
                 method: 'POST',
@@ -2259,7 +2466,13 @@ async function loadElevenLabsVoices() {
         const result = await api('/api/elevenlabs/voices');
         const currentVoiceId = result.current_voice_id;
         
+        // Settings-Dropdown befüllen
         elements.elevenlabsVoiceSelect.innerHTML = '<option value="">Stimme wählen...</option>';
+        // Quick-Dropdown in Hauptansicht befüllen
+        if (elements.elevenlabsVoiceQuickSelect) {
+            elements.elevenlabsVoiceQuickSelect.innerHTML = '<option value="">Stimme wählen...</option>';
+        }
+        
         for (const voice of result.voices) {
             const option = document.createElement('option');
             option.value = voice.voice_id;
@@ -2268,6 +2481,13 @@ async function loadElevenLabsVoices() {
                 option.selected = true;
             }
             elements.elevenlabsVoiceSelect.appendChild(option);
+            
+            // Auch ins Quick-Dropdown
+            if (elements.elevenlabsVoiceQuickSelect) {
+                const opt2 = option.cloneNode(true);
+                if (voice.voice_id === currentVoiceId) opt2.selected = true;
+                elements.elevenlabsVoiceQuickSelect.appendChild(opt2);
+            }
         }
         
         if (result.voices.length > 0) {
@@ -2285,6 +2505,7 @@ async function loadElevenLabsVoices() {
 
 function openSettingsModal() {
     loadSettings();
+    renderSetManager();
     elements.settingsModal.classList.add('active');
 }
 
@@ -2621,6 +2842,7 @@ async function toggleMicOutput() {
         });
         
         updateMicToggleUI(result.enabled, result.device);
+        localStorage.setItem('micEnabled', result.enabled.toString());
         
         if (result.enabled) {
             showToast('🎙️ Mikrofon-Ausgabe aktiviert – Sprache wird auch über das virtuelle Mikrofon ausgegeben', 'success');
@@ -3030,6 +3252,26 @@ function setupEventListeners() {
         elements.refreshElevenVoicesBtn.addEventListener('click', loadElevenLabsVoices);
     }
     
+    // ElevenLabs Quick Voice Select (Hauptansicht)
+    if (elements.elevenlabsVoiceQuickSelect) {
+        elements.elevenlabsVoiceQuickSelect.addEventListener('change', async (e) => {
+            const voiceId = e.target.value;
+            // Settings-Dropdown synchronisieren
+            if (elements.elevenlabsVoiceSelect) elements.elevenlabsVoiceSelect.value = voiceId;
+            // Voice ans Backend senden
+            try {
+                await api('/api/elevenlabs/config', {
+                    method: 'POST',
+                    body: JSON.stringify({ voice_id: voiceId })
+                });
+                const selectedText = e.target.options[e.target.selectedIndex]?.text || '';
+                showToast(`Stimme: ${selectedText}`, 'success');
+            } catch (err) {
+                console.error('ElevenLabs voice change error:', err);
+            }
+        });
+    }
+    
     // ElevenLabs Slider-Werte anzeigen
     elements.elevenStabilitySlider.addEventListener('input', (e) => {
         elements.elevenStabilityValue.textContent = parseFloat(e.target.value).toFixed(2);
@@ -3267,6 +3509,12 @@ function setupEventListeners() {
     if (elements.clearQuickAccessBtn) {
         elements.clearQuickAccessBtn.addEventListener('click', clearQuickAccess);
     }
+    if (elements.saveQuickAccessSetBtn) {
+        elements.saveQuickAccessSetBtn.addEventListener('click', saveQuickAccessSet);
+    }
+    if (elements.quickAccessSetSelect) {
+        elements.quickAccessSetSelect.addEventListener('change', (e) => loadQuickAccessSet(e.target.value));
+    }
     
     // Global Search
     if (elements.globalSearchInput) {
@@ -3401,9 +3649,18 @@ async function init() {
         // Quick Access aus localStorage laden
         loadQuickAccessFromStorage();
         renderQuickAccess();
+        renderQuickAccessSetSelect();
         
-        // Mikrofon-Ausgabe Status laden
+        // Mikrofon-Ausgabe: gespeicherte Einstellungen wiederherstellen
         try {
+            const savedMicDevice = localStorage.getItem('micDevice');
+            const savedMicEnabled = localStorage.getItem('micEnabled');
+            if (savedMicDevice !== null && savedMicDevice !== '-1') {
+                await api('/api/mic-device', {
+                    method: 'PUT',
+                    body: JSON.stringify({ index: parseInt(savedMicDevice), enabled: savedMicEnabled === 'true' })
+                });
+            }
             const micData = await api('/api/mic-device');
             updateMicToggleUI(micData.enabled, micData.device);
         } catch (e) {
@@ -3413,6 +3670,21 @@ async function init() {
         // Gespeicherte Ansicht wiederherstellen
         if (localStorage.getItem('viewMode') === 'tags') {
             toggleView();
+        }
+        
+        // Provider-abhängige UI in Hauptansicht aktualisieren
+        try {
+            const settings = await api('/api/settings');
+            const provider = settings.tts_provider || 'coqui';
+            updateProviderUI(provider);
+            // ElevenLabs Stimmen laden wenn aktiv
+            if (provider === 'elevenlabs') {
+                const savedKey = localStorage.getItem('elevenlabsApiKey') || '';
+                if (savedKey && elements.elevenlabsApiKeyInput) elements.elevenlabsApiKeyInput.value = savedKey;
+                await loadElevenLabsVoices();
+            }
+        } catch (e) {
+            console.log('Provider-Status konnte nicht geladen werden');
         }
         
         // Voice-Models erst laden wenn TTS bereit ist
