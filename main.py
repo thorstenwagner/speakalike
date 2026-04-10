@@ -18,22 +18,37 @@ if sys.platform == 'win32':
 # Füge espeak-ng zum PATH hinzu
 os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get("PATH", "")
 
-try:
-    from TTS.api import TTS
-    from TTS.tts.configs.xtts_config import XttsConfig
-    from TTS.tts.models.xtts import Xtts
-    COQUI_AVAILABLE = True
-    XTTS_DIRECT = True
-except ImportError:
+# Coqui TTS Imports werden lazy geladen um Startzeit zu verkürzen wenn ElevenLabs aktiv ist
+COQUI_AVAILABLE = False
+XTTS_DIRECT = False
+
+def _load_coqui_imports():
+    """Lädt Coqui TTS Bibliotheken bei Bedarf"""
+    global COQUI_AVAILABLE, XTTS_DIRECT, TTS, XttsConfig, Xtts
+    if COQUI_AVAILABLE:
+        return True
     try:
-        from TTS.api import TTS
+        from TTS.api import TTS as _TTS
+        from TTS.tts.configs.xtts_config import XttsConfig as _XttsConfig
+        from TTS.tts.models.xtts import Xtts as _Xtts
+        TTS = _TTS
+        XttsConfig = _XttsConfig
+        Xtts = _Xtts
         COQUI_AVAILABLE = True
-        XTTS_DIRECT = False
+        XTTS_DIRECT = True
+        return True
     except ImportError:
-        COQUI_AVAILABLE = False
-        XTTS_DIRECT = False
-        print("Warnung: Coqui TTS nicht verfügbar. Fallback auf pyttsx3.")
-        import pyttsx3
+        try:
+            from TTS.api import TTS as _TTS
+            TTS = _TTS
+            COQUI_AVAILABLE = True
+            XTTS_DIRECT = False
+            return True
+        except ImportError:
+            COQUI_AVAILABLE = False
+            XTTS_DIRECT = False
+            print("Warnung: Coqui TTS nicht verfügbar.")
+            return False
 
 
 class TextToSpeech:
@@ -136,7 +151,7 @@ class TextToSpeech:
         # Erstelle Voice-Modell-Verzeichnis falls nicht vorhanden
         self.VOICE_MODELS_DIR.mkdir(exist_ok=True)
         
-        if COQUI_AVAILABLE:
+        if self.tts_provider != 'elevenlabs' and _load_coqui_imports():
             try:
                 import torch
                 self.gpu_available = torch.cuda.is_available()
@@ -156,6 +171,12 @@ class TextToSpeech:
             except Exception as e:
                 print(f"Fehler bei XTTS-Init: {e}")
                 self._init_fallback()
+        elif self.tts_provider == 'elevenlabs':
+            self.gpu_available = False
+            self.model = None
+            self.use_coqui = False
+            self.use_direct = False
+            print("ElevenLabs als Provider aktiv - Coqui wird nicht geladen")
         else:
             self._init_pyttsx3()
     
@@ -655,6 +676,24 @@ class TextToSpeech:
             return False
         self.tts_provider = provider
         self._save_elevenlabs_config()
+        
+        # Coqui nachladen falls noch nicht initialisiert
+        if provider == "coqui" and not hasattr(self, 'tts') and not hasattr(self, 'xtts_model'):
+            if _load_coqui_imports():
+                try:
+                    import torch
+                    self.gpu_available = torch.cuda.is_available()
+                    saved_model_id = self._get_last_tts_model()
+                    if saved_model_id and saved_model_id in self.AVAILABLE_TTS_MODELS:
+                        self.current_tts_model_id = saved_model_id
+                    if XTTS_DIRECT and self.gpu_available and self.current_tts_model_id.startswith("xtts"):
+                        self._init_xtts_direct()
+                    else:
+                        self._init_tts_api()
+                except Exception as e:
+                    print(f"Fehler beim Nachladen von Coqui: {e}")
+                    self._init_fallback()
+        
         print(f"TTS-Provider gewechselt zu: {provider}")
         return True
     
