@@ -17,6 +17,7 @@ let currentTTSModel = 'xtts_v2';
 let availableTTSModels = {};
 let privacyMode = false;
 let currentProvider = 'coqui';
+let kiAutoCorrect = false;
 let _suggestTimer = null;
 let _suggestions = [];
 let _suggestIndex = -1;
@@ -3123,10 +3124,17 @@ function setupEventListeners() {
         }
 
         if (e.key === 'Enter' && e.ctrlKey) {
-            // Ctrl+Enter = KI-Vervollständigung (unabhängig von Checkbox)
             e.preventDefault();
             const text = elements.textInput.value.trim();
-            if (!text) return;
+            if (!text) {
+                // Leeres Feld: KI-Auto-Korrektur togglen
+                kiAutoCorrect = !kiAutoCorrect;
+                const badge = document.getElementById('kiBadge');
+                if (badge) badge.classList.toggle('active', kiAutoCorrect);
+                showToast(kiAutoCorrect ? 'KI-Korrektur aktiviert' : 'KI-Korrektur deaktiviert', kiAutoCorrect ? 'success' : 'info');
+                return;
+            }
+            // Ctrl+Enter mit Text = KI-Vervollständigung
             elements.statusText.textContent = 'KI vervollständigt...';
             const completed = await completeWithAI(text);
             if (completed) {
@@ -3151,7 +3159,18 @@ function setupEventListeners() {
                 }
             }
             if (text) {
-                speak();
+                if (kiAutoCorrect) {
+                    // KI-Korrektur + Sprechen
+                    elements.statusText.textContent = 'KI korrigiert...';
+                    const corrected = await completeWithAI(text);
+                    if (corrected) {
+                        elements.textInput.value = corrected;
+                        if (elements.charCount) elements.charCount.textContent = `${corrected.length} Zeichen`;
+                    }
+                    speak();
+                } else {
+                    speak();
+                }
             } else if (currentAudioUrl) {
                 // Leeres Textfeld + Enter = letzte Nachricht wiederholen
                 repeatLastMessage();

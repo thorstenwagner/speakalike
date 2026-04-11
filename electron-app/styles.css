@@ -2089,6 +2089,27 @@ body.mini-mode .quick-shortcut-badge {
     display: block;
 }
 
+/* KI Auto-Korrektur Badge */
+.ki-badge {
+    display: none;
+    position: absolute;
+    bottom: 6px;
+    right: 8px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #fff;
+    background: #22c55e;
+    padding: 1px 6px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 2;
+    letter-spacing: 0.5px;
+}
+
+.ki-badge.active {
+    display: block;
+}
+
 /* Suggestions Dropdown */
 .suggestions-dropdown {
     display: none;

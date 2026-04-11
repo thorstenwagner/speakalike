@@ -57,6 +57,13 @@
                             <option value="">Stimme wählen...</option>
                         </select>
                     </div>
+                    
+                    <!-- Volume Control -->
+                    <div class="volume-control">
+                        <span class="volume-icon" id="volumeIcon" title="Stumm schalten">🔊</span>
+                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Lautstärke">
+                        <span class="volume-value hide-in-mini" id="volumeValue">100%</span>
+                    </div>
                 </div>
                 
                 <!-- Text Input -->
@@ -71,6 +78,7 @@
                         <div class="suggestions-dropdown" id="suggestionsDropdown"></div>
                         <div class="privacy-last-word" id="privacyLastWord"></div>
                         <span class="privacy-indicator" id="privacyIndicator">🔒</span>
+                        <span class="ki-badge" id="kiBadge">KI</span>
                     </div>
                     <button class="btn btn-success btn-speak" id="speakBtn">
                         🔊 <span class="hide-in-mini">Sprechen</span>
@@ -79,11 +87,6 @@
                         💾 Generieren
                     </button>
                     <button class="btn btn-secondary btn-mic-toggle hide-in-mini" id="micToggleBtn" title="Mikrofon-Ausgabe (für Telefonie)">🎤</button>
-                    <div class="volume-control hide-in-mini">
-                        <span class="volume-icon" id="volumeIcon" title="Stumm schalten">🔊</span>
-                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" title="Lautstärke">
-                        <span class="volume-value" id="volumeValue">100%</span>
-                    </div>
                     <!-- Mini-Modus Controls -->
                     <button class="btn btn-secondary btn-mini-repeat" id="miniRepeatBtn" title="Letzte Nachricht wiederholen">🔁</button>
                     <button class="btn btn-secondary btn-mini-position" id="miniPositionBtn" title="Position wechseln (oben/unten)">⬆️</button>
