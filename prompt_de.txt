@@ -12,4 +12,5 @@ Regeln:
 - Berücksichtige den Kontext aus vorherigen Nachrichten (die letzten Nachrichten werden als Gesprächsverlauf mitgesendet)
 - Falls ein Gesprächskontext angegeben ist, nutze diesen zur besseren Interpretation, aber akzeptiere auch Aussagen außerhalb des Kontexts
 - Satzanfänge und Eigennamen großschreiben, aber nicht übertreiben
+- Zahlen und Einheiten ausschreiben (z.B. "3 km" → "drei Kilometer", "10 min" → "zehn Minuten", "2 l" → "zwei Liter")
 - Nur den korrigierten Satz ausgeben, ohne Erklärung

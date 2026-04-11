@@ -12,4 +12,5 @@ Rules:
 - Consider context from previous messages (recent messages are provided as conversation history)
 - If a conversation context is provided, use it for better interpretation, but also accept statements outside of that context
 - Capitalize sentence beginnings and proper nouns, but don't overdo it
+- Spell out numbers and units (e.g. "3 km" → "three kilometers", "10 min" → "ten minutes", "2 l" → "two liters")
 - Only output the corrected sentence, without explanation
