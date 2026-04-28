@@ -2816,19 +2816,25 @@ function updateMicToggleUI(enabled, device) {
     
     const hasDevice = device !== null && device !== undefined && device !== -1;
     
+    // MIC Badge aktualisieren
+    const micBadge = document.getElementById('micBadge');
+    
     if (micOutputEnabled && hasDevice) {
         btn.classList.add('mic-active');
         btn.title = 'Mikrofon-Ausgabe aktiv (Klick zum Deaktivieren)';
         btn.innerHTML = '🎙️';
+        if (micBadge) micBadge.classList.add('active');
     } else if (hasDevice) {
         btn.classList.remove('mic-active');
         btn.title = 'Mikrofon-Ausgabe aktivieren (für Telefonie)';
         btn.innerHTML = '🎤';
+        if (micBadge) micBadge.classList.remove('active');
     } else {
         btn.classList.remove('mic-active');
         btn.title = 'Kein Mikrofon-Gerät konfiguriert (in Einstellungen setzen)';
         btn.innerHTML = '🎤';
         btn.style.opacity = '0.4';
+        if (micBadge) micBadge.classList.remove('active');
         return;
     }
     btn.style.opacity = '1';
@@ -3621,10 +3627,10 @@ function setupEventListeners() {
             }
         }
         
-        // Ctrl+M für Mini-Modus Toggle
+        // Ctrl+M für Mikrofon-Ausgabe Toggle
         if (e.ctrlKey && e.key === 'm') {
             e.preventDefault();
-            toggleMiniMode();
+            toggleMicOutput();
         }
     });
 }

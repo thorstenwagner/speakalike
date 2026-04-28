@@ -1603,6 +1603,38 @@ body {
     50% { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
 }
 
+.mic-badge {
+    display: none;
+    position: absolute;
+    bottom: 6px;
+    right: 8px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #fff;
+    background: #dc2626;
+    padding: 1px 6px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 2;
+    letter-spacing: 0.5px;
+    animation: mic-badge-pulse 1.5s infinite;
+}
+
+.mic-badge.active {
+    display: block;
+}
+
+/* Wenn beide Badges aktiv: MIC links neben KI */
+.ki-badge.active + .mic-badge.active,
+.ki-badge.active ~ .mic-badge.active {
+    right: 36px;
+}
+
+@keyframes mic-badge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 .volume-control {
     display: flex;
     align-items: center;

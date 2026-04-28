@@ -1,143 +1,147 @@
 # SpeakAlike
 
-Eine Text-to-Speech Anwendung mit Voice Cloning für Windows, optimiert für Barrierefreiheit (Eye-Tracking).
+**Sprachsynthese-Tool mit KI-gestützter Textkorrektur, Voice Cloning und Augensteuerung**
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![Electron](https://img.shields.io/badge/Electron-28-47848F.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
+
+SpeakAlike wurde speziell für Menschen entwickelt, die per Augensteuerung kommunizieren. Es verwandelt kurze, fehlerhafte Texteingaben in natürlich klingende Sprache – unterstützt durch künstliche Intelligenz, die Tippfehler automatisch korrigiert und den Gesprächskontext versteht.
+
+---
+
+## Highlights
+
+- **KI-Korrektur in Echtzeit** – Claude AI korrigiert Tippfehler aus der Augensteuerung, ohne Wörter hinzuzufügen
+- **Voice Cloning** – Eigene Stimme klonen und in Gesprächen verwenden
+- **Mikrofon-Ausgabe für Telefonie** – Sprache direkt über virtuelle Audiokabel (z.B. VB-Cable) in Zoom, Teams oder Telefon einspeisen
+- **Schnellzugriffe** – Häufig verwendete Sätze per Tastendruck abspielen
+- **Privacy-Modus** – Eingabetext wird verborgen, ideal wenn andere den Bildschirm sehen
+
+---
 
 ## Features
 
-- **XTTS v2 Voice Cloning** - Klone jede Stimme mit wenigen Sekunden Audio
-- **Deutsche Sprachausgabe** - Optimiert für deutsche Texte
-- **GPU-Beschleunigung** - Nutzt NVIDIA CUDA für schnelle Generierung
-- **Stimmen speichern** - Voice-Modelle persistent speichern und laden
-- **MP3-Export** - Generierte Sprache als MP3 speichern
-- **Qualitäts-Presets** - Klar, Natürlich, Kreativ
-- **Minimalistisches UI** - Clean Design, optimiert für Eye-Tracking
+### Sprachsynthese
+
+| Feature | Beschreibung |
+|---------|-------------|
+| **Coqui XTTS v2** | Lokale, GPU-beschleunigte Sprachsynthese mit Voice Cloning (17 Sprachen) |
+| **ElevenLabs** | Cloud-basierte Synthese (Multilingual v2/v3, Flash v2.5, Turbo v2.5) |
+| **Voice Cloning** | Eigene Stimme aus 5–30 Sekunden Audio klonen und als Modell speichern |
+| **Sprachparameter** | Geschwindigkeit (0.5x–2.0x), Temperatur, Wiederholungsstrafe feinjustierbar |
+| **Dual-Output** | Gleichzeitige Ausgabe über Lautsprecher und virtuelles Mikrofon |
+
+### KI-Korrektur (Claude)
+
+| Feature | Beschreibung |
+|---------|-------------|
+| **Automatische Korrektur** | Fehlende/falsche Buchstaben werden erkannt und korrigiert |
+| **Gesprächskontext** | Letzte 5 Minuten Nachrichten werden als Kontext mitgesendet |
+| **Kontextfeld** | Gesprächssituation beschreiben (z.B. „Arztbesuch", „Einkaufen") für bessere Ergebnisse |
+| **KI an/aus** | Per Strg+Enter im leeren Feld umschaltbar, grüner „KI"-Badge zeigt Status |
+| **Bestätigungsdialog** | KI-Vorschlag vor dem Sprechen prüfen und bearbeiten |
+| **Modellwahl** | Claude Haiku 4.5 (schnell) oder Claude Sonnet 4.6 (präziser) |
+
+### Tastenkürzel
+
+| Kürzel | Funktion |
+|--------|----------|
+| **Enter** | Text sprechen (bei leerem Feld: letzte Nachricht wiederholen) |
+| **Strg+Enter** | KI-Korrektur auslösen / KI-Modus umschalten |
+| **Strg+L** | Sprache wechseln (Deutsch ↔ Englisch) |
+| **Strg+D** | Signalton abspielen |
+| **Strg+P** | Privacy-Modus ein/aus |
+| **Strg+M** | Mikrofon-Ausgabe ein/aus |
+| **Q, E, T, U, I, Y, C, N** | Schnellzugriff-Sätze 1–8 abspielen |
+| **Escape** | Dialoge schließen / Mini-Modus beenden |
+| **Tab** | Durch Vorschläge navigieren |
+
+### Katalog & Schnellzugriffe
+
+| Feature | Beschreibung |
+|---------|-------------|
+| **Katalog** | Häufig verwendete Sätze mit Audio speichern und organisieren |
+| **Auto-Tagging** | KI generiert automatisch passende Tags für gespeicherte Sätze |
+| **Tag-Filter** | Sätze nach Tags filtern (UND/ODER-Modus) |
+| **Schnellzugriffe** | Bis zu 20 Sätze per Drag & Drop als Schnellzugriff anlegen |
+| **Schnellzugriff-Sets** | Verschiedene Sets nach Situation speichern und laden |
+| **Wiedergabezähler** | Zeigt an, welche Sätze am häufigsten verwendet werden |
+
+### Smarte Vorschläge
+
+| Feature | Beschreibung |
+|---------|-------------|
+| **Semantische Suche** | Ähnliche Sätze aus dem Verlauf werden beim Tippen vorgeschlagen |
+| **Multilingual-Embeddings** | Vorschläge basieren auf Bedeutung, nicht nur Wortgleichheit |
+| **Kontextbewusstsein** | Berücksichtigt den aktuellen Gesprächsverlauf |
+
+### Barrierefreiheit
+
+| Feature | Beschreibung |
+|---------|-------------|
+| **Große Bedienelemente** | Optimiert für Augensteuerung und eingeschränkte Motorik |
+| **Privacy-Modus** | Eingabetext wird unlesbar, nur letztes Zeichen sichtbar (Strg+P) |
+| **Mini-Modus** | Kompaktes Overlay-Fenster, bleibt im Vordergrund |
+| **Visuelle Badges** | „KI" (grün) und „MIC" (rot) zeigen aktive Features auf einen Blick |
+| **Tastatursteuerung** | Alle wichtigen Funktionen ohne Maus erreichbar |
+
+### Telefonie-Integration
+
+| Feature | Beschreibung |
+|---------|-------------|
+| **Virtuelles Mikrofon** | Sprachausgabe über VB-Cable o.ä. in Zoom, Teams, Telefon einspeisen |
+| **Tipp-Geräusche** | Simuliert Tastaturklicks auf dem Mikrofon-Kanal während der Eingabe |
+| **Echo-Test** | Mikrofon-Gerät direkt in den Einstellungen testen |
+| **MIC-Badge** | Roter pulsierender Badge zeigt aktive Mikrofon-Ausgabe |
+
+### Weitere Features
+
+| Feature | Beschreibung |
+|---------|-------------|
+| **Dark Mode** | Standard-Theme, heller Modus umschaltbar |
+| **Verlauf** | Letzte 50 Nachrichten mit Zeitstempel |
+| **Audio-Import** | MP3/WAV/OGG importieren mit automatischer Transkription (Whisper) |
+| **Audio-Download** | Generierte Sprache als WAV speichern |
+| **Deutsch & Englisch** | Volle Unterstützung beider Sprachen |
 
 ---
 
 ## Installation
 
-### Voraussetzungen
+### Installer (empfohlen)
 
-- **Python 3.11** (empfohlen)
-- **NVIDIA GPU** mit CUDA-Unterstützung (optional, aber empfohlen)
-- **Windows 10/11** (andere Betriebssysteme möglich)
-- **eSpeak NG** (für Phonem-Konvertierung)
+`SpeakAlike Setup 1.0.0.exe` ausführen – enthält Electron-App, Python-Backend und Voice Models.
 
-### Schritt 1: Repository klonen
+### Entwicklermodus
 
 ```bash
-git clone https://github.com/username/speakalike.git
-cd speakalike
-```
+# Backend starten
+conda activate .conda-py311
+python backend_api.py
 
-### Schritt 2: Python-Umgebung erstellen
-
-**Mit Conda (empfohlen):**
-
-```bash
-conda create -n speakalike python=3.11
-conda activate speakalike
-```
-
-**Oder mit venv:**
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Linux/macOS
-```
-
-### Schritt 3: PyTorch mit CUDA installieren
-
-Für GPU-Beschleunigung (NVIDIA):
-
-```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-```
-
-Ohne GPU (nur CPU):
-
-```bash
-pip install torch torchvision torchaudio
-```
-
-### Schritt 4: Abhängigkeiten installieren
-
-```bash
-pip install -r requirements.txt
-```
-
-### Schritt 5: eSpeak NG installieren
-
-**Windows:**
-
-1. Download: https://github.com/espeak-ng/espeak-ng/releases
-2. Installer ausführen (Standard-Pfad: `C:\Program Files\eSpeak NG`)
-3. Der Pfad wird automatisch von SpeakAlike erkannt
-
-**Linux:**
-
-```bash
-sudo apt-get install espeak-ng
-```
-
-**macOS:**
-
-```bash
-brew install espeak-ng
-```
-
-### Schritt 6: Whisper für Artefakt-Entfernung (optional)
-
-```bash
-pip install openai-whisper
+# Frontend starten (separates Terminal)
+cd electron-app
+npm install
+npm start
 ```
 
 ---
 
-## Verwendung
+## Architektur
 
-### GUI starten
-
-```bash
-python gui.py
 ```
-
-### Kommandozeile
-
-```bash
-python main.py
+┌─────────────────────┐     HTTP/REST     ┌──────────────────────┐
+│   Electron-App      │ ◄──────────────►  │   Python Backend     │
+│   (Frontend)        │    Port 8765      │   (FastAPI/Uvicorn)  │
+│                     │                   │                      │
+│  • index.html       │                   │  • Coqui XTTS (GPU)  │
+│  • renderer.js      │                   │  • ElevenLabs API    │
+│  • styles.css       │                   │  • Claude AI API     │
+│  • preload.js       │                   │  • Whisper (Import)  │
+│  • quick-access.html│                   │  • Embeddings        │
+└─────────────────────┘                   └──────────────────────┘
 ```
-
----
-
-## Bedienung
-
-### Grundfunktionen
-
-1. **Text eingeben** - Im Textfeld den vorzulesenden Text eingeben
-2. **Vorlesen** - Grüner Button startet die Sprachausgabe
-3. **Stop** - Roter Button stoppt die Wiedergabe
-4. **MP3 speichern** - Nach dem Vorlesen kann die Audio-Datei gespeichert werden
-
-### Voice Cloning
-
-1. **Stimme verwalten** → Button "Ändern" klicken
-2. **Audio-Samples hochladen** - WAV/MP3-Dateien mit der Zielstimme (min. 6 Sekunden)
-3. **Rauschunterdrückung** - Optional aktivieren für bessere Qualität
-4. **Stimme speichern** - Modell unter einem Namen speichern
-5. **Stimme laden** - Gespeicherte Stimmen können jederzeit geladen werden
-
-### Qualitäts-Presets
-
-| Preset | Beschreibung | Verwendung |
-|--------|--------------|------------|
-| **Klar** | Wenig Variation, sehr deutlich | Vorlesen von Dokumenten |
-| **Natürlich** | Ausgewogene Betonung | Allgemeine Texte |
-| **Kreativ** | Mehr Variation, expressiv | Geschichten, Dialoge |
 
 ---
 
@@ -147,7 +151,7 @@ python main.py
 
 - CPU: Intel Core i5 / AMD Ryzen 5
 - RAM: 8 GB
-- Speicher: 5 GB (für Modelle)
+- Speicher: 5 GB
 
 ### Empfohlen
 
@@ -157,64 +161,6 @@ python main.py
 
 ---
 
-## Fehlerbehebung
-
-### "espeak not found"
-
-Stelle sicher, dass eSpeak NG installiert ist und im PATH liegt:
-
-```bash
-espeak --version
-```
-
-### CUDA nicht erkannt
-
-Prüfe die PyTorch-CUDA-Installation:
-
-```python
-import torch
-print(torch.cuda.is_available())
-print(torch.cuda.get_device_name(0))
-```
-
-### Langsame Generierung
-
-1. GPU-Beschleunigung aktivieren (CUDA)
-2. Streaming-Modus in den erweiterten Einstellungen aktivieren
-3. Kürzere Texte in mehreren Teilen generieren
-
-### Audio-Artefakte am Ende
-
-Die Whisper-basierte Artefakt-Entfernung ist standardmäßig aktiv. Bei Problemen:
-
-```bash
-pip install --upgrade openai-whisper
-```
-
----
-
-## Projektstruktur
-
-```
-speakalike/
-├── gui.py              # Grafische Benutzeroberfläche
-├── main.py             # TTS-Engine (XTTS v2)
-├── audio_processor.py  # Audio-Vorverarbeitung
-├── requirements.txt    # Python-Abhängigkeiten
-├── voice_models/       # Gespeicherte Stimmen
-└── README.md           # Diese Datei
-```
-
----
-
 ## Lizenz
 
-MIT License - siehe LICENSE-Datei
-
----
-
-## Danksagung
-
-- [Coqui TTS](https://github.com/coqui-ai/TTS) - XTTS v2 Modell
-- [OpenAI Whisper](https://github.com/openai/whisper) - Transkription
-- [eSpeak NG](https://github.com/espeak-ng/espeak-ng) - Phonem-Konvertierung
+MIT

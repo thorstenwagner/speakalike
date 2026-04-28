@@ -55,12 +55,16 @@ class TextToSpeech:
     """Text-to-Speech Engine Wrapper mit optimiertem Voice Cloning"""
     
     # Verzeichnis für gespeicherte Voice-Modelle
-    VOICE_MODELS_DIR = Path(__file__).parent / "voice_models"
-    LAST_MODEL_FILE = Path(__file__).parent / "voice_models" / ".last_model"
-    LAST_TTS_MODEL_FILE = Path(__file__).parent / "voice_models" / ".last_tts_model"
+    _voice_models_env = os.environ.get('SPEAKALIKE_VOICE_MODELS')
+    if _voice_models_env:
+        VOICE_MODELS_DIR = Path(_voice_models_env)
+    else:
+        VOICE_MODELS_DIR = Path(__file__).parent / "voice_models"
+    LAST_MODEL_FILE = VOICE_MODELS_DIR / ".last_model"
+    LAST_TTS_MODEL_FILE = VOICE_MODELS_DIR / ".last_tts_model"
     
     # ElevenLabs Konfigurationsdateien
-    ELEVENLABS_CONFIG_FILE = Path(__file__).parent / "voice_models" / ".elevenlabs_config"
+    ELEVENLABS_CONFIG_FILE = VOICE_MODELS_DIR / ".elevenlabs_config"
     
     # Verfügbare TTS-Modelle für Voice Cloning
     AVAILABLE_TTS_MODELS = {

@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, screen } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 const http = require('http');
 
@@ -121,17 +122,48 @@ function createSplashWindow() {
 
 // Python Backend starten
 function startBackend() {
-    const pythonPath = path.join(__dirname, '..', '.conda-py311', 'python.exe');
-    const scriptPath = path.join(__dirname, '..', 'backend_api.py');
+    let exePath, cwd;
     
-    console.log('Starte Python Backend...');
-    
-    pythonProcess = spawn(pythonPath, [scriptPath], {
-        cwd: path.join(__dirname, '..'),
-        env: {
-            ...process.env,
-            PYTHONUNBUFFERED: '1'
+    if (app.isPackaged) {
+        // Produktionsmodus: gebündeltes Backend aus resources/backend/
+        exePath = path.join(process.resourcesPath, 'backend', 'backend_api.exe');
+        cwd = path.join(process.resourcesPath, 'backend');
+        
+        // Voice-Modelle in AppData (beschreibbar) kopieren falls nötig
+        const appDataVoiceModels = path.join(app.getPath('userData'), 'voice_models');
+        if (!fs.existsSync(appDataVoiceModels)) {
+            fs.mkdirSync(appDataVoiceModels, { recursive: true });
+            // Bundled Voice-Modelle bei Erststart kopieren
+            const bundledModels = path.join(process.resourcesPath, 'voice_models');
+            if (fs.existsSync(bundledModels)) {
+                const files = fs.readdirSync(bundledModels);
+                for (const file of files) {
+                    fs.copyFileSync(
+                        path.join(bundledModels, file),
+                        path.join(appDataVoiceModels, file)
+                    );
+                }
+                console.log('Voice-Modelle nach AppData kopiert:', appDataVoiceModels);
+            }
         }
+    } else {
+        // Entwicklungsmodus: Conda-Umgebung
+        exePath = path.join(__dirname, '..', '.conda-py311', 'python.exe');
+        cwd = path.join(__dirname, '..');
+    }
+    
+    console.log('Starte Python Backend...', { exePath, cwd, packaged: app.isPackaged });
+    
+    const args = app.isPackaged ? [] : [path.join(__dirname, '..', 'backend_api.py')];
+    
+    const env = { ...process.env, PYTHONUNBUFFERED: '1' };
+    if (app.isPackaged) {
+        env.SPEAKALIKE_VOICE_MODELS = path.join(app.getPath('userData'), 'voice_models');
+    }
+    
+    pythonProcess = spawn(exePath, args, {
+        cwd: cwd,
+        env: env
     });
     
     pythonProcess.stdout.on('data', (data) => {

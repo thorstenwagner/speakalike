@@ -7,6 +7,12 @@ import tempfile
 import shutil
 from pathlib import Path
 
+# PyInstaller-Kompatibilität: Basis-Pfad für Daten-Dateien
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).parent
+
 # Windows Konsole auf UTF-8 setzen, um Unicode-Fehler zu vermeiden
 if sys.platform == 'win32':
     try:
@@ -561,7 +567,7 @@ async def stop_speaking():
 @app.get("/api/typing-sound")
 async def get_typing_sound():
     """Liefert die Typing-Sound MP3-Datei"""
-    sound_path = Path(os.path.dirname(os.path.abspath(__file__))) / "electron-app" / "typing-sound.mp3"
+    sound_path = BASE_DIR / "electron-app" / "typing-sound.mp3"
     if not sound_path.exists():
         raise HTTPException(status_code=404, detail="typing-sound.mp3 nicht gefunden")
     return FileResponse(str(sound_path), media_type="audio/mpeg")
@@ -1056,9 +1062,9 @@ async def complete_sentence_endpoint(
     import anthropic
     
     prompt_file = f"prompt_{request.language}.txt"
-    prompt_path = Path(__file__).parent / prompt_file
+    prompt_path = BASE_DIR / prompt_file
     if not prompt_path.exists():
-        prompt_path = Path(__file__).parent / "prompt_de.txt"
+        prompt_path = BASE_DIR / "prompt_de.txt"
     system_prompt = prompt_path.read_text(encoding="utf-8")
     
     # Dynamischen Kontext einfügen, falls vorhanden
@@ -1095,7 +1101,7 @@ async def complete_sentence_endpoint(
             for msg in request.recent_messages:
                 messages.append({"role": "user", "content": msg})
                 messages.append({"role": "assistant", "content": msg})
-            messages.append({"role": "user", "content": f"Bitte vervollständige folgenden abgekürzten Text: {request.text}"})
+            messages.append({"role": "user", "content": request.text})
             
             message = client.messages.create(
                 model=try_model,
@@ -1283,7 +1289,7 @@ def _load_typing_sound():
     import soundfile as sf
     from pathlib import Path
     
-    sound_path = Path(__file__).parent / "electron-app" / "typing-sound.mp3"
+    sound_path = BASE_DIR / "electron-app" / "typing-sound.mp3"
     if not sound_path.exists():
         print(f"[Typing-Mic] Sound-Datei nicht gefunden: {sound_path}")
         return False

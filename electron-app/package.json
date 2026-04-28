@@ -18,10 +18,35 @@
   "build": {
     "appId": "com.speakalike.app",
     "productName": "SpeakAlike",
+    "directories": {
+      "output": "../dist"
+    },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "icons/icon.ico",
+      "signAndEditExecutable": false
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "icons/icon.ico",
+      "uninstallerIcon": "icons/icon.ico",
+      "installerHeaderIcon": "icons/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "extraResources": [
+      {
+        "from": "../dist/backend",
+        "to": "backend",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../voice_models",
+        "to": "voice_models",
+        "filter": ["*.pt", ".last_model", ".last_tts_model", ".elevenlabs_config"]
+      }
+    ],
     "files": [
       "**/*",
       "!**/*.py",
