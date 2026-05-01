@@ -11,6 +11,7 @@ let pythonProcess;
 let isMiniMode = false;
 let miniModePosition = 'top'; // 'top' oder 'bottom'
 let normalWindowBounds = null;
+let miniModeKeepOnTopInterval = null;
 
 const BACKEND_URL = 'http://127.0.0.1:8765';
 
@@ -246,6 +247,11 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+    // Interval aufräumen
+    if (miniModeKeepOnTopInterval) {
+        clearInterval(miniModeKeepOnTopInterval);
+        miniModeKeepOnTopInterval = null;
+    }
     // Backend stoppen
     if (pythonProcess) {
         pythonProcess.kill();
@@ -356,10 +362,22 @@ ipcMain.handle('toggle-mini-mode', async () => {
         mainWindow.show();
         mainWindow.focus();
         
+        // Periodisch alwaysOnTop neu setzen, damit es bei Vollbild-Spielen bleibt
+        if (miniModeKeepOnTopInterval) clearInterval(miniModeKeepOnTopInterval);
+        miniModeKeepOnTopInterval = setInterval(() => {
+            if (mainWindow && !mainWindow.isDestroyed() && isMiniMode) {
+                mainWindow.setAlwaysOnTop(true, 'screen-saver');
+            }
+        }, 1000);
+        
         isMiniMode = true;
         console.log('Mini-Modus aktiviert - Finale Bounds:', mainWindow.getBounds());
     } else {
         // Zurück zum normalen Modus
+        if (miniModeKeepOnTopInterval) {
+            clearInterval(miniModeKeepOnTopInterval);
+            miniModeKeepOnTopInterval = null;
+        }
         mainWindow.setAlwaysOnTop(false);
         mainWindow.setVisibleOnAllWorkspaces(false);
         mainWindow.setMinimumSize(800, 600);
