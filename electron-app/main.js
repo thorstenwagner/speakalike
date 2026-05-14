@@ -504,7 +504,16 @@ ipcMain.handle('show-quick-access-window', async (event, items) => {
 
 ipcMain.handle('update-quick-access-window', async (event, items) => {
     if (quickAccessWindow && !quickAccessWindow.isDestroyed() && quickAccessWindow.isVisible()) {
+        const mainBounds = mainWindow.getBounds();
+        const popupWidth = mainBounds.width;
+        const itemHeight = 32;
+        const popupHeight = Math.min(items.length * itemHeight + 8, 300);
+        const x = mainBounds.x;
+        const y = miniModePosition === 'top'
+            ? mainBounds.y + mainBounds.height + 2
+            : mainBounds.y - popupHeight - 2;
         quickAccessWindow.webContents.send('update-items', items);
+        quickAccessWindow.setBounds({ x, y, width: popupWidth, height: popupHeight });
     }
 });
 
