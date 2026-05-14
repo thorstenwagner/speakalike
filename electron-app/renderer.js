@@ -1150,8 +1150,8 @@ function addToQuickAccess(item) {
     });
     
     // Max 20 Items
-    if (quickAccessItems.length > 20) {
-        quickAccessItems = quickAccessItems.slice(0, 20);
+    if (quickAccessItems.length > 26) {
+        quickAccessItems = quickAccessItems.slice(0, 26);
     }
     
     saveQuickAccessToStorage();
@@ -3020,7 +3020,7 @@ function hideSuggestions() {
 }
 
 // === Mini-Modus Schnellzugriff-Fenster ===
-const QUICK_ACCESS_KEYS = ['Q', 'E', 'T', 'U', 'I', 'Y', 'C', 'N'];
+const QUICK_ACCESS_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
 function showMiniQuickDropdown() {
     const items = quickAccessItems.slice(0, QUICK_ACCESS_KEYS.length);
