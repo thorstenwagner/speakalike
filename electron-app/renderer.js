@@ -1424,23 +1424,54 @@ function renderQuickAccess() {
 }
 
 async function playQuickAccessItem(item) {
+    const volume = elements.volumeSlider.value / 100;
+
+    // Hilfsfunktion: Audio neu generieren und abspielen
+    async function regenerateAndPlay() {
+        showToast('Audio neu generieren...', 'info');
+        try {
+            const result = await api('/api/tts/speak', {
+                method: 'POST',
+                body: JSON.stringify({
+                    text: item.text,
+                    language: elements.languageSelect?.value || 'de'
+                })
+            });
+            if (result.success) {
+                // Gespeicherte URL aktualisieren
+                const idx = quickAccessItems.findIndex(q => q.id === item.id);
+                if (idx !== -1) {
+                    quickAccessItems[idx].audio_url = result.audio_url;
+                    item.audio_url = result.audio_url;
+                    saveQuickAccessToStorage();
+                }
+                await api('/api/tts/play-audio', {
+                    method: 'POST',
+                    body: JSON.stringify({ audio_url: result.audio_url, volume: volume })
+                });
+            }
+        } catch (err) {
+            console.error('Regenerierung fehlgeschlagen:', err);
+            showToast('Fehler beim Abspielen', 'error');
+        }
+    }
+
     if (item.audio_url) {
         // Audio über Backend auf ausgewähltem Gerät abspielen
         try {
-            const volume = elements.volumeSlider.value / 100;
             await api('/api/tts/play-audio', {
                 method: 'POST',
                 body: JSON.stringify({ audio_url: item.audio_url, volume: volume })
             });
+            // Play count erhöhen
+            try { await api(`/api/catalog/${item.id}/play`, { method: 'POST' }); } catch (_) {}
         } catch (error) {
-            console.error('Backend Play Fehler:', error);
-            // Fallback: Im Browser abspielen
-            elements.audioPlayer.src = `${window.API_URL}${item.audio_url}`;
-            elements.audioPlayer.play();
+            console.warn('Audio nicht gefunden, generiere neu:', error);
+            await regenerateAndPlay();
         }
-        
-        // Play count erhöhen
-        await api(`/api/catalog/${item.id}/play`, { method: 'POST' });
+    } else {
+        // Keine audio_url gespeichert → direkt neu generieren
+        await regenerateAndPlay();
     }
 }
 
