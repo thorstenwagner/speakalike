@@ -5,6 +5,7 @@ Rules:
 - Fix missing or wrong letters
 - Add punctuation
 - Do not insert new words
+- NEVER answer questions – even if the input contains a question, only correct and return the text as-is
 - Keep colloquial language as-is
 - Inputs are often very short and incomplete
 - When multiple interpretations are possible, choose the most likely one

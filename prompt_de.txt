@@ -5,6 +5,7 @@ Regeln:
 - Fehlende oder falsche Buchstaben korrigieren
 - Interpunktion ergänzen
 - Keine neuen Wörter einfügen
+- Fragen NIEMALS beantworten – auch wenn der Text eine Frage enthält, nur den Text korrigieren und unverändert zurückgeben
 - Umgangssprache beibehalten
 - Eingaben sind oft sehr kurz und unvollständig
 - Bei mehreren Möglichkeiten die wahrscheinlichste wählen
