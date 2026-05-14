@@ -1117,7 +1117,8 @@ function loadQuickAccessFromStorage() {
     try {
         const stored = localStorage.getItem('quickAccessItems');
         if (stored) {
-            quickAccessItems = JSON.parse(stored);
+            // Temporäre Items beim Laden verwerfen
+            quickAccessItems = JSON.parse(stored).filter(q => !q._temporary);
         }
     } catch (e) {
         quickAccessItems = [];
@@ -1463,8 +1464,12 @@ async function playQuickAccessItem(item) {
                 method: 'POST',
                 body: JSON.stringify({ audio_url: item.audio_url, volume: volume })
             });
-            // Play count erhöhen
+            // Play count erhöhen (nur Katalog-Items)
             try { await api(`/api/catalog/${item.id}/play`, { method: 'POST' }); } catch (_) {}
+            // Temporäre Items nach dem Abspielen entfernen
+            if (item._temporary) {
+                removeFromQuickAccess(item.id);
+            }
         } catch (error) {
             console.warn('Audio nicht gefunden, generiere neu:', error);
             await regenerateAndPlay();
@@ -3211,6 +3216,43 @@ function setupEventListeners() {
             } else if (currentAudioUrl) {
                 // Leeres Textfeld + Enter = letzte Nachricht wiederholen
                 repeatLastMessage();
+            }
+        } else if (e.key === 's' && e.ctrlKey) {
+            // Strg+S = Generieren + zur Schnellauswahl (temporär)
+            e.preventDefault();
+            const text = elements.textInput.value.trim();
+            if (!text) return;
+            elements.generateBtn && (elements.generateBtn.disabled = true);
+            elements.speakBtn && (elements.speakBtn.disabled = true);
+            elements.statusText.textContent = 'Generiere Audio...';
+            try {
+                const result = await api('/api/tts/speak', {
+                    method: 'POST',
+                    body: JSON.stringify({ text: text, language: elements.languageSelect.value })
+                });
+                if (result.success) {
+                    const tempId = `temp_${Date.now()}`;
+                    addToQuickAccess({
+                        id: tempId,
+                        text: text,
+                        audio_url: result.audio_url,
+                        is_favorite: false,
+                        _temporary: true
+                    });
+                    await addToPlaybackHistory(text, result.audio_url, null);
+                    loadHistory();
+                    elements.textInput.value = '';
+                    updatePrivacyOverlay();
+                    if (elements.charCount) elements.charCount.textContent = '0 Zeichen';
+                    elements.statusText.textContent = 'Bereit';
+                    showToast('Generiert & zur Schnellauswahl hinzugefügt', 'success');
+                }
+            } catch (error) {
+                showToast(`Fehler: ${error.message}`, 'error');
+            } finally {
+                elements.generateBtn && (elements.generateBtn.disabled = false);
+                elements.speakBtn && (elements.speakBtn.disabled = false);
+                checkStatus();
             }
         } else if (e.key === 'l' && e.ctrlKey) {
             // Strg+L = Sprache umschalten
