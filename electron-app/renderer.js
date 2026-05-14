@@ -1396,7 +1396,7 @@ function renderQuickAccess() {
         div.className = 'quick-access-item';
         
         const textPreview = item.text.substring(0, 50) + (item.text.length > 50 ? '...' : '');
-        const badge = idx < QUICK_ACCESS_KEYS.length ? `<span class="quick-shortcut-badge">${QUICK_ACCESS_KEYS[idx]}</span>` : '';
+        const badge = idx < QUICK_ACCESS_KEYS.length ? `<span class="quick-shortcut-badge${item._temporary ? ' temporary' : ''}">${QUICK_ACCESS_KEYS[idx]}</span>` : '';
         
         div.innerHTML = `
             ${badge}

@@ -2061,6 +2061,11 @@ body.mini-mode.mini-bottom {
     flex-shrink: 0;
 }
 
+.quick-shortcut-badge.temporary {
+    background: #e8a020;
+    color: #000000;
+}
+
 body.mini-mode .quick-shortcut-badge {
     display: inline-block;
 }

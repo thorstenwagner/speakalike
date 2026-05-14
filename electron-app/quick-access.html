@@ -54,7 +54,8 @@
                 const div = document.createElement('div');
                 div.className = 'item';
                 const preview = item.text.length > 70 ? item.text.substring(0, 70) + '...' : item.text;
-                div.innerHTML = `<span class="badge">${KEYS[i]}</span><span class="text">${preview}</span>`;
+                const badgeStyle = item._temporary ? 'background:#e8a020;color:#000;' : '';
+                div.innerHTML = `<span class="badge" style="${badgeStyle}">${KEYS[i]}</span><span class="text">${preview}</span>`;
                 div.addEventListener('click', () => {
                     window.electronAPI.quickAccessPlay(i);
                 });
