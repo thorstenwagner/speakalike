@@ -492,6 +492,12 @@ ipcMain.handle('show-quick-access-window', async (event, items) => {
     });
 });
 
+ipcMain.handle('update-quick-access-window', async (event, items) => {
+    if (quickAccessWindow && !quickAccessWindow.isDestroyed() && quickAccessWindow.isVisible()) {
+        quickAccessWindow.webContents.send('update-items', items);
+    }
+});
+
 ipcMain.handle('hide-quick-access-window', async () => {
     if (quickAccessWindow && !quickAccessWindow.isDestroyed()) {
         quickAccessWindow.hide();

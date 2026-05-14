@@ -1384,6 +1384,9 @@ function renderQuickAccess() {
     if (filteredItems.length === 0) {
         const emptyText = globalSearchTerms.length > 0 ? 'Keine Treffer' : 'Nachrichten hier hinzufügen mit dem ➕ Button';
         elements.quickAccessList.innerHTML = `<p class="muted">${emptyText}</p>`;
+        if (window.electronAPI?.updateQuickAccessWindow) {
+            window.electronAPI.updateQuickAccessWindow(quickAccessItems.slice(0, QUICK_ACCESS_KEYS.length));
+        }
         return;
     }
     
@@ -1423,6 +1426,12 @@ function renderQuickAccess() {
         
         elements.quickAccessList.appendChild(div);
     });
+
+    // Mini-Fenster aktualisieren falls offen
+    if (window.electronAPI?.updateQuickAccessWindow) {
+        const miniItems = quickAccessItems.slice(0, QUICK_ACCESS_KEYS.length);
+        window.electronAPI.updateQuickAccessWindow(miniItems);
+    }
 }
 
 async function playQuickAccessItem(item) {

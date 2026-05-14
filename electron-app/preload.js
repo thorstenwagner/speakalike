@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setOpacity: (opacity) => ipcRenderer.invoke('set-opacity', opacity),
     // Schnellzugriff-Popup
     showQuickAccessWindow: (items) => ipcRenderer.invoke('show-quick-access-window', items),
+    updateQuickAccessWindow: (items) => ipcRenderer.invoke('update-quick-access-window', items),
     hideQuickAccessWindow: () => ipcRenderer.invoke('hide-quick-access-window'),
     onQuickAccessPlay: (callback) => ipcRenderer.on('quick-access-play', (event, index) => callback(index)),
     // Quick-access popup → main (from popup window)
