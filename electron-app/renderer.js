@@ -3233,9 +3233,18 @@ function setupEventListeners() {
             }
         } else if (e.key === 's' && e.ctrlKey) {
             // Strg+S = Generieren + zur Schnellauswahl (temporär)
+            // Bei leerem Textfeld: alle temporären Einträge dauerhaft machen
             e.preventDefault();
             const text = elements.textInput.value.trim();
-            if (!text) return;
+            if (!text) {
+                const tempItems = quickAccessItems.filter(q => q._temporary);
+                if (tempItems.length === 0) return;
+                tempItems.forEach(q => { delete q._temporary; });
+                saveQuickAccessToStorage();
+                renderQuickAccess();
+                showToast(`${tempItems.length} Eintrag${tempItems.length > 1 ? 'e' : ''} dauerhaft gespeichert`, 'success');
+                return;
+            }
             elements.generateBtn && (elements.generateBtn.disabled = true);
             elements.speakBtn && (elements.speakBtn.disabled = true);
             elements.statusText.textContent = 'Generiere Audio...';
