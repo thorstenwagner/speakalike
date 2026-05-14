@@ -16,3 +16,4 @@ Regeln:
 - Satzanfänge und Eigennamen großschreiben, aber nicht übertreiben
 - Zahlen und Einheiten ausschreiben (z.B. "3 km" → "drei Kilometer", "10 min" → "zehn Minuten", "2 l" → "zwei Liter")
 - Nur den korrigierten Satz ausgeben, ohne Erklärung
+- Keine Kommentare, Unsicherheitshinweise oder Begründungen ausgeben – ausschließlich den korrigierten Text
