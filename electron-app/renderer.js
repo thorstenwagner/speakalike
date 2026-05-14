@@ -1140,8 +1140,8 @@ function addToQuickAccess(item) {
         return;
     }
     
-    // Am Anfang hinzufügen (inkl. tags für Suchfilter)
-    quickAccessItems.unshift({
+    // Am Ende hinzufügen (inkl. tags für Suchfilter)
+    quickAccessItems.push({
         id: item.id,
         text: item.text,
         audio_url: item.audio_url,
