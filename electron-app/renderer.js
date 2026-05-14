@@ -1147,7 +1147,8 @@ function addToQuickAccess(item) {
         text: item.text,
         audio_url: item.audio_url,
         is_favorite: item.is_favorite,
-        tags: item.tags || []
+        tags: item.tags || [],
+        _temporary: item._temporary || false
     });
     
     // Max 20 Items
@@ -1450,6 +1451,10 @@ async function playQuickAccessItem(item) {
                     method: 'POST',
                     body: JSON.stringify({ audio_url: result.audio_url, volume: volume })
                 });
+                // Temporäre Items nach Regenerierung auch entfernen
+                if (item._temporary) {
+                    removeFromQuickAccess(item.id);
+                }
             }
         } catch (err) {
             console.error('Regenerierung fehlgeschlagen:', err);
