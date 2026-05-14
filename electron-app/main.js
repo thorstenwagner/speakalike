@@ -421,6 +421,16 @@ ipcMain.handle('toggle-mini-position', async () => {
         : workAreaPos.y + workArea.height - miniHeight - 5;
     
     mainWindow.setPosition(x, y);
+
+    // Schnellzugriff-Fenster repositionieren falls offen
+    if (quickAccessWindow && !quickAccessWindow.isDestroyed() && quickAccessWindow.isVisible()) {
+        const mainBounds = { x, y, width: miniWidth, height: miniHeight };
+        const popupHeight = quickAccessWindow.getBounds().height;
+        const popY = miniModePosition === 'top'
+            ? y + miniHeight + 2
+            : y - popupHeight - 2;
+        quickAccessWindow.setPosition(x, popY);
+    }
     
     return miniModePosition;
 });
