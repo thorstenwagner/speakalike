@@ -16,6 +16,7 @@ let selectedFiles = [];
 let currentTTSModel = 'xtts_v2';
 let availableTTSModels = {};
 let privacyMode = false;
+let privacyShowWord = false; // default: letztes Wort nicht anzeigen
 let currentProvider = 'coqui';
 let kiAutoCorrect = false;
 let _suggestTimer = null;
@@ -3067,7 +3068,11 @@ function togglePrivacyMode() {
 }
 
 function updatePrivacyOverlay() {
-    if (!privacyMode) return;
+    if (!privacyMode || !privacyShowWord) {
+        elements.privacyLastWord.textContent = '';
+        elements.privacyLastWord.classList.remove('has-word');
+        return;
+    }
     const text = elements.textInput.value;
     if (!text || !text.trim()) {
         elements.privacyLastWord.textContent = '';
@@ -3299,6 +3304,17 @@ function setupEventListeners() {
 
     // Privacy overlay bei Texteingabe aktualisieren
     elements.textInput.addEventListener('input', updatePrivacyOverlay);
+
+    // Klick auf 🔒 = letztes Wort ein/ausblenden
+    if (elements.privacyIndicator) {
+        elements.privacyIndicator.addEventListener('click', () => {
+            privacyShowWord = !privacyShowWord;
+            elements.privacyIndicator.classList.toggle('show-word', privacyShowWord);
+            elements.privacyIndicator.title = privacyShowWord ? 'Letztes Wort ausblenden' : 'Letztes Wort anzeigen';
+            updatePrivacyOverlay();
+        });
+        elements.privacyIndicator.title = 'Letztes Wort anzeigen';
+    }
 
     // Suggestions bei Texteingabe laden
     elements.textInput.addEventListener('input', () => {

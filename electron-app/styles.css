@@ -2118,8 +2118,14 @@ body.mini-mode .quick-shortcut-badge {
     right: 8px;
     font-size: 0.75rem;
     opacity: 0.6;
-    pointer-events: none;
+    pointer-events: all;
+    cursor: pointer;
     z-index: 2;
+    user-select: none;
+}
+
+.privacy-indicator.show-word {
+    opacity: 1;
 }
 
 .privacy-active .privacy-indicator {
