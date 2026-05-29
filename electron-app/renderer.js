@@ -3501,6 +3501,16 @@ function setupEventListeners() {
     elements.closeSettingsBtn.addEventListener('click', closeSettingsModal);
     elements.saveSettingsBtn.addEventListener('click', saveSettings);
     elements.refreshDevicesBtn.addEventListener('click', loadAudioDevices);
+
+    // Settings Tabs
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.settings-tab-panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.tab).classList.add('active');
+        });
+    });
     
     // Echo-Test Button
     const echoTestBtn = document.getElementById('micEchoTestBtn');

@@ -195,7 +195,15 @@
                 <h2>⚙️ Einstellungen</h2>
                 <button class="btn btn-icon modal-close" id="closeSettingsBtn">✕</button>
             </div>
+            <!-- Settings Tabs -->
+            <div class="settings-tabs">
+                <button class="settings-tab active" data-tab="tab-speech">🔊 Sprache</button>
+                <button class="settings-tab" data-tab="tab-audio">🎛️ Audio</button>
+                <button class="settings-tab" data-tab="tab-general">⚙️ Allgemein</button>
+            </div>
             <div class="modal-body settings-body">
+                <!-- Tab: Sprache -->
+                <div class="settings-tab-panel active" id="tab-speech">
                 <div class="setting-group">
                     <label>🔌 TTS-Provider</label>
                     <div class="device-select-row">
@@ -307,6 +315,10 @@
                     </div>
                 </div>
                 </div><!-- /coquiSettings -->
+                </div><!-- /tab-speech -->
+
+                <!-- Tab: Audio -->
+                <div class="settings-tab-panel" id="tab-audio">
                 <div class="setting-group">
                     <label>🔊 Ausgabegerät</label>
                     <div class="device-select-row">
@@ -326,6 +338,10 @@
                         <button class="btn btn-small" id="micEchoTestBtn" title="Testton über das virtuelle Mikrofon abspielen">🔊 Test</button>
                     </div>
                 </div>
+                </div><!-- /tab-audio -->
+
+                <!-- Tab: Allgemein -->
+                <div class="settings-tab-panel" id="tab-general">
                 <div class="settings-ai-row">
                     <div class="setting-group">
                         <label>🤖 Claude API Key</label>
@@ -359,6 +375,7 @@
                         <p class="muted" style="font-size:0.8rem;">Keine Sets gespeichert</p>
                     </div>
                 </div>
+                </div><!-- /tab-general -->
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" id="saveSettingsBtn">Speichern</button>
