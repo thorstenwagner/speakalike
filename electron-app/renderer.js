@@ -79,6 +79,7 @@ const elements = {
     repetitionSlider: document.getElementById('repetitionSlider'),
     repetitionValue: document.getElementById('repetitionValue'),
     saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+    privacyShowWordDefault: document.getElementById('privacyShowWordDefault'),
     
     // New Voice Modal
     newVoiceModal: document.getElementById('newVoiceModal'),
@@ -2368,6 +2369,14 @@ async function loadSettings() {
         // Theme laden
         const savedTheme = localStorage.getItem('theme') || 'dark';
         elements.themeSelect.value = savedTheme;
+
+        // Privacy: letztes Wort anzeigen laden
+        privacyShowWord = localStorage.getItem('privacyShowWordDefault') === 'true';
+        if (elements.privacyShowWordDefault) elements.privacyShowWordDefault.checked = privacyShowWord;
+        if (elements.privacyIndicator) {
+            elements.privacyIndicator.classList.toggle('show-word', privacyShowWord);
+            elements.privacyIndicator.title = privacyShowWord ? 'Letztes Wort ausblenden' : 'Letztes Wort anzeigen';
+        }
         
         // ElevenLabs Provider & Settings laden
         const provider = settings.tts_provider || 'coqui';
@@ -2449,6 +2458,16 @@ async function saveSettings() {
         const theme = elements.themeSelect.value;
         localStorage.setItem('theme', theme);
         document.documentElement.setAttribute('data-theme', theme);
+
+        // Privacy-Default speichern
+        const showWordDefault = elements.privacyShowWordDefault?.checked || false;
+        localStorage.setItem('privacyShowWordDefault', showWordDefault.toString());
+        privacyShowWord = showWordDefault;
+        if (elements.privacyIndicator) {
+            elements.privacyIndicator.classList.toggle('show-word', privacyShowWord);
+            elements.privacyIndicator.title = privacyShowWord ? 'Letztes Wort ausblenden' : 'Letztes Wort anzeigen';
+        }
+        updatePrivacyOverlay();
         
         // ElevenLabs Konfiguration speichern
         const elevenApiKey = elements.elevenlabsApiKeyInput.value.trim();
