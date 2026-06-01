@@ -440,6 +440,24 @@ ipcMain.handle('get-mini-mode-status', async () => {
     return { isMiniMode, position: miniModePosition };
 });
 
+// Mini-Modus Fensterhöhe temporär ändern (für Popup-Dialoge)
+const MINI_HEIGHT = 120;
+ipcMain.handle('set-mini-height', async (event, height) => {
+    if (!isMiniMode || !mainWindow) return;
+    const display = screen.getPrimaryDisplay();
+    const workArea = display.workAreaSize;
+    const workAreaPos = display.workArea;
+    const miniWidth = 850;
+    const x = workAreaPos.x + Math.round((workArea.width - miniWidth) / 2);
+    if (miniModePosition === 'bottom') {
+        // Bei bottom: y anpassen damit untere Kante fest bleibt
+        const yBottom = workAreaPos.y + workArea.height - MINI_HEIGHT - 5;
+        const yNew = yBottom - (height - MINI_HEIGHT);
+        mainWindow.setPosition(x, yNew);
+    }
+    mainWindow.setSize(miniWidth, height);
+});
+
 ipcMain.handle('set-opacity', async (event, opacity) => {
     if (mainWindow) {
         mainWindow.setOpacity(Math.max(0.1, Math.min(1, opacity)));

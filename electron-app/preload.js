@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     toggleMiniMode: () => ipcRenderer.invoke('toggle-mini-mode'),
     toggleMiniPosition: () => ipcRenderer.invoke('toggle-mini-position'),
     getMiniModeStatus: () => ipcRenderer.invoke('get-mini-mode-status'),
+    setMiniHeight: (height) => ipcRenderer.invoke('set-mini-height', height),
     setOpacity: (opacity) => ipcRenderer.invoke('set-opacity', opacity),
     // Schnellzugriff-Popup
     showQuickAccessWindow: (items) => ipcRenderer.invoke('show-quick-access-window', items),

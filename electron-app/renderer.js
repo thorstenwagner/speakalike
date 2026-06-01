@@ -17,6 +17,7 @@ let currentTTSModel = 'xtts_v2';
 let availableTTSModels = {};
 let privacyMode = false;
 let privacyShowWord = false; // default: letztes Wort nicht anzeigen
+let confirmSend = true; // default: Bestätigungsdialog aktiv
 let currentProvider = 'coqui';
 let kiAutoCorrect = false;
 let _suggestTimer = null;
@@ -80,6 +81,7 @@ const elements = {
     repetitionValue: document.getElementById('repetitionValue'),
     saveSettingsBtn: document.getElementById('saveSettingsBtn'),
     privacyShowWordDefault: document.getElementById('privacyShowWordDefault'),
+    confirmSendDefault: document.getElementById('confirmSendDefault'),
     
     // New Voice Modal
     newVoiceModal: document.getElementById('newVoiceModal'),
@@ -2373,6 +2375,11 @@ async function loadSettings() {
         // Privacy: letztes Wort anzeigen laden
         privacyShowWord = localStorage.getItem('privacyShowWordDefault') === 'true';
         if (elements.privacyShowWordDefault) elements.privacyShowWordDefault.checked = privacyShowWord;
+
+        // Bestätigung vor Abspielen laden (default: true)
+        const confirmStored = localStorage.getItem('confirmSendDefault');
+        confirmSend = confirmStored === null ? true : confirmStored === 'true';
+        if (elements.confirmSendDefault) elements.confirmSendDefault.checked = confirmSend;
         if (elements.privacyIndicator) {
             elements.privacyIndicator.classList.toggle('show-word', privacyShowWord);
             elements.privacyIndicator.title = privacyShowWord ? 'Letztes Wort ausblenden' : 'Letztes Wort anzeigen';
@@ -2463,6 +2470,11 @@ async function saveSettings() {
         const showWordDefault = elements.privacyShowWordDefault?.checked || false;
         localStorage.setItem('privacyShowWordDefault', showWordDefault.toString());
         privacyShowWord = showWordDefault;
+
+        // Bestätigungs-Default speichern
+        const confirmDefault = elements.confirmSendDefault?.checked || false;
+        localStorage.setItem('confirmSendDefault', confirmDefault.toString());
+        confirmSend = confirmDefault;
         if (elements.privacyIndicator) {
             elements.privacyIndicator.classList.toggle('show-word', privacyShowWord);
             elements.privacyIndicator.title = privacyShowWord ? 'Letztes Wort ausblenden' : 'Letztes Wort anzeigen';
@@ -2580,6 +2592,36 @@ async function loadElevenLabsVoices() {
 }
 
 // === Modal Functions ===
+
+// Gibt ein Promise zurück das resolved wenn der User bestätigt (true) oder abbricht (false).
+// Visualisiert den Pending-State am Sprechen-Button – kein Popup nötig.
+function showConfirmSend(text) {
+    return new Promise((resolve) => {
+        const btn = elements.speakBtn;
+        const originalHTML = btn.innerHTML;
+
+        btn.classList.add('confirm-pending');
+        btn.innerHTML = document.body.classList.contains('mini-mode') ? '↵' : '↵ Bestätigen?';
+
+        function cleanup(result) {
+            btn.classList.remove('confirm-pending');
+            btn.innerHTML = originalHTML;
+            btn.removeEventListener('click', onConfirm);
+            document.removeEventListener('keydown', onKey, true);
+            resolve(result);
+        }
+        function onConfirm() { cleanup(true); }
+        function onKey(e) {
+            if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+                e.preventDefault(); e.stopPropagation(); cleanup(true);
+            } else {
+                e.stopPropagation(); cleanup(false);
+            }
+        }
+        btn.addEventListener('click', onConfirm);
+        document.addEventListener('keydown', onKey, true);
+    });
+}
 
 function openSettingsModal() {
     loadSettings();
@@ -3239,6 +3281,10 @@ function setupEventListeners() {
                 }
             }
             if (text) {
+                if (confirmSend) {
+                    const confirmed = await showConfirmSend(text);
+                    if (!confirmed) return;
+                }
                 if (kiAutoCorrect) {
                     // KI-Korrektur + Sprechen
                     elements.statusText.textContent = 'KI korrigiert...';
