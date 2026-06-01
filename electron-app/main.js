@@ -547,3 +547,56 @@ ipcMain.on('quick-access-play', (event, index) => {
     }
 });
 
+ipcMain.handle('show-set-picker', async (event, sets) => {
+    const mainBounds = mainWindow.getBounds();
+    const popupWidth = mainBounds.width;
+    const itemHeight = 32;
+    const popupHeight = Math.min(sets.length * itemHeight + 8, 300);
+    const x = mainBounds.x;
+    const y = miniModePosition === 'top'
+        ? mainBounds.y + mainBounds.height + 2
+        : mainBounds.y - popupHeight - 2;
+
+    if (quickAccessWindow && !quickAccessWindow.isDestroyed()) {
+        quickAccessWindow.setBounds({ x, y, width: popupWidth, height: popupHeight });
+        quickAccessWindow.webContents.send('update-sets', sets);
+        quickAccessWindow.show();
+        quickAccessWindow.moveTop();
+        return;
+    }
+
+    quickAccessWindow = new BrowserWindow({
+        parent: mainWindow,
+        x, y,
+        width: popupWidth,
+        height: popupHeight,
+        frame: false,
+        transparent: false,
+        resizable: false,
+        skipTaskbar: true,
+        focusable: false,
+        backgroundColor: '#2b2d31',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
+    quickAccessWindow.setAlwaysOnTop(true, 'screen-saver');
+    quickAccessWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    quickAccessWindow.loadFile(path.join(__dirname, 'quick-access.html'));
+    quickAccessWindow.webContents.once('did-finish-load', () => {
+        quickAccessWindow.webContents.send('update-sets', sets);
+        quickAccessWindow.moveTop();
+    });
+    quickAccessWindow.on('closed', () => {
+        quickAccessWindow = null;
+    });
+});
+
+ipcMain.on('set-picker-selected', (event, name) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('set-picker-selected', name);
+    }
+});
+

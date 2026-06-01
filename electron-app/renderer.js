@@ -1113,6 +1113,7 @@ async function playCatalogItem(item) {
 
 // Schnellzugriff-Liste wird im localStorage gespeichert
 let quickAccessItems = [];
+let miniSetPickerMode = false;
 
 function loadQuickAccessFromStorage() {
     try {
@@ -3131,6 +3132,27 @@ function hideMiniQuickDropdown() {
     window.electronAPI.hideQuickAccessWindow();
 }
 
+async function showMiniSetPicker() {
+    const sets = await getQuickAccessSets();
+    const setNames = Object.keys(sets);
+    if (setNames.length === 0) {
+        showToast('Keine Sets vorhanden', 'info');
+        return;
+    }
+    const setList = setNames.slice(0, QUICK_ACCESS_KEYS.length).map(name => ({
+        name,
+        count: sets[name] ? sets[name].length : 0
+    }));
+    await window.electronAPI.showSetPicker(setList);
+    miniSetPickerMode = true;
+}
+
+function hideMiniSetPicker() {
+    miniSetPickerMode = false;
+    // Zurück zur normalen Item-Ansicht
+    showMiniQuickDropdown();
+}
+
 function togglePrivacyMode() {
     privacyMode = !privacyMode;
     const wrapper = elements.textInput.closest('.text-input-wrapper');
@@ -3263,6 +3285,11 @@ function setupEventListeners() {
             }
         }
 
+        if (e.key === 'Escape' && miniSetPickerMode) {
+            hideMiniSetPicker();
+            return;
+        }
+
         if (e.key === 'Enter' && e.ctrlKey) {
             e.preventDefault();
             const text = elements.textInput.value.trim();
@@ -3288,6 +3315,22 @@ function setupEventListeners() {
         } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             const text = elements.textInput.value.trim();
+            // Set-Picker Modus: Buchstabe = Set laden
+            if (miniSetPickerMode && text.length === 1) {
+                const keyIdx = QUICK_ACCESS_KEYS.indexOf(text.toUpperCase());
+                if (keyIdx >= 0) {
+                    elements.textInput.value = '';
+                    if (elements.charCount) elements.charCount.textContent = '0 Zeichen';
+                    const sets = await getQuickAccessSets();
+                    const setNames = Object.keys(sets).slice(0, QUICK_ACCESS_KEYS.length);
+                    if (keyIdx < setNames.length) {
+                        await loadQuickAccessSet(setNames[keyIdx]);
+                        showToast(`Set geladen: ${setNames[keyIdx]}`, 'success');
+                    }
+                    hideMiniSetPicker();
+                }
+                return;
+            }
             // Einzelner Buchstabe = Schnellzugriff
             if (text.length === 1) {
                 const keyIdx = QUICK_ACCESS_KEYS.indexOf(text.toUpperCase());
@@ -3321,10 +3364,19 @@ function setupEventListeners() {
             }
         } else if (e.key === 's' && e.ctrlKey) {
             // Strg+S = Generieren + zur Schnellauswahl (temporär)
-            // Bei leerem Textfeld: alle temporären Einträge dauerhaft machen
+            // Bei leerem Textfeld im Mini-Modus: Set-Picker anzeigen
+            // Bei leerem Textfeld sonst: alle temporären Einträge dauerhaft machen
             e.preventDefault();
             const text = elements.textInput.value.trim();
             if (!text) {
+                if (document.body.classList.contains('mini-mode')) {
+                    if (miniSetPickerMode) {
+                        hideMiniSetPicker();
+                    } else {
+                        await showMiniSetPicker();
+                    }
+                    return;
+                }
                 const tempItems = quickAccessItems.filter(q => q._temporary);
                 if (tempItems.length === 0) return;
                 tempItems.forEach(q => { delete q._temporary; });
@@ -3426,7 +3478,10 @@ function setupEventListeners() {
     elements.textInput.addEventListener('blur', () => {
         if (document.body.classList.contains('mini-mode')) {
             window.electronAPI.setOpacity(0.5);
-            setTimeout(() => hideMiniQuickDropdown(), 150);
+            setTimeout(() => {
+                hideMiniQuickDropdown();
+                miniSetPickerMode = false;
+            }, 150);
         }
     });
 
@@ -3435,6 +3490,13 @@ function setupEventListeners() {
         if (index >= 0 && index < quickAccessItems.length) {
             playQuickAccessItem(quickAccessItems[index]);
         }
+    });
+
+    // Set-Picker: Set-Auswahl via Klick im Popup-Fenster
+    window.electronAPI.onSetPickerSelected(async (name) => {
+        await loadQuickAccessSet(name);
+        showToast(`Set geladen: ${name}`, 'success');
+        hideMiniSetPicker();
     });
     
     // Context input - live save to localStorage

@@ -17,9 +17,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateQuickAccessWindow: (items) => ipcRenderer.invoke('update-quick-access-window', items),
     hideQuickAccessWindow: () => ipcRenderer.invoke('hide-quick-access-window'),
     onQuickAccessPlay: (callback) => ipcRenderer.on('quick-access-play', (event, index) => callback(index)),
+    showSetPicker: (sets) => ipcRenderer.invoke('show-set-picker', sets),
+    onSetPickerSelected: (callback) => ipcRenderer.on('set-picker-selected', (event, name) => callback(name)),
     // Quick-access popup → main (from popup window)
     quickAccessPlay: (index) => ipcRenderer.send('quick-access-play', index),
-    onUpdateItems: (callback) => ipcRenderer.on('update-items', (event, items) => callback(items))
+    setPickerSelect: (name) => ipcRenderer.send('set-picker-selected', name),
+    onUpdateItems: (callback) => ipcRenderer.on('update-items', (event, items) => callback(items)),
+    onUpdateSets: (callback) => ipcRenderer.on('update-sets', (event, sets) => callback(sets))
 });
 
 // Backend API URL

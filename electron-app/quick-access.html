@@ -25,6 +25,9 @@
         }
         .item:last-child { border-bottom: none; }
         .item:hover { background: #35373d; }
+        .item.set-mode { color: #a0b4d0; }
+        .item.set-mode:hover { background: #35373d; color: #5b8def; }
+        .item.set-mode .badge { background: #5b8def; color: #fff; }
         .badge {
             font-size: 0.85rem;
             font-weight: 700;
@@ -63,8 +66,27 @@
             });
         }
 
+        function renderSets(sets) {
+            listEl.innerHTML = '';
+            sets.forEach((set, i) => {
+                const div = document.createElement('div');
+                div.className = 'item set-mode';
+                const label = set.name.length > 55 ? set.name.substring(0, 55) + '...' : set.name;
+                const count = set.count != null ? ` (${set.count})` : '';
+                div.innerHTML = `<span class="badge">${KEYS[i]}</span><span class="text">${label}${count}</span>`;
+                div.addEventListener('click', () => {
+                    window.electronAPI.setPickerSelect(set.name);
+                });
+                listEl.appendChild(div);
+            });
+        }
+
         window.electronAPI.onUpdateItems((items) => {
             render(items);
+        });
+
+        window.electronAPI.onUpdateSets((sets) => {
+            renderSets(sets);
         });
     </script>
 </body>
