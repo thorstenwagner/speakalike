@@ -55,6 +55,7 @@
     color: var(--color-text);
 }
 
+
 * {
     margin: 0;
     padding: 0;
@@ -614,7 +615,7 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-sm);
     overflow-x: hidden;
     overflow-y: auto;
     min-height: 100px;
@@ -641,7 +642,7 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-sm);
     overflow-x: hidden;
     overflow-y: auto;
     min-height: 100px;
@@ -909,27 +910,31 @@ body {
     font-size: 0.7rem;
 }
 
+.tag-browser-msg-tags {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: var(--spacing-xs);
-    overflow-y: auto;
-    max-height: 150px;
 }
 
 .history-item {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-sm) var(--spacing-md);
-    min-height: 40px;
+    flex-direction: column;
+    padding: var(--spacing-sm);
     background: var(--color-white);
     border-radius: var(--radius);
     border: 1px solid var(--color-border);
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.history-item:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-lg);
 }
 
 .history-item .history-text {
-    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -945,6 +950,7 @@ body {
 
 .history-item .history-actions {
     display: flex;
+    align-items: center;
     gap: var(--spacing-xs);
 }
 
@@ -969,13 +975,13 @@ body {
 }
 
 .catalog-preview {
-    padding: var(--spacing-xs);
+    padding: var(--spacing-sm);
     background: var(--color-bg);
     border-radius: var(--radius);
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--spacing-sm);
     overflow-x: hidden;
     overflow-y: auto;
 }
@@ -987,8 +993,15 @@ body {
     padding: var(--spacing-xs) var(--spacing-sm);
     min-height: 36px;
     background: var(--color-white);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
     border: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.catalog-preview-item:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-lg);
 }
 
 .catalog-preview-item .preview-text {

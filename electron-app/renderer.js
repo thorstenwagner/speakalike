@@ -900,12 +900,11 @@ async function loadCatalogPreview() {
             item.innerHTML = `
                 <span class="preview-text">${escapeHtml(msg.text.substring(0, 40))}${msg.text.length > 40 ? '...' : ''}</span>
                 <div class="preview-actions">
-                    <button class="btn btn-small play-btn" data-id="${msg.id}">▶️</button>
                     <button class="btn btn-small add-quick-btn" title="Zum Schnellzugriff">➕</button>
                 </div>
             `;
-            item.querySelector('.play-btn').onclick = () => playCatalogAudio(msg.id, msg.text);
             item.querySelector('.add-quick-btn').onclick = () => addToQuickAccess(msg);
+            item.onclick = (e) => { if (!e.target.closest('button')) playCatalogAudio(msg.id, msg.text); };
             elements.catalogPreview.appendChild(item);
         });
     } catch (error) {
@@ -944,15 +943,13 @@ async function loadHistory() {
             
             div.innerHTML = `
                 <span class="history-text">${catalogIndicator}${escapeHtml(item.text.substring(0, 40))}${item.text.length > 40 ? '...' : ''}</span>
-                <span class="history-time">${timeStr}</span>
                 <div class="history-actions">
-                    <button class="btn btn-small play-btn" title="Abspielen">▶️</button>
                     <button class="btn btn-small add-quick-btn" title="Zum Schnellzugriff">➕</button>
                     <button class="btn btn-small save-btn" title="Speichern">💾</button>
                     ${!item.in_catalog ? '<button class="btn btn-small catalog-btn" title="Zum Katalog">📁</button>' : ''}
                 </div>
             `;
-            div.querySelector('.play-btn').onclick = () => playHistoryAudio(item.audio_url, item.text, item.catalog_id);
+            div.onclick = (e) => { if (!e.target.closest('button')) playHistoryAudio(item.audio_url, item.text, item.catalog_id); };
             div.querySelector('.add-quick-btn').onclick = () => addToQuickAccess({
                 id: item.catalog_id || `history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 text: item.text,
@@ -1072,16 +1069,14 @@ async function loadFavorites() {
             
             div.innerHTML = `
                 <span class="history-text">${escapeHtml(item.text.substring(0, 40))}${item.text.length > 40 ? '...' : ''}</span>
-                <span class="history-time">${item.play_count || 0}×</span>
                 <div class="history-actions">
-                    <button class="btn btn-small play-btn" title="Abspielen">▶️</button>
                     <button class="btn btn-small add-quick-btn" title="Zum Schnellzugriff">➕</button>
                     <button class="btn btn-small unfav-btn" title="Entfernen">⭐</button>
                 </div>
             `;
-            div.querySelector('.play-btn').onclick = () => playCatalogItem(item);
             div.querySelector('.add-quick-btn').onclick = () => addToQuickAccess(item);
             div.querySelector('.unfav-btn').onclick = () => toggleFavorite(item.id, false);
+            div.onclick = (e) => { if (!e.target.closest('button')) playCatalogItem(item); };
             elements.favoritesList.appendChild(div);
         });
     } catch (error) {
@@ -1406,16 +1401,11 @@ function renderQuickAccess() {
             ${badge}
             <span class="quick-text" title="${escapeHtml(item.text)}">${escapeHtml(textPreview)}</span>
             <div class="quick-actions">
-                <button class="btn btn-success btn-small play-btn" title="Abspielen">▶️</button>
                 <button class="btn btn-secondary btn-small use-btn" title="Text übernehmen">📝</button>
                 <button class="btn btn-danger btn-small remove-btn" title="Entfernen">✕</button>
             </div>
         `;
         
-        div.querySelector('.play-btn').onclick = (e) => {
-            e.stopPropagation();
-            playQuickAccessItem(item);
-        };
         div.querySelector('.use-btn').onclick = (e) => {
             e.stopPropagation();
             useQuickAccessText(item);
