@@ -196,7 +196,9 @@ const elements = {
     // Quick Access
     quickAccessList: document.getElementById('quickAccessList'),
     clearQuickAccessBtn: document.getElementById('clearQuickAccessBtn'),
-    quickAccessSetSelect: document.getElementById('quickAccessSetSelect'),
+    quickAccessSetBtn: document.getElementById('quickAccessSetBtn'),
+    setPickerPopup: document.getElementById('setPickerPopup'),
+    setPickerList: document.getElementById('setPickerList'),
     saveQuickAccessSetBtn: document.getElementById('saveQuickAccessSetBtn'),
     setManager: document.getElementById('setManager'),
     
@@ -1203,20 +1205,44 @@ function saveQuickAccessSets(sets) {
     localStorage.setItem('quickAccessSets', JSON.stringify(sets));
 }
 
+let currentQuickAccessSetName = null;
+
 function renderQuickAccessSetSelect() {
-    const sel = elements.quickAccessSetSelect;
-    if (!sel) return;
+    updateSetBtn();
+}
+
+function updateSetBtn() {
+    if (!elements.quickAccessSetBtn) return;
+    elements.quickAccessSetBtn.textContent = currentQuickAccessSetName ? `📂 ${currentQuickAccessSetName}` : '📂 Sets';
+}
+
+function openSetPickerPopup() {
+    const popup = elements.setPickerPopup;
+    const list = elements.setPickerList;
+    if (!popup || !list) return;
     const sets = getQuickAccessSets();
-    const currentVal = sel.value;
-    sel.innerHTML = '<option value="__new__">Neues Set...</option>';
-    Object.keys(sets).sort().forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        sel.appendChild(opt);
-    });
-    // Wert wiederherstellen falls vorhanden
-    if (currentVal && currentVal !== '__new__') sel.value = currentVal;
+    const names = Object.keys(sets).sort();
+    list.innerHTML = '';
+    if (names.length === 0) {
+        list.innerHTML = '<p class="muted" style="font-size:0.875rem;padding:4px 8px;">Keine Sets vorhanden</p>';
+    } else {
+        names.forEach(name => {
+            const btn = document.createElement('button');
+            btn.className = 'set-picker-btn' + (name === currentQuickAccessSetName ? ' active' : '');
+            btn.textContent = `${name} (${sets[name].length})`;
+            btn.onclick = () => { loadQuickAccessSet(name); closeSetPickerPopup(); };
+            list.appendChild(btn);
+        });
+    }
+    // Position unterhalb des Buttons
+    const rect = elements.quickAccessSetBtn.getBoundingClientRect();
+    popup.style.top = (rect.bottom + 4) + 'px';
+    popup.style.right = (window.innerWidth - rect.right) + 'px';
+    popup.style.display = 'flex';
+}
+
+function closeSetPickerPopup() {
+    if (elements.setPickerPopup) elements.setPickerPopup.style.display = 'none';
 }
 
 function saveQuickAccessSet() {
@@ -1224,7 +1250,7 @@ function saveQuickAccessSet() {
         showToast('Schnellzugriff ist leer', 'info');
         return;
     }
-    const selected = elements.quickAccessSetSelect?.value;
+    const selected = currentQuickAccessSetName;
     
     if (selected && selected !== '__new__') {
         // Bestehendes Set überschreiben
@@ -1254,8 +1280,8 @@ function saveQuickAccessSet() {
         const sets = getQuickAccessSets();
         sets[name] = JSON.parse(JSON.stringify(quickAccessItems));
         saveQuickAccessSets(sets);
+        currentQuickAccessSetName = name;
         renderQuickAccessSetSelect();
-        elements.quickAccessSetSelect.value = name;
         showToast(`Set "${name}" gespeichert`, 'success');
     };
     
@@ -1271,6 +1297,8 @@ function loadQuickAccessSet(name) {
     const sets = getQuickAccessSets();
     if (!sets[name]) return;
     quickAccessItems = JSON.parse(JSON.stringify(sets[name]));
+    currentQuickAccessSetName = name;
+    updateSetBtn();
     saveQuickAccessToStorage();
     renderQuickAccess();
     showToast(`Set "${name}" geladen`, 'success');
@@ -3721,9 +3749,15 @@ function setupEventListeners() {
     if (elements.saveQuickAccessSetBtn) {
         elements.saveQuickAccessSetBtn.addEventListener('click', saveQuickAccessSet);
     }
-    if (elements.quickAccessSetSelect) {
-        elements.quickAccessSetSelect.addEventListener('change', (e) => loadQuickAccessSet(e.target.value));
+    if (elements.quickAccessSetBtn) {
+        elements.quickAccessSetBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (elements.setPickerPopup?.style.display !== 'none') { closeSetPickerPopup(); } else { openSetPickerPopup(); }
+        });
     }
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#setPickerPopup') && !e.target.closest('#quickAccessSetBtn')) closeSetPickerPopup();
+    });
     
     // Global Search
     if (elements.globalSearchInput) {
