@@ -141,13 +141,19 @@ async def init_tts_async():
         from main import TextToSpeech
         return TextToSpeech()
     
-    tts = await loop.run_in_executor(None, create_tts)
-    tts.headless_mode = True
-    
-    elapsed = time.time() - start_time
-    current_status["message"] = "Bereit"
-    current_status["loading"] = False
-    print(f"TTS Engine geladen und bereit! ({elapsed:.1f}s)")
+    try:
+        tts = await loop.run_in_executor(None, create_tts)
+        tts.headless_mode = True
+        elapsed = time.time() - start_time
+        current_status["message"] = "Bereit"
+        print(f"TTS Engine geladen und bereit! ({elapsed:.1f}s)")
+    except Exception as e:
+        print(f"Fehler beim Laden der TTS Engine: {e}")
+        import traceback
+        traceback.print_exc()
+        current_status["message"] = f"TTS Ladefehler: {e}"
+    finally:
+        current_status["loading"] = False
 
 
 @app.on_event("startup")
@@ -216,7 +222,7 @@ async def get_status():
         "gpu_available": tts.gpu_available if tts else False,
         "voice_loaded": tts.current_voice_name if tts else None,
         "tts_model": tts.current_tts_model_id if tts else "xtts_v2",
-        "tts_provider": tts.tts_provider if tts else "coqui",
+        "tts_provider": tts.tts_provider if tts else "pyttsx3",
         "elevenlabs_configured": bool(tts.elevenlabs_api_key) if tts else False
     }
 
@@ -1101,7 +1107,7 @@ async def complete_sentence_endpoint(
             for msg in request.recent_messages:
                 messages.append({"role": "user", "content": msg})
                 messages.append({"role": "assistant", "content": msg})
-            messages.append({"role": "user", "content": request.text})
+            messages.append({"role": "user", "content": f"Bitte vervollständige folgenden abgekürzten Text: {request.text}"})
             
             message = client.messages.create(
                 model=try_model,
@@ -1495,7 +1501,9 @@ async def get_settings():
         "elevenlabs_stability": tts.elevenlabs_stability,
         "elevenlabs_similarity_boost": tts.elevenlabs_similarity_boost,
         "elevenlabs_style": tts.elevenlabs_style,
-        "elevenlabs_use_speaker_boost": tts.elevenlabs_use_speaker_boost
+        "elevenlabs_use_speaker_boost": tts.elevenlabs_use_speaker_boost,
+        "pyttsx3_voice_id": tts.pyttsx3_voice_id,
+        "pyttsx3_gender": tts.pyttsx3_gender
     }
 
 
@@ -1517,11 +1525,26 @@ async def update_settings(settings: dict):
         # XTTS erfordert penalty > 1.0 und < 2.0
         penalty = min(max(float(settings["repetition_penalty"]), 1.01), 1.99)
         tts.repetition_penalty = penalty
+    if "pyttsx3_voice_id" in settings:
+        tts.pyttsx3_voice_id = settings["pyttsx3_voice_id"] or None
+        tts._save_elevenlabs_config()
+    if "pyttsx3_gender" in settings:
+        tts.pyttsx3_gender = settings["pyttsx3_gender"] or None
+        tts._save_elevenlabs_config()
     
     return {"success": True}
 
 
 # === ElevenLabs Provider ===
+
+
+@app.get("/api/pyttsx3/voices")
+async def get_pyttsx3_voices():
+    """Gibt verfügbare pyttsx3 System-Stimmen zurück"""
+    if not tts:
+        return []
+    return tts.get_pyttsx3_voices()
+
 
 class ElevenLabsConfigRequest(BaseModel):
     api_key: Optional[str] = None
@@ -1534,14 +1557,14 @@ class ElevenLabsConfigRequest(BaseModel):
 
 
 class ProviderSwitchRequest(BaseModel):
-    provider: str  # "elevenlabs" oder "coqui"
+    provider: str  # "elevenlabs" oder "pyttsx3"
 
 
 @app.get("/api/tts/provider")
 async def get_provider():
     """Gibt den aktuellen TTS-Provider zurück"""
     if not tts:
-        return {"provider": "coqui", "elevenlabs_configured": False}
+        return {"provider": "pyttsx3", "elevenlabs_configured": False}
     
     return {
         "provider": tts.tts_provider,
@@ -1554,8 +1577,8 @@ async def get_provider():
 @app.post("/api/tts/provider/switch")
 async def switch_provider(request: ProviderSwitchRequest):
     """Wechselt den TTS-Provider"""
-    if request.provider not in ("elevenlabs", "coqui"):
-        raise HTTPException(status_code=400, detail="Ungültiger Provider. Erlaubt: 'elevenlabs', 'coqui'")
+    if request.provider not in ("elevenlabs", "pyttsx3"):
+        raise HTTPException(status_code=400, detail="Ungültiger Provider. Erlaubt: 'elevenlabs', 'pyttsx3'")
     
     if tts:
         if request.provider == "elevenlabs" and not tts.elevenlabs_api_key:

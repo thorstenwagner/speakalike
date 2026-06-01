@@ -208,7 +208,7 @@
                     <div class="device-select-row">
                         <select class="select" id="ttsProviderSelect">
                             <option value="elevenlabs">☁️ ElevenLabs (Cloud)</option>
-                            <option value="coqui">💻 Coqui XTTS (Lokal)</option>
+                            <option value="pyttsx3">💻 pyttsx3 (System-TTS)</option>
                         </select>
                     </div>
                 </div>
@@ -267,28 +267,20 @@
                         </div>
                     </div>
                 </div>
-                <div id="coquiSettings">
-                    <div class="settings-model-voice-row">
-                    <div class="setting-group">
-                        <label>🤖 TTS-Modell</label>
-                        <select class="select" id="ttsModelSelect">
-                            <option value="xtts_v2">XTTS v2 (Standard)</option>
-                            <option value="xtts_v1.1">XTTS v1.1</option>
-                            <option value="bark">Bark (Kreativ)</option>
-                            <option value="tortoise_v2">Tortoise v2 (Langsam)</option>
-                            <option value="vits_de">VITS Deutsch (Schnell)</option>
-                        </select>
-                    </div>
-                    <div class="setting-group">
-                        <label>🎤 Stimme</label>
-                        <div class="device-select-row">
-                            <select class="select" id="voiceSelect">
-                                <option value="">Standard (XTTS)</option>
-                            </select>
-                            <button class="btn btn-small btn-icon" id="newVoiceBtn" title="Neue Stimme">+</button>
-                            <button class="btn btn-small btn-icon btn-danger" id="deleteVoiceBtn" title="Stimme löschen">🗑</button>
-                        </div>
-                    </div>
+                <div id="pyttsx3Settings">
+                <div class="setting-group">
+                    <label>🗣️ Stimme</label>
+                    <select class="select" id="pyttsx3VoiceSelect">
+                        <option value="">Automatisch (nach Sprache)</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label>⚧ Geschlecht (Automatisch)</label>
+                    <select class="select" id="pyttsx3GenderSelect">
+                        <option value="">Egal</option>
+                        <option value="female">Weiblich</option>
+                        <option value="male">Männlich</option>
+                    </select>
                 </div>
                 <div class="settings-sliders">
                     <div class="setting-group-compact">
@@ -298,22 +290,8 @@
                             <span id="speedValue">1.0x</span>
                         </div>
                     </div>
-                    <div class="setting-group-compact">
-                        <label>Temperatur</label>
-                        <div class="slider-row">
-                            <input type="range" id="temperatureSlider" min="0.1" max="1.0" step="0.05" value="0.3">
-                            <span id="temperatureValue">0.3</span>
-                        </div>
-                    </div>
-                    <div class="setting-group-compact">
-                        <label>Wdh-Strafe</label>
-                        <div class="slider-row">
-                            <input type="range" id="repetitionSlider" min="1.0" max="1.9" step="0.1" value="1.5">
-                            <span id="repetitionValue">1.5</span>
-                        </div>
-                    </div>
                 </div>
-                </div><!-- /coquiSettings -->
+                </div><!-- /pyttsx3Settings -->
                 </div><!-- /tab-speech -->
 
                 <!-- Tab: Audio -->

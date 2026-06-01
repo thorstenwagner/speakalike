@@ -1564,7 +1564,7 @@ body {
     margin-bottom: var(--spacing-md);
 }
 
-#coquiSettings.hidden,
+#pyttsx3Settings.hidden,
 #elevenlabsSettings.hidden {
     display: none;
 }

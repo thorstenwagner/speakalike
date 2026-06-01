@@ -18,7 +18,7 @@ let availableTTSModels = {};
 let privacyMode = false;
 let privacyShowWord = false; // default: letztes Wort nicht anzeigen
 let confirmSend = true; // default: Bestätigungsdialog aktiv
-let currentProvider = 'coqui';
+let currentProvider = 'pyttsx3';
 let kiAutoCorrect = false;
 let signalBeforeSpeak = false;
 let _suggestTimer = null;
@@ -167,7 +167,9 @@ const elements = {
     // ElevenLabs
     ttsProviderSelect: document.getElementById('ttsProviderSelect'),
     elevenlabsSettings: document.getElementById('elevenlabsSettings'),
-    coquiSettings: document.getElementById('coquiSettings'),
+    pyttsx3Settings: document.getElementById('pyttsx3Settings'),
+    pyttsx3VoiceSelect: document.getElementById('pyttsx3VoiceSelect'),
+    pyttsx3GenderSelect: document.getElementById('pyttsx3GenderSelect'),
     elevenlabsApiKeyInput: document.getElementById('elevenlabsApiKeyInput'),
     elevenlabsVoiceSelect: document.getElementById('elevenlabsVoiceSelect'),
     elevenlabsModelSelect: document.getElementById('elevenlabsModelSelect'),
@@ -376,8 +378,8 @@ async function checkStatus() {
             elements.status.classList.remove('loading');
         }
         
-        if (status.voice_loaded && currentProvider !== 'elevenlabs') {
-            elements.currentVoice.querySelector('.voice-name').textContent = status.voice_loaded;
+        if (status.voice_loaded && currentProvider === 'elevenlabs') {
+            // ElevenLabs voice name handled via quick select
         }
         
         return status;
@@ -395,7 +397,9 @@ async function loadVoiceModels() {
     try {
         voiceModels = await api('/api/voice-models');
         
-        elements.voiceSelect.innerHTML = '<option value="">Standard (XTTS)</option>';
+        if (elements.voiceSelect) {
+            elements.voiceSelect.innerHTML = '<option value="">Standard (XTTS)</option>';
+        }
         
         let hasActiveVoice = false;
         voiceModels.forEach(model => {
@@ -409,13 +413,13 @@ async function loadVoiceModels() {
                 }
                 hasActiveVoice = true;
             }
-            elements.voiceSelect.appendChild(option);
+            if (elements.voiceSelect) elements.voiceSelect.appendChild(option);
         });
         
         // Falls keine aktive Stimme, aber Stimmen vorhanden sind, wähle die erste
         if (!hasActiveVoice && voiceModels.length > 0) {
             const firstVoice = voiceModels[0].name;
-            elements.voiceSelect.value = firstVoice;
+            if (elements.voiceSelect) elements.voiceSelect.value = firstVoice;
             await loadVoiceModel(firstVoice);
         }
     } catch (error) {
@@ -444,7 +448,7 @@ async function loadVoiceModel(name) {
 }
 
 async function deleteVoiceModel() {
-    const selectedVoice = elements.voiceSelect.value;
+    const selectedVoice = elements.voiceSelect?.value;
     
     if (!selectedVoice) {
         alert('Bitte wähle zuerst eine Stimme aus, die gelöscht werden soll.');
@@ -461,8 +465,7 @@ async function deleteVoiceModel() {
         elements.statusText.textContent = `Lösche ${selectedVoice}...`;
         await api(`/api/voice-models/${selectedVoice}`, { method: 'DELETE' });
         elements.statusText.textContent = `Stimme "${selectedVoice}" gelöscht`;
-        elements.voiceSelect.value = '';
-        elements.currentVoice.querySelector('.voice-name').textContent = 'Standard';
+        if (elements.voiceSelect) elements.voiceSelect.value = '';
         await loadVoiceModels();
     } catch (error) {
         alert(`Fehler beim Löschen: ${error.message}`);
@@ -2382,11 +2385,11 @@ async function loadSettings() {
         elements.speedSlider.value = settings.speed || 1.0;
         elements.speedValue.textContent = `${settings.speed || 1.0}x`;
         
-        elements.temperatureSlider.value = settings.temperature || 0.3;
-        elements.temperatureValue.textContent = settings.temperature || 0.3;
-        
-        elements.repetitionSlider.value = settings.repetition_penalty || 5.0;
-        elements.repetitionValue.textContent = settings.repetition_penalty || 5.0;
+elements.temperatureSlider?.value != null && (elements.temperatureSlider.value = settings.temperature || 0.3);
+        if (elements.temperatureValue) elements.temperatureValue.textContent = settings.temperature || 0.3;
+
+        elements.repetitionSlider?.value != null && (elements.repetitionSlider.value = settings.repetition_penalty || 5.0);
+        if (elements.repetitionValue) elements.repetitionValue.textContent = settings.repetition_penalty || 5.0;
         
         // API Key und Modell aus localStorage laden
         const savedApiKey = localStorage.getItem('claudeApiKey') || '';
@@ -2412,9 +2415,16 @@ async function loadSettings() {
         }
         
         // ElevenLabs Provider & Settings laden
-        const provider = settings.tts_provider || 'coqui';
+        const provider = settings.tts_provider || 'pyttsx3';
         elements.ttsProviderSelect.value = provider;
         updateProviderUI(provider);
+
+        if (provider === 'pyttsx3') {
+            await loadPyttsx3Voices(settings.pyttsx3_voice_id || '');
+            if (elements.pyttsx3GenderSelect) {
+                elements.pyttsx3GenderSelect.value = settings.pyttsx3_gender || '';
+            }
+        }
         
         if (settings.elevenlabs_model_id) {
             elements.elevenlabsModelSelect.value = settings.elevenlabs_model_id;
@@ -2461,8 +2471,10 @@ async function saveSettings() {
             method: 'PUT',
             body: JSON.stringify({
                 speed: parseFloat(elements.speedSlider.value),
-                temperature: parseFloat(elements.temperatureSlider.value),
-                repetition_penalty: parseFloat(elements.repetitionSlider.value)
+                temperature: elements.temperatureSlider ? parseFloat(elements.temperatureSlider.value) : 0.3,
+                repetition_penalty: elements.repetitionSlider ? parseFloat(elements.repetitionSlider.value) : 5.0,
+                pyttsx3_voice_id: elements.pyttsx3VoiceSelect?.value || null,
+                pyttsx3_gender: elements.pyttsx3GenderSelect?.value || null
             })
         });
         
@@ -2556,15 +2568,31 @@ function updateProviderUI(provider) {
     currentProvider = provider;
     if (provider === 'elevenlabs') {
         if (elements.elevenlabsSettings) elements.elevenlabsSettings.classList.remove('hidden');
-        if (elements.coquiSettings) elements.coquiSettings.classList.add('hidden');
-        // Hauptansicht: ElevenLabs Dropdown statt Voice-Name
+        if (elements.pyttsx3Settings) elements.pyttsx3Settings.classList.add('hidden');
         if (elements.currentVoice) elements.currentVoice.style.display = 'none';
         if (elements.elevenlabsVoiceQuick) elements.elevenlabsVoiceQuick.style.display = '';
     } else {
         if (elements.elevenlabsSettings) elements.elevenlabsSettings.classList.add('hidden');
-        if (elements.coquiSettings) elements.coquiSettings.classList.remove('hidden');
-        if (elements.currentVoice) elements.currentVoice.style.display = '';
+        if (elements.pyttsx3Settings) elements.pyttsx3Settings.classList.remove('hidden');
+        if (elements.currentVoice) elements.currentVoice.style.display = 'none';
         if (elements.elevenlabsVoiceQuick) elements.elevenlabsVoiceQuick.style.display = 'none';
+    }
+}
+
+async function loadPyttsx3Voices(selectedId = '') {
+    if (!elements.pyttsx3VoiceSelect) return;
+    try {
+        const voices = await api('/api/pyttsx3/voices');
+        elements.pyttsx3VoiceSelect.innerHTML = '<option value="">Automatisch (nach Sprache)</option>';
+        voices.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.id;
+            opt.textContent = v.name;
+            if (v.id === selectedId) opt.selected = true;
+            elements.pyttsx3VoiceSelect.appendChild(opt);
+        });
+    } catch (e) {
+        console.error('pyttsx3 Stimmen konnten nicht geladen werden:', e);
     }
 }
 
@@ -3557,6 +3585,7 @@ function setupEventListeners() {
     if (elements.ttsProviderSelect) {
         elements.ttsProviderSelect.addEventListener('change', (e) => {
             updateProviderUI(e.target.value);
+            if (e.target.value === 'pyttsx3') loadPyttsx3Voices();
         });
     }
     
@@ -3597,9 +3626,11 @@ function setupEventListeners() {
     });
     
     // Voice select
-    elements.voiceSelect.addEventListener('change', (e) => {
-        loadVoiceModel(e.target.value);
-    });
+    if (elements.voiceSelect) {
+        elements.voiceSelect.addEventListener('change', (e) => {
+            loadVoiceModel(e.target.value);
+        });
+    }
     
     // Language select - aktualisiert Katalog-Vorschau und Favoriten
     elements.languageSelect.addEventListener('change', () => {
@@ -3676,16 +3707,20 @@ function setupEventListeners() {
     elements.speedSlider.addEventListener('input', (e) => {
         elements.speedValue.textContent = `${e.target.value}x`;
     });
-    elements.temperatureSlider.addEventListener('input', (e) => {
-        elements.temperatureValue.textContent = e.target.value;
-    });
-    elements.repetitionSlider.addEventListener('input', (e) => {
-        elements.repetitionValue.textContent = e.target.value;
-    });
+    if (elements.temperatureSlider) {
+        elements.temperatureSlider.addEventListener('input', (e) => {
+            if (elements.temperatureValue) elements.temperatureValue.textContent = e.target.value;
+        });
+    }
+    if (elements.repetitionSlider) {
+        elements.repetitionSlider.addEventListener('input', (e) => {
+            if (elements.repetitionValue) elements.repetitionValue.textContent = e.target.value;
+        });
+    }
     
     // New Voice
-    elements.newVoiceBtn.addEventListener('click', openNewVoiceModal);
-    elements.deleteVoiceBtn.addEventListener('click', deleteVoiceModel);
+    if (elements.newVoiceBtn) elements.newVoiceBtn.addEventListener('click', openNewVoiceModal);
+    if (elements.deleteVoiceBtn) elements.deleteVoiceBtn.addEventListener('click', deleteVoiceModel);
     elements.closeNewVoiceBtn.addEventListener('click', closeNewVoiceModal);
     elements.cancelNewVoiceBtn.addEventListener('click', closeNewVoiceModal);
     elements.createVoiceBtn.addEventListener('click', createVoice);
@@ -4003,7 +4038,7 @@ async function init() {
         
         // Provider-abhängige UI in Hauptansicht aktualisieren
         // localStorage nutzen da Backend beim Start tts noch nicht geladen hat
-        const savedProvider = localStorage.getItem('ttsProvider') || 'coqui';
+        const savedProvider = localStorage.getItem('ttsProvider') || 'pyttsx3';
         updateProviderUI(savedProvider);
         if (savedProvider === 'elevenlabs') {
             const savedKey = localStorage.getItem('elevenlabsApiKey') || '';
@@ -4027,7 +4062,7 @@ async function waitForTTSAndLoadModels() {
             // Provider vom Backend prüfen (jetzt ist TTS geladen)
             try {
                 const settings = await api('/api/settings');
-                const backendProvider = settings.tts_provider || 'coqui';
+                const backendProvider = settings.tts_provider || 'pyttsx3';
                 if (backendProvider !== currentProvider) {
                     localStorage.setItem('ttsProvider', backendProvider);
                     updateProviderUI(backendProvider);

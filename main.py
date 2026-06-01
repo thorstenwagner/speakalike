@@ -1,5 +1,5 @@
 """
-SpeakAlike - Text-to-Speech Anwendung mit Coqui TTS
+SpeakAlike - Text-to-Speech Anwendung
 """
 import sys
 import threading
@@ -116,9 +116,13 @@ class TextToSpeech:
         # Aktuelles TTS-Modell
         self.current_tts_model_id = model_id
         
-        # TTS Provider: "elevenlabs" oder "coqui"
-        self.tts_provider = "coqui"  # Standard
+        # TTS Provider: "elevenlabs" oder "pyttsx3"
+        self.tts_provider = "pyttsx3"  # Standard (wird ggf. durch ElevenLabs-Konfig überschrieben)
         
+        # pyttsx3 State
+        self.pyttsx3_voice_id = None  # spezifische SAPI5 Voice-ID (None = auto per Sprache)
+        self.pyttsx3_gender = None    # 'male', 'female' oder None (auto)
+
         # ElevenLabs State
         self.elevenlabs_client = None
         self.elevenlabs_api_key = None
@@ -154,35 +158,15 @@ class TextToSpeech:
         
         # Erstelle Voice-Modell-Verzeichnis falls nicht vorhanden
         self.VOICE_MODELS_DIR.mkdir(exist_ok=True)
-        
-        if self.tts_provider != 'elevenlabs' and _load_coqui_imports():
-            try:
-                import torch
-                self.gpu_available = torch.cuda.is_available()
-                
-                # Lade zuletzt genutztes TTS-Modell
-                saved_model_id = self._get_last_tts_model()
-                if saved_model_id and saved_model_id in self.AVAILABLE_TTS_MODELS:
-                    self.current_tts_model_id = saved_model_id
-                
-                if XTTS_DIRECT and self.gpu_available and self.current_tts_model_id.startswith("xtts"):
-                    # Direkter XTTS-Zugriff für beste Kontrolle
-                    self._init_xtts_direct()
-                else:
-                    # Fallback auf TTS API
-                    self._init_tts_api()
-                    
-            except Exception as e:
-                print(f"Fehler bei XTTS-Init: {e}")
-                self._init_fallback()
-        elif self.tts_provider == 'elevenlabs':
-            self.gpu_available = False
-            self.model = None
-            self.use_coqui = False
-            self.use_direct = False
-            print("ElevenLabs als Provider aktiv - Coqui wird nicht geladen")
-        else:
-            self._init_pyttsx3()
+
+        # pyttsx3 immer als Fallback initialisieren
+        self._init_pyttsx3()
+        self.gpu_available = False
+        self.model = None
+        self.use_coqui = False
+        self.use_direct = False
+        if self.tts_provider == 'elevenlabs':
+            print("ElevenLabs als Provider aktiv, pyttsx3 als Fallback bereit")
     
     def _get_model_name(self):
         """Gibt den model_name für das aktuelle TTS-Modell zurück"""
@@ -244,15 +228,75 @@ class TextToSpeech:
         print("Coqui TTS initialisiert (Thorsten Fallback)")
     
     def _init_pyttsx3(self):
-        """Fallback auf pyttsx3"""
+        """pyttsx3 als Fallback initialisieren"""
         import pyttsx3
         self.engine = pyttsx3.init()
-        self.model = None
-        self.use_coqui = False
-        self.use_direct = False
         self.current_tts_model_id = "pyttsx3"
         print("pyttsx3 TTS initialisiert (Fallback)")
-    
+
+    def _check_internet(self):
+        """Prüft ob eine Internetverbindung besteht"""
+        import socket
+        try:
+            socket.setdefaulttimeout(3)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("8.8.8.8", 53))
+            return True
+        except Exception:
+            return False
+
+    def _speak_pyttsx3_and_save(self, text, language='de', rate=150):
+        """Sprachausgabe mit pyttsx3 und Rückgabe des Audio-Pfads (Subprocess, COM-sicher)"""
+        import subprocess, sys
+        temp_dir = tempfile.gettempdir()
+        output_path = os.path.join(temp_dir, "speakalike_last_audio.wav")
+        voice_arg = self.pyttsx3_voice_id or ''
+        gender_arg = self.pyttsx3_gender or ''
+        script = (
+            "import pyttsx3, sys\n"
+            "text, out, lang, rate, voice_id, gender = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5], sys.argv[6]\n"
+            "e = pyttsx3.init()\n"
+            "if voice_id:\n"
+            "    e.setProperty('voice', voice_id)\n"
+            "else:\n"
+            "    voices = e.getProperty('voices')\n"
+            "    def lang_ok(v): return ('_' + lang + '-') in v.id.lower()\n"
+            "    def gen_ok(v): g = getattr(v, 'gender', None); return not gender or (g and g.lower() == gender.lower())\n"
+            "    match = next((v for v in voices if lang_ok(v) and gen_ok(v)), None)\n"
+            "    match = match or next((v for v in voices if lang_ok(v)), None)\n"
+            "    if match: e.setProperty('voice', match.id)\n"
+            "e.setProperty('rate', rate)\n"
+            "e.save_to_file(text, out)\n"
+            "e.runAndWait()\n"
+            "e.stop()\n"
+        )
+        try:
+            subprocess.run(
+                [sys.executable, '-c', script, text, output_path, language, str(rate), voice_arg, gender_arg],
+                timeout=30,
+                check=True
+            )
+        except subprocess.TimeoutExpired:
+            print("pyttsx3 Subprocess Timeout")
+            return None
+        except subprocess.CalledProcessError as e:
+            print(f"pyttsx3 Subprocess Fehler: {e}")
+            return None
+        if os.path.exists(output_path):
+            return output_path
+        return None
+
+    def get_pyttsx3_voices(self):
+        """Gibt Liste der verfügbaren pyttsx3-Stimmen zurück"""
+        import pyttsx3
+        try:
+            e = pyttsx3.init()
+            voices = [{'id': v.id, 'name': v.name, 'gender': getattr(v, 'gender', None)} for v in e.getProperty('voices')]
+            e.stop()
+            return voices
+        except Exception as ex:
+            print(f"Fehler beim Laden der pyttsx3-Stimmen: {ex}")
+            return []
+
     def set_speaker_wav(self, wav_files):
         """
         Setzt Audio-Samples für Voice Cloning und berechnet Speaker Embeddings
@@ -593,6 +637,8 @@ class TextToSpeech:
                 config = json.loads(self.ELEVENLABS_CONFIG_FILE.read_text(encoding='utf-8'))
                 self.elevenlabs_api_key = config.get('api_key')
                 self.elevenlabs_voice_id = config.get('voice_id')
+                self.pyttsx3_voice_id = config.get('pyttsx3_voice_id')
+                self.pyttsx3_gender = config.get('pyttsx3_gender')
                 self.elevenlabs_model_id = config.get('model_id', 'eleven_multilingual_v2')
                 self.elevenlabs_stability = config.get('stability', 0.5)
                 self.elevenlabs_similarity_boost = config.get('similarity_boost', 0.75)
@@ -611,6 +657,8 @@ class TextToSpeech:
             config = {
                 'api_key': self.elevenlabs_api_key,
                 'voice_id': self.elevenlabs_voice_id,
+                'pyttsx3_voice_id': self.pyttsx3_voice_id,
+                'pyttsx3_gender': self.pyttsx3_gender,
                 'model_id': self.elevenlabs_model_id,
                 'provider': self.tts_provider,
                 'stability': self.elevenlabs_stability,
@@ -672,32 +720,14 @@ class TextToSpeech:
     def set_tts_provider(self, provider):
         """
         Wechselt den TTS-Provider.
-        
+
         Args:
-            provider: "elevenlabs" oder "coqui"
+            provider: "elevenlabs" oder "pyttsx3"
         """
-        if provider not in ("elevenlabs", "coqui"):
+        if provider not in ("elevenlabs", "pyttsx3"):
             return False
         self.tts_provider = provider
         self._save_elevenlabs_config()
-        
-        # Coqui nachladen falls noch nicht initialisiert
-        if provider == "coqui" and not hasattr(self, 'tts') and not hasattr(self, 'xtts_model'):
-            if _load_coqui_imports():
-                try:
-                    import torch
-                    self.gpu_available = torch.cuda.is_available()
-                    saved_model_id = self._get_last_tts_model()
-                    if saved_model_id and saved_model_id in self.AVAILABLE_TTS_MODELS:
-                        self.current_tts_model_id = saved_model_id
-                    if XTTS_DIRECT and self.gpu_available and self.current_tts_model_id.startswith("xtts"):
-                        self._init_xtts_direct()
-                    else:
-                        self._init_tts_api()
-                except Exception as e:
-                    print(f"Fehler beim Nachladen von Coqui: {e}")
-                    self._init_fallback()
-        
         print(f"TTS-Provider gewechselt zu: {provider}")
         return True
     
@@ -732,15 +762,19 @@ class TextToSpeech:
         """
         import time
         start_time = time.time()
-        
+
+        if not self._check_internet():
+            print("Keine Internetverbindung, Fallback auf pyttsx3...")
+            return self._speak_pyttsx3_and_save(text, language)
+
         if not self.elevenlabs_client:
             if not self._init_elevenlabs():
-                print("ElevenLabs nicht verfügbar, Fallback auf Coqui...")
-                return self._speak_coqui_and_save(text, language)
-        
+                print("ElevenLabs nicht verfügbar, Fallback auf pyttsx3...")
+                return self._speak_pyttsx3_and_save(text, language)
+
         if not self.elevenlabs_voice_id:
-            print("ElevenLabs: Keine Voice-ID konfiguriert, Fallback auf Coqui...")
-            return self._speak_coqui_and_save(text, language)
+            print("ElevenLabs: Keine Voice-ID konfiguriert, Fallback auf pyttsx3...")
+            return self._speak_pyttsx3_and_save(text, language)
         
         try:
             print(f"ElevenLabs: Generiere Audio...")
@@ -800,8 +834,8 @@ class TextToSpeech:
                     audio_bytes += chunk
             
             if not audio_bytes:
-                print("ElevenLabs: Keine Audio-Daten erhalten, Fallback auf Coqui...")
-                return self._speak_coqui_and_save(text, language)
+                print("ElevenLabs: Keine Audio-Daten erhalten, Fallback auf pyttsx3...")
+                return self._speak_pyttsx3_and_save(text, language)
             
             # PCM 24kHz 16-bit mono → WAV speichern
             import numpy as np
@@ -828,10 +862,10 @@ class TextToSpeech:
             return output_path
             
         except Exception as e:
-            print(f"ElevenLabs Fehler: {e}, Fallback auf Coqui...")
+            print(f"ElevenLabs Fehler: {e}, Fallback auf pyttsx3...")
             import traceback
             traceback.print_exc()
-            return self._speak_coqui_and_save(text, language)
+            return self._speak_pyttsx3_and_save(text, language)
     
     def load_last_model(self):
         """
@@ -897,13 +931,9 @@ class TextToSpeech:
             # ElevenLabs als primärer Provider
             if self.tts_provider == "elevenlabs":
                 return self._speak_elevenlabs_and_save(text, language)
-            
-            # Coqui als Standard/Fallback
-            if self.use_coqui:
-                return self._speak_coqui_and_save(text, language)
-            else:
-                self._speak_pyttsx3(text, rate, language)
-                return None
+
+            # pyttsx3 als Fallback
+            return self._speak_pyttsx3_and_save(text, language)
         except Exception as e:
             print(f"Fehler beim Vorlesen: {e}")
             import traceback
