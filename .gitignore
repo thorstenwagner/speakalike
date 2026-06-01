@@ -39,6 +39,12 @@ temp/
 .models/
 tts_models/
 vocoder_models/
+# Build artifacts
+build/
+dist/
+*.spec
+build_installer.bat
+
 # Electron
 electron-app/node_modules/
 electron-app/dist/
