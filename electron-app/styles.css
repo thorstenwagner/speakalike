@@ -1756,11 +1756,39 @@ body {
     display: block;
 }
 
-/* Wenn beide Badges aktiv: MIC links neben KI */
-.ki-badge.active + .mic-badge.active,
-.ki-badge.active ~ .mic-badge.active {
-    right: 36px;
+/* Signal-Vor-Ton Badge */
+.bell-badge {
+    display: none;
+    position: absolute;
+    bottom: 6px;
+    right: 8px;
+    font-size: 0.75rem;
+    color: #fff;
+    background: #f59e0b;
+    padding: 1px 5px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 2;
+    animation: bell-badge-pulse 2s infinite;
 }
+
+.bell-badge.active {
+    display: block;
+}
+
+@keyframes bell-badge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.65; }
+}
+
+/* Multi-Badge Positionierung */
+/* bell verschiebt sich wenn ki aktiv */
+.ki-badge.active ~ .bell-badge.active { right: 36px; }
+/* mic verschiebt sich wenn ki oder bell aktiv */
+.ki-badge.active ~ .mic-badge.active,
+.bell-badge.active ~ .mic-badge.active { right: 36px; }
+/* mic verschiebt sich weiter wenn ki UND bell aktiv */
+.ki-badge.active ~ .bell-badge.active ~ .mic-badge.active { right: 64px; }
 
 @keyframes mic-badge-pulse {
     0%, 100% { opacity: 1; }

@@ -20,6 +20,7 @@ let privacyShowWord = false; // default: letztes Wort nicht anzeigen
 let confirmSend = true; // default: Bestätigungsdialog aktiv
 let currentProvider = 'coqui';
 let kiAutoCorrect = false;
+let signalBeforeSpeak = false;
 let _suggestTimer = null;
 let _suggestions = [];
 let _suggestIndex = -1;
@@ -555,7 +556,7 @@ async function speak() {
         showToast('Bitte geben Sie einen Text ein.', 'error');
         return;
     }
-    
+
     // AI-Flag zurücksetzen
     delete elements.textInput.dataset.aiCompleted;
     
@@ -575,7 +576,13 @@ async function speak() {
         if (result.success) {
             currentAudioUrl = `${window.API_URL}${result.audio_url}`;
             console.log('Audio URL:', currentAudioUrl);
-            
+
+            // Vor-Signal: Signalton + 2s Pause nach Generierung, vor Wiedergabe
+            if (signalBeforeSpeak) {
+                playSignalTone();
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
             // Audio über Backend auf ausgewähltem Gerät abspielen
             try {
                 const volume = elements.volumeSlider.value / 100;
@@ -3290,6 +3297,16 @@ function setupEventListeners() {
             return;
         }
 
+        if (e.key === 'Enter' && e.ctrlKey && e.shiftKey) {
+            // Strg+Shift+Enter = KI-Auto-Korrektur togglen
+            e.preventDefault();
+            kiAutoCorrect = !kiAutoCorrect;
+            const badge = document.getElementById('kiBadge');
+            if (badge) badge.classList.toggle('active', kiAutoCorrect);
+            showToast(kiAutoCorrect ? 'KI-Korrektur aktiviert' : 'KI-Korrektur deaktiviert', kiAutoCorrect ? 'success' : 'info');
+            return;
+        }
+
         if (e.key === 'Enter' && e.ctrlKey) {
             e.preventDefault();
             const text = elements.textInput.value.trim();
@@ -3426,10 +3443,17 @@ function setupEventListeners() {
             sel.dispatchEvent(new Event('change'));
             showToast(`Sprache: ${sel.options[sel.selectedIndex].text}`, 'info');
             updateTitle();
-        } else if (e.key === 'd' && e.ctrlKey) {
+        } else if (e.key === 'd' && e.ctrlKey && !e.shiftKey) {
             // Strg+D = Signalton
             e.preventDefault();
             playSignalTone();
+        } else if (e.key === 'D' && e.ctrlKey && e.shiftKey) {
+            // Strg+Shift+D = Vor-Signal Modus togglen
+            e.preventDefault();
+            signalBeforeSpeak = !signalBeforeSpeak;
+            const badge = document.getElementById('bellBadge');
+            if (badge) badge.classList.toggle('active', signalBeforeSpeak);
+            showToast(signalBeforeSpeak ? '🔔 Vor-Signal aktiviert' : '🔕 Vor-Signal deaktiviert', signalBeforeSpeak ? 'success' : 'info');
         } else if (e.key === 'p' && e.ctrlKey) {
             // Strg+P = Privacy-Modus
             e.preventDefault();
