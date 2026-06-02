@@ -199,6 +199,7 @@ const elements = {
     // Quick Access
     quickAccessList: document.getElementById('quickAccessList'),
     clearQuickAccessBtn: document.getElementById('clearQuickAccessBtn'),
+    newQuickAccessSetBtn: document.getElementById('newQuickAccessSetBtn'),
     quickAccessSetBtn: document.getElementById('quickAccessSetBtn'),
     setPickerPopup: document.getElementById('setPickerPopup'),
     setPickerList: document.getElementById('setPickerList'),
@@ -3864,6 +3865,16 @@ function setupEventListeners() {
     });
     
     // Quick Access
+    if (elements.newQuickAccessSetBtn) {
+        elements.newQuickAccessSetBtn.addEventListener('click', () => {
+            currentQuickAccessSetName = null;
+            quickAccessItems = [];
+            saveQuickAccessToStorage();
+            renderQuickAccess();
+            renderQuickAccessSetSelect();
+            showToast('Neues Set – Liste geleert', 'info');
+        });
+    }
     if (elements.clearQuickAccessBtn) {
         elements.clearQuickAccessBtn.addEventListener('click', clearQuickAccess);
     }
