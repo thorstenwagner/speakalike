@@ -7,6 +7,7 @@
     <title>SpeakAlike</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script src="i18n.js"></script>
 </head>
 <body>
     <div class="app">
@@ -18,11 +19,12 @@
             <div class="header-right">
                 <div class="status" id="status">
                     <span class="status-dot"></span>
-                    <span class="status-text">Verbinde...</span>
+                    <span class="status-text" data-i18n="status_connecting">Verbinde...</span>
                 </div>
-                <button class="btn btn-icon" id="toggleInputPositionBtn" title="Texteingabe oben/unten">⬇️</button>
-                <button class="btn btn-icon" id="miniModeBtn" title="Mini-Modus">📌</button>
-                <button class="btn btn-icon" id="settingsBtn" title="Einstellungen">⚙️</button>
+                <button class="btn btn-icon" id="uiLangBtn" title="Switch to English">🇬🇧</button>
+                <button class="btn btn-icon" id="toggleInputPositionBtn" data-i18n-title="toggle_input_title" title="Texteingabe oben/unten">⬇️</button>
+                <button class="btn btn-icon" id="miniModeBtn" data-i18n-title="mini_mode_title" title="Mini-Modus">📌</button>
+                <button class="btn btn-icon" id="settingsBtn" data-i18n-title="settings_title" title="Einstellungen">⚙️</button>
             </div>
         </header>
 
@@ -34,7 +36,7 @@
                 <div class="main-row">
                     <!-- Language Selection -->
                     <div class="language-compact">
-                        <label>🌍 Sprache:</label>
+                        <label data-i18n="language_label">🌍 Sprache:</label>
                         <select class="select" id="languageSelect">
                             <option value="de">Deutsch</option>
                             <option value="en">English</option>
@@ -44,8 +46,8 @@
                     <!-- Kontext -->
                     <div class="context-compact hide-in-mini">
                         <label>💬</label>
-                        <input type="text" class="input context-input" id="aiContextInput" placeholder="Gesprächskontext (z.B. Arztbesuch, Einkauf...)">
-                        <button class="btn btn-small btn-icon context-clear" id="clearContextBtn" title="Kontext löschen">✕</button>
+                        <input type="text" class="input context-input" id="aiContextInput" data-i18n-placeholder="context_placeholder" placeholder="Gesprächskontext (z.B. Arztbesuch, Einkauf...)">
+                        <button class="btn btn-small btn-icon context-clear" id="clearContextBtn" data-i18n-title="clear_context_title" title="Kontext löschen">✕</button>
                     </div>
                     
                     <!-- Current Voice Info -->
@@ -83,16 +85,16 @@
                         <span class="mic-badge" id="micBadge">MIC</span>
                     </div>
                     <button class="btn btn-success btn-speak" id="speakBtn">
-                        🔊 <span class="hide-in-mini">Sprechen</span>
+                        🔊 <span class="hide-in-mini" data-i18n="speak_label">Sprechen</span>
                     </button>
                     <button class="btn btn-primary btn-generate hide-in-mini" id="generateBtn" title="Nur generieren, nicht abspielen">
-                        💾 Generieren
+                        <span data-i18n="generate_label">💾 Generieren</span>
                     </button>
-                    <button class="btn btn-secondary btn-mic-toggle hide-in-mini" id="micToggleBtn" title="Mikrofon-Ausgabe (für Telefonie)">🎤</button>
+                    <button class="btn btn-secondary btn-mic-toggle hide-in-mini" id="micToggleBtn" data-i18n-title="mic_toggle_title" title="Mikrofon-Ausgabe (für Telefonie)">🎤</button>
                     <!-- Mini-Modus Controls -->
-                    <button class="btn btn-secondary btn-mini-repeat" id="miniRepeatBtn" title="Letzte Nachricht wiederholen">🔁</button>
-                    <button class="btn btn-secondary btn-mini-position" id="miniPositionBtn" title="Position wechseln (oben/unten)">⬆️</button>
-                    <button class="btn btn-secondary btn-mini-exit" id="miniExitBtn" title="Mini-Modus beenden">✕</button>
+                    <button class="btn btn-secondary btn-mini-repeat" id="miniRepeatBtn" data-i18n-title="repeat_title" title="Letzte Nachricht wiederholen">🔁</button>
+                    <button class="btn btn-secondary btn-mini-position" id="miniPositionBtn" data-i18n-title="position_title" title="Position wechseln (oben/unten)">⬆️</button>
+                    <button class="btn btn-secondary btn-mini-exit" id="miniExitBtn" data-i18n-title="exit_mini_title" title="Mini-Modus beenden">✕</button>
                     <span class="char-count" id="charCount">0 Zeichen</span>
                 </div>
                 <!-- Versteckter Audio Player für Wiedergabe -->
@@ -101,13 +103,13 @@
 
             <!-- Globale Suche über alle Spalten -->
             <div class="global-search-bar">
-                <input type="search" class="input global-search-input" id="globalSearchInput" placeholder="🔍 Suche in allen Spalten (Begriffe mit Leerzeichen trennen)...">
+                <input type="search" class="input global-search-input" id="globalSearchInput" data-i18n-placeholder="search_all_placeholder" placeholder="🔍 Suche in allen Spalten (Begriffe mit Leerzeichen trennen)...">
                 <div class="search-mode-toggle">
-                    <button class="btn btn-small search-mode-btn" id="searchModeOr" data-mode="or">ODER</button>
-                    <button class="btn btn-small search-mode-btn" id="searchModeAnd" data-mode="and">UND</button>
+                    <button class="btn btn-small search-mode-btn" id="searchModeOr" data-mode="or" data-i18n="search_or">ODER</button>
+                    <button class="btn btn-small search-mode-btn" id="searchModeAnd" data-mode="and" data-i18n="search_and">UND</button>
                 </div>
-                <button class="btn btn-small btn-secondary" id="clearSearchBtn" title="Suche leeren">✕</button>
-                <button class="btn btn-small btn-secondary" id="toggleViewBtn" title="Ansicht wechseln">🏷️ Tag-Browser</button>
+                <button class="btn btn-small btn-secondary" id="clearSearchBtn" data-i18n-title="clear_search_title" title="Suche leeren">✕</button>
+                <button class="btn btn-small btn-secondary" id="toggleViewBtn" data-i18n="toggle_view_btn" title="Ansicht wechseln">🏷️ Tag-Browser</button>
             </div>
 
             <!-- History & Catalog & Favoriten nebeneinander -->
@@ -115,47 +117,47 @@
                 <!-- History Section -->
                 <section class="card history-section">
                     <div class="history-header">
-                        <span>🕐 Verlauf</span>
+                        <span data-i18n="history_heading">🕐 Verlauf</span>
                     </div>
                     <div class="history-list" id="historyList">
-                        <p class="muted">Noch keine Nachrichten</p>
+                        <p class="muted" data-i18n="history_empty">Noch keine Nachrichten</p>
                     </div>
                 </section>
 
                 <!-- Favorites Section -->
                 <section class="card favorites-section">
                     <div class="favorites-header">
-                        <span>⭐ Favoriten</span>
+                        <span data-i18n="favorites_heading">⭐ Favoriten</span>
                     </div>
                     <div class="favorites-list" id="favoritesList">
-                        <p class="muted">Noch keine Favoriten</p>
+                        <p class="muted" data-i18n="favorites_empty">Noch keine Favoriten</p>
                     </div>
                 </section>
 
                 <!-- Catalog Section -->
                 <section class="card catalog-section">
                     <div class="catalog-header">
-                        <span>📚 Katalog</span>
-                        <button class="btn btn-secondary btn-small" id="openCatalogBtn">Öffnen</button>
+                        <span data-i18n="catalog_heading">📚 Katalog</span>
+                        <button class="btn btn-secondary btn-small" id="openCatalogBtn" data-i18n="catalog_open_btn">Öffnen</button>
                     </div>
                     <div class="catalog-preview" id="catalogPreview">
-                        <p class="muted">Noch keine Einträge</p>
+                        <p class="muted" data-i18n="catalog_empty">Noch keine Einträge</p>
                     </div>
                 </section>
 
                 <!-- Quick Access Section - 4. Spalte -->
                 <section class="card quick-access-section">
                     <div class="quick-access-header">
-                        <span>🚀 Schnellzugriff</span>
+                        <span data-i18n="quick_access_heading">🚀 Schnellzugriff</span>
                         <div class="quick-access-header-actions">
-                            <button class="btn btn-small btn-secondary" id="newQuickAccessSetBtn" title="Neues Set anlegen">➕</button>
-                            <button class="btn btn-small btn-secondary" id="quickAccessSetBtn" title="Set laden">📂 Sets</button>
-                            <button class="btn btn-small btn-secondary" id="saveQuickAccessSetBtn" title="Set speichern">💾</button>
-                            <button class="btn btn-small btn-secondary" id="clearQuickAccessBtn" title="Liste leeren">🗑️</button>
+                            <button class="btn btn-small btn-secondary" id="newQuickAccessSetBtn" data-i18n-title="new_set_title" title="Neues Set anlegen">➕</button>
+                            <button class="btn btn-small btn-secondary" id="quickAccessSetBtn" data-i18n-title="load_sets_title" title="Set laden">📂 Sets</button>
+                            <button class="btn btn-small btn-secondary" id="saveQuickAccessSetBtn" data-i18n-title="save_set_title" title="Set speichern">💾</button>
+                            <button class="btn btn-small btn-secondary" id="clearQuickAccessBtn" data-i18n-title="clear_qa_title" title="Liste leeren">🗑️</button>
                         </div>
                     </div>
                     <div class="quick-access-list" id="quickAccessList">
-                        <p class="muted">Nachrichten hier hinzufügen mit dem ➕ Button</p>
+                        <p class="muted" data-i18n="quick_access_empty">Nachrichten hier hinzufügen mit dem ➕ Button</p>
                     </div>
                 </section>
             </div>
@@ -165,23 +167,23 @@
                 <!-- Tag-Cloud Bereich -->
                 <section class="card tag-cloud-section">
                     <div class="tag-cloud-header">
-                        <span>🏷️ Tags</span>
+                        <span data-i18n="tags_heading">🏷️ Tags</span>
                         <div class="tag-browser-active-filters" id="tagBrowserActiveFilters"></div>
-                        <button class="btn btn-small btn-secondary" id="clearTagBrowserFilters" title="Alle Filter entfernen" style="display: none;">✕ Alle</button>
+                        <button class="btn btn-small btn-secondary" id="clearTagBrowserFilters" data-i18n-title="clear_tag_filters_title" data-i18n="clear_tag_filters_btn" title="Alle Filter entfernen" style="display: none;">✕ Alle</button>
                     </div>
                     <div class="tag-cloud" id="tagCloud">
-                        <p class="muted">Lade Tags...</p>
+                        <p class="muted" data-i18n="tags_loading">Lade Tags...</p>
                     </div>
                 </section>
 
                 <!-- Nachrichten-Spalte -->
                 <section class="card tag-browser-messages-section">
                     <div class="tag-browser-messages-header">
-                        <span id="tagBrowserMessagesTitle">📋 Nachrichten</span>
+                        <span id="tagBrowserMessagesTitle" data-i18n="messages_heading">📋 Nachrichten</span>
                         <span class="muted" id="tagBrowserCount"></span>
                     </div>
                     <div class="tag-browser-messages-list" id="tagBrowserMessagesList">
-                        <p class="muted">Wähle einen Tag um Nachrichten anzuzeigen</p>
+                        <p class="muted" data-i18n="tag_browser_hint">Wähle einen Tag um Nachrichten anzuzeigen</p>
                     </div>
                 </section>
             </div>
@@ -192,45 +194,45 @@
     <div class="modal" id="settingsModal">
         <div class="modal-content modal-settings">
             <div class="modal-header">
-                <h2>⚙️ Einstellungen</h2>
+                <h2 data-i18n="settings_modal_title">⚙️ Einstellungen</h2>
                 <button class="btn btn-icon modal-close" id="closeSettingsBtn">✕</button>
             </div>
             <!-- Settings Tabs -->
             <div class="settings-tabs">
-                <button class="settings-tab active" data-tab="tab-speech">🔊 Sprache</button>
-                <button class="settings-tab" data-tab="tab-audio">🎛️ Audio</button>
-                <button class="settings-tab" data-tab="tab-general">⚙️ Allgemein</button>
+                <button class="settings-tab active" data-tab="tab-speech" data-i18n="tab_speech">🔊 Sprache</button>
+                <button class="settings-tab" data-tab="tab-audio" data-i18n="tab_audio">🎛️ Audio</button>
+                <button class="settings-tab" data-tab="tab-general" data-i18n="tab_general">⚙️ Allgemein</button>
             </div>
             <div class="modal-body settings-body">
                 <!-- Tab: Sprache -->
                 <div class="settings-tab-panel active" id="tab-speech">
                 <div class="setting-group">
-                    <label>🔌 TTS-Provider</label>
+                    <label data-i18n="tts_provider_label">🔌 TTS-Provider</label>
                     <div class="device-select-row">
                         <select class="select" id="ttsProviderSelect">
-                            <option value="elevenlabs">☁️ ElevenLabs (Cloud)</option>
-                            <option value="pyttsx3">💻 pyttsx3 (System-TTS)</option>
+                            <option value="elevenlabs" data-i18n="opt_elevenlabs">☁️ ElevenLabs (Cloud)</option>
+                            <option value="pyttsx3" data-i18n="opt_pyttsx3">💻 pyttsx3 (System-TTS)</option>
                         </select>
                     </div>
                 </div>
                 <div id="elevenlabsSettings" class="settings-elevenlabs">
                     <div class="settings-model-voice-row">
                         <div class="setting-group">
-                            <label>🔑 ElevenLabs API Key</label>
+                            <label data-i18n="elevenlabs_key_label">🔑 ElevenLabs API Key</label>
                             <input type="password" class="input" id="elevenlabsApiKeyInput" placeholder="sk_...">
                         </div>
                         <div class="setting-group">
-                            <label>🎤 ElevenLabs Stimme</label>
+                            <label data-i18n="elevenlabs_voice_label">🎤 ElevenLabs Stimme</label>
                             <div class="device-select-row">
                                 <select class="select" id="elevenlabsVoiceSelect">
                                     <option value="">Stimme wählen...</option>
                                 </select>
-                                <button class="btn btn-small btn-icon" id="refreshElevenVoicesBtn" title="Stimmen laden">🔄</button>
+                                <button class="btn btn-small btn-icon" id="refreshElevenVoicesBtn" data-i18n-title="refresh_voices_title" title="Stimmen laden">🔄</button>
                             </div>
                         </div>
                     </div>
                     <div class="setting-group">
-                        <label>🧠 ElevenLabs Modell</label>
+                        <label data-i18n="elevenlabs_model_label">🧠 ElevenLabs Modell</label>
                         <select class="select" id="elevenlabsModelSelect">
                             <option value="eleven_multilingual_v2">Multilingual v2 (Standard)</option>
                             <option value="eleven_v3">Eleven v3 (Kreativ)</option>
@@ -240,28 +242,28 @@
                     </div>
                     <div class="settings-sliders">
                         <div class="setting-group-compact">
-                            <label>Stabilität</label>
+                            <label data-i18n="stability_label">Stabilität</label>
                             <div class="slider-row">
                                 <input type="range" id="elevenStabilitySlider" min="0" max="1" step="0.05" value="0.5">
                                 <span id="elevenStabilityValue" class="slider-value">0.50</span>
                             </div>
                         </div>
                         <div class="setting-group-compact">
-                            <label>Ähnlichkeit</label>
+                            <label data-i18n="similarity_label">Ähnlichkeit</label>
                             <div class="slider-row">
                                 <input type="range" id="elevenSimilaritySlider" min="0" max="1" step="0.05" value="0.75">
                                 <span id="elevenSimilarityValue" class="slider-value">0.75</span>
                             </div>
                         </div>
                         <div class="setting-group-compact">
-                            <label>Stilübertreibung</label>
+                            <label data-i18n="style_label">Stilübertreibung</label>
                             <div class="slider-row">
                                 <input type="range" id="elevenStyleSlider" min="0" max="1" step="0.05" value="0.0">
                                 <span id="elevenStyleValue" class="slider-value">0.00</span>
                             </div>
                         </div>
                         <div class="setting-group-compact">
-                            <label>Sprachüberschreibung</label>
+                            <label data-i18n="speaker_boost_label">Sprachüberschreibung</label>
                             <div class="slider-row">
                                 <input type="checkbox" id="elevenSpeakerBoostCheckbox">
                             </div>
@@ -270,17 +272,17 @@
                 </div>
                 <div id="pyttsx3Settings">
                 <div class="setting-group">
-                    <label>🗣️ Stimme</label>
+                    <label data-i18n="pyttsx3_voice_label">🗣️ Stimme</label>
                     <select class="select" id="pyttsx3VoiceSelect">
-                        <option value="">Automatisch (nach Sprache)</option>
+                        <option value="" data-i18n="opt_auto_voice">Automatisch (nach Sprache)</option>
                     </select>
                 </div>
                 <div class="setting-group">
-                    <label>⚧ Geschlecht (Automatisch)</label>
+                    <label data-i18n="gender_label">⚧ Geschlecht (Automatisch)</label>
                     <select class="select" id="pyttsx3GenderSelect">
-                        <option value="">Egal</option>
-                        <option value="female">Weiblich</option>
-                        <option value="male">Männlich</option>
+                        <option value="" data-i18n="opt_gender_any">Egal</option>
+                        <option value="female" data-i18n="opt_gender_female">Weiblich</option>
+                        <option value="male" data-i18n="opt_gender_male">Männlich</option>
                     </select>
                 </div>
                 <div class="settings-sliders">
@@ -298,22 +300,22 @@
                 <!-- Tab: Audio -->
                 <div class="settings-tab-panel" id="tab-audio">
                 <div class="setting-group">
-                    <label>🔊 Ausgabegerät</label>
+                    <label data-i18n="audio_output_label">🔊 Ausgabegerät</label>
                     <div class="device-select-row">
                         <select class="select" id="audioDeviceSelect">
-                            <option value="-1">Standard</option>
+                            <option value="-1" data-i18n="opt_device_default">Standard</option>
                         </select>
-                        <button class="btn btn-small btn-icon" id="refreshDevicesBtn" title="Geräte aktualisieren">🔄</button>
+                        <button class="btn btn-small btn-icon" id="refreshDevicesBtn" data-i18n-title="refresh_devices_title" title="Geräte aktualisieren">🔄</button>
                     </div>
                 </div>
                 <div class="setting-group">
-                    <label>🎤 Mikrofon-Ausgabe (für Telefonie)</label>
-                    <p class="muted" style="font-size: 0.8rem; margin-bottom: 8px;">Wähle ein virtuelles Audiokabel (z.B. VB-Cable) um Sprachnachrichten als Mikrofon-Eingang zu nutzen.</p>
+                    <label data-i18n="mic_output_label">🎤 Mikrofon-Ausgabe (für Telefonie)</label>
+                    <p class="muted" data-i18n="mic_output_hint" style="font-size: 0.8rem; margin-bottom: 8px;">Wähle ein virtuelles Audiokabel (z.B. VB-Cable) um Sprachnachrichten als Mikrofon-Eingang zu nutzen.</p>
                     <div class="device-select-row">
                         <select class="select" id="micDeviceSelect">
-                            <option value="-1">Nicht konfiguriert</option>
+                            <option value="-1" data-i18n="opt_mic_none">Nicht konfiguriert</option>
                         </select>
-                        <button class="btn btn-small" id="micEchoTestBtn" title="Testton über das virtuelle Mikrofon abspielen">🔊 Test</button>
+                        <button class="btn btn-small" id="micEchoTestBtn" data-i18n="mic_test_btn" title="Testton über das virtuelle Mikrofon abspielen">🔊 Test</button>
                     </div>
                 </div>
                 </div><!-- /tab-audio -->
@@ -322,48 +324,48 @@
                 <div class="settings-tab-panel" id="tab-general">
                 <div class="settings-ai-row">
                     <div class="setting-group">
-                        <label>🤖 Claude API Key <span class="setting-hint">(für KI-Korrektur)</span></label>
+                        <label><span data-i18n="claude_key_label">🤖 Claude API Key</span> <span class="setting-hint" data-i18n="claude_key_hint">(für KI-Korrektur)</span></label>
                         <input type="password" class="input" id="apiKeyInput" placeholder="sk-ant-...">
                     </div>
                     <div class="setting-group">
-                        <label>🧠 KI-Modell</label>
+                        <label data-i18n="ai_model_label">🧠 KI-Modell</label>
                         <select class="input" id="aiModelSelect">
-                            <option value="claude-haiku-4-5-20251001">Haiku 4.5 (schnell)</option>
-                            <option value="claude-sonnet-4-6">Sonnet 4.6 (besser)</option>
+                            <option value="claude-haiku-4-5-20251001" data-i18n="opt_haiku">Haiku 4.5 (schnell)</option>
+                            <option value="claude-sonnet-4-6" data-i18n="opt_sonnet">Sonnet 4.6 (besser)</option>
                         </select>
                     </div>
                 </div>
                 <div class="setting-group">
-                    <label>⌨️ Eingabe</label>
+                    <label data-i18n="input_section_label">⌨️ Eingabe</label>
                     <label class="checkbox-label">
                         <input type="checkbox" id="confirmSendDefault">
-                        Bestätigung vor dem Abspielen anzeigen
+                        <span data-i18n="confirm_play_label">Bestätigung vor dem Abspielen anzeigen</span>
                     </label>
                 </div>
                 <div class="setting-group">
-                    <label>🔒 Privacy-Modus</label>
+                    <label data-i18n="privacy_section_label">🔒 Privacy-Modus</label>
                     <label class="checkbox-label">
                         <input type="checkbox" id="privacyShowWordDefault">
-                        Letztes Wort standardmäßig anzeigen
+                        <span data-i18n="show_last_word_label">Letztes Wort standardmäßig anzeigen</span>
                     </label>
                 </div>
                 <div class="setting-group">
-                    <label>🎨 Design</label>
+                    <label data-i18n="theme_label">🎨 Design</label>
                     <select class="select" id="themeSelect">
-                        <option value="dark">🌙 Dunkel</option>
-                        <option value="light">☀️ Hell</option>
+                        <option value="dark" data-i18n="opt_dark">🌙 Dunkel</option>
+                        <option value="light" data-i18n="opt_light">☀️ Hell</option>
                     </select>
                 </div>
                 <div class="setting-group">
-                    <label>🚀 Schnellzugriff-Sets</label>
+                    <label data-i18n="qa_sets_label">🚀 Schnellzugriff-Sets</label>
                     <div class="set-manager" id="setManager">
-                        <p class="muted" style="font-size:0.8rem;">Keine Sets gespeichert</p>
+                        <p class="muted" data-i18n="no_sets" style="font-size:0.8rem;">Keine Sets gespeichert</p>
                     </div>
                 </div>
                 </div><!-- /tab-general -->
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" id="saveSettingsBtn">Speichern</button>
+                <button class="btn btn-primary" id="saveSettingsBtn" data-i18n="save_btn">Speichern</button>
             </div>
         </div>
     </div>
@@ -372,26 +374,26 @@
     <div class="modal" id="newVoiceModal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2>🎤 Neue Stimme erstellen</h2>
+                <h2 data-i18n="new_voice_title">🎤 Neue Stimme erstellen</h2>
                 <button class="btn btn-icon modal-close" id="closeNewVoiceBtn">✕</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="voiceName">Name der Stimme</label>
-                    <input type="text" class="input" id="voiceName" placeholder="z.B. Meine Stimme">
+                    <label for="voiceName" data-i18n="voice_name_label">Name der Stimme</label>
+                    <input type="text" class="input" id="voiceName" data-i18n-placeholder="voice_name_placeholder" placeholder="z.B. Meine Stimme">
                 </div>
                 <div class="form-group">
-                    <label>Audio-Samples (WAV, MP3, OGG)</label>
+                    <label data-i18n="audio_samples_label">Audio-Samples (WAV, MP3, OGG)</label>
                     <div class="file-drop-zone" id="fileDropZone">
-                        <p>📂 Dateien hierher ziehen oder klicken zum Auswählen</p>
-                        <p class="muted">5-30 Sekunden pro Sample empfohlen</p>
+                        <p data-i18n="drop_files_text">📂 Dateien hierher ziehen oder klicken zum Auswählen</p>
+                        <p class="muted" data-i18n="sample_hint">5-30 Sekunden pro Sample empfohlen</p>
                     </div>
                     <div class="file-list" id="fileList"></div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelNewVoiceBtn">Abbrechen</button>
-                <button class="btn btn-primary" id="createVoiceBtn" disabled>Stimme erstellen</button>
+                <button class="btn btn-secondary" id="cancelNewVoiceBtn" data-i18n="cancel_btn">Abbrechen</button>
+                <button class="btn btn-primary" id="createVoiceBtn" disabled data-i18n="create_voice_btn">Stimme erstellen</button>
             </div>
         </div>
     </div>
@@ -400,29 +402,29 @@
     <div class="modal" id="catalogModal">
         <div class="modal-content modal-fullscreen">
             <div class="modal-header">
-                <h2>📚 Nachrichtenkatalog</h2>
+                <h2 data-i18n="catalog_modal_title">📚 Nachrichtenkatalog</h2>
                 <button class="btn btn-icon modal-close" id="closeCatalogBtn">✕</button>
             </div>
             <div class="catalog-toolbar">
-                <input type="search" class="input search-input" id="catalogSearch" placeholder="🔍 Suchen...">
+                <input type="search" class="input search-input" id="catalogSearch" data-i18n-placeholder="catalog_search_placeholder" placeholder="🔍 Suchen...">
                 <div class="tag-filter-container">
                     <div class="tag-filter-selected" id="catalogSelectedTags">
-                        <span class="tag-filter-placeholder">Tags filtern...</span>
+                        <span class="tag-filter-placeholder" data-i18n="tag_filter_placeholder">Tags filtern...</span>
                     </div>
                     <div class="tag-filter-dropdown" id="catalogTagDropdown">
-                        <input type="text" class="input" id="catalogTagSearch" placeholder="Tag suchen...">
+                        <input type="text" class="input" id="catalogTagSearch" data-i18n-placeholder="tag_search_placeholder" placeholder="Tag suchen...">
                         <div class="tag-filter-list" id="catalogTagList"></div>
                     </div>
                 </div>
                 <div class="tag-mode-toggle">
-                    <button class="btn btn-small tag-mode-btn active" id="tagModeAnd" data-mode="and">UND</button>
-                    <button class="btn btn-small tag-mode-btn" id="tagModeOr" data-mode="or">ODER</button>
+                    <button class="btn btn-small tag-mode-btn active" id="tagModeAnd" data-mode="and" data-i18n="tag_mode_and">UND</button>
+                    <button class="btn btn-small tag-mode-btn" id="tagModeOr" data-mode="or" data-i18n="tag_mode_or">ODER</button>
                 </div>
                 <label class="checkbox-label">
                     <input type="checkbox" id="favoritesOnly">
-                    ⭐ Nur Favoriten
+                    <span data-i18n="favorites_only_label">⭐ Nur Favoriten</span>
                 </label>
-                <button class="btn btn-secondary" id="importMp3Btn">📥 MP3 importieren</button>
+                <button class="btn btn-secondary" id="importMp3Btn" data-i18n="import_mp3_btn">📥 MP3 importieren</button>
             </div>
             <div class="catalog-grid" id="catalogGrid">
                 <!-- Catalog items will be inserted here -->
@@ -434,35 +436,35 @@
     <div class="modal" id="saveCatalogModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📁 Zum Katalog hinzufügen</h2>
+                <h2 data-i18n="save_catalog_title">📁 Zum Katalog hinzufügen</h2>
                 <button class="btn btn-icon modal-close" id="closeSaveCatalogBtn">✕</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Text</label>
+                    <label data-i18n="text_label">Text</label>
                     <div class="text-preview" id="saveTextPreview"></div>
                 </div>
                 <div class="form-group">
                     <div class="label-row">
-                        <label for="tagsInput">Schlagworte</label>
-                        <button class="btn btn-small" id="autoTagsBtn">🤖 Auto-Tags</button>
+                        <label for="tagsInput" data-i18n="keywords_label">Schlagworte</label>
+                        <button class="btn btn-small" id="autoTagsBtn" data-i18n="auto_tags_btn">🤖 Auto-Tags</button>
                     </div>
                     <div class="tag-list-container" id="tagListContainer">
                         <!-- Selected tags will be shown here -->
                     </div>
                     <div class="tag-input-row">
-                        <input type="text" class="input" id="tagInputField" placeholder="Tag eingeben...">
+                        <input type="text" class="input" id="tagInputField" data-i18n-placeholder="tag_input_placeholder" placeholder="Tag eingeben...">
                         <button class="btn btn-small" id="addTagBtn">+</button>
                     </div>
                 </div>
                 <div class="existing-tags" id="existingTags">
-                    <label>Vorhandene Tags:</label>
+                    <label data-i18n="existing_tags_label">Vorhandene Tags:</label>
                     <div class="existing-tags-list" id="existingTagsList"></div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelSaveCatalogBtn">Abbrechen</button>
-                <button class="btn btn-primary" id="confirmSaveCatalogBtn">💾 Speichern</button>
+                <button class="btn btn-secondary" id="cancelSaveCatalogBtn" data-i18n="cancel_btn">Abbrechen</button>
+                <button class="btn btn-primary" id="confirmSaveCatalogBtn" data-i18n="save_catalog_btn">💾 Speichern</button>
             </div>
         </div>
     </div>
@@ -471,7 +473,7 @@
     <div class="modal" id="editTagsModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>🏷️ Tags bearbeiten</h2>
+                <h2 data-i18n="edit_tags_title">🏷️ Tags bearbeiten</h2>
                 <button class="btn btn-icon modal-close" id="closeEditTagsBtn">✕</button>
             </div>
             <div class="modal-body">
@@ -490,13 +492,13 @@
                     </div>
                 </div>
                 <div class="existing-tags" id="editExistingTags">
-                    <label>Vorhandene Tags:</label>
+                    <label data-i18n="existing_tags_label">Vorhandene Tags:</label>
                     <div class="existing-tags-list" id="editExistingTagsList"></div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelEditTagsBtn">Abbrechen</button>
-                <button class="btn btn-primary" id="confirmEditTagsBtn">💾 Speichern</button>
+                <button class="btn btn-secondary" id="cancelEditTagsBtn" data-i18n="cancel_btn">Abbrechen</button>
+                <button class="btn btn-primary" id="confirmEditTagsBtn" data-i18n="save_catalog_btn">💾 Speichern</button>
             </div>
         </div>
     </div>
@@ -505,45 +507,45 @@
     <div class="modal" id="importMp3Modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📥 MP3 importieren</h2>
+                <h2 data-i18n="import_mp3_title">📥 MP3 importieren</h2>
                 <button class="btn btn-icon modal-close" id="closeImportMp3Btn">✕</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Audio-Datei (MP3, WAV, OGG)</label>
+                    <label data-i18n="audio_file_label">Audio-Datei (MP3, WAV, OGG)</label>
                     <div class="file-drop-zone" id="importDropZone">
-                        <p>📂 Datei hierher ziehen oder klicken</p>
+                        <p data-i18n="drop_file_text">📂 Datei hierher ziehen oder klicken</p>
                     </div>
                     <div class="import-file-info">
                         <span id="importFileName" class="muted"></span>
                         <div class="import-file-actions">
-                            <button class="btn btn-small btn-icon" id="playImportAudioBtn" title="Abspielen" disabled>▶️</button>
-                            <button class="btn btn-small" id="transcribeImportBtn" title="Text erkennen" disabled>🎤 Erkennen</button>
+                            <button class="btn btn-small btn-icon" id="playImportAudioBtn" data-i18n-title="play_title" title="Abspielen" disabled>▶️</button>
+                            <button class="btn btn-small" id="transcribeImportBtn" data-i18n-title="transcribe_title" data-i18n="transcribe_btn" title="Text erkennen" disabled>🎤 Erkennen</button>
                         </div>
                     </div>
                     <audio id="importAudioPlayer" style="display: none;"></audio>
                 </div>
                 <div class="form-group">
-                    <label for="importText">Text (Inhalt der Nachricht)</label>
-                    <textarea class="input" id="importText" rows="3" placeholder="Was wird in der Audio gesagt?"></textarea>
+                    <label for="importText" data-i18n="import_text_label">Text (Inhalt der Nachricht)</label>
+                    <textarea class="input" id="importText" rows="3" data-i18n-placeholder="import_text_placeholder" placeholder="Was wird in der Audio gesagt?"></textarea>
                 </div>
                 <div class="form-group">
-                    <label>Schlagworte</label>
+                    <label data-i18n="import_keywords_label">Schlagworte</label>
                     <div class="tag-list-container" id="importTagListContainer"></div>
                     <div class="tag-input-row">
-                        <input type="text" class="input" id="importTagInputField" placeholder="Tag eingeben...">
+                        <input type="text" class="input" id="importTagInputField" data-i18n-placeholder="tag_input_placeholder" placeholder="Tag eingeben...">
                         <button class="btn btn-small" id="addImportTagBtn">+</button>
-                        <button class="btn btn-small" id="importAutoTagsBtn" title="Tags automatisch generieren">🤖</button>
+                        <button class="btn btn-small" id="importAutoTagsBtn" data-i18n-title="auto_gen_tags_title" title="Tags automatisch generieren">🤖</button>
                     </div>
                     <div class="existing-tags">
-                        <label class="muted">Vorhandene Tags:</label>
+                        <label class="muted" data-i18n="existing_tags_muted">Vorhandene Tags:</label>
                         <div id="importExistingTagsList" class="existing-tags-list"></div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelImportMp3Btn">Abbrechen</button>
-                <button class="btn btn-primary" id="confirmImportMp3Btn">📥 Importieren</button>
+                <button class="btn btn-secondary" id="cancelImportMp3Btn" data-i18n="cancel_btn">Abbrechen</button>
+                <button class="btn btn-primary" id="confirmImportMp3Btn" data-i18n="import_btn">📥 Importieren</button>
             </div>
         </div>
     </div>
@@ -552,22 +554,22 @@
     <div class="modal" id="aiConfirmModal">
         <div class="modal-content modal-small">
             <div class="modal-header">
-                <h2>🤖 KI-Vervollständigung</h2>
+                <h2 data-i18n="ai_confirm_title">🤖 KI-Vervollständigung</h2>
                 <button class="btn btn-icon modal-close" id="closeAiConfirmBtn">✕</button>
             </div>
             <div class="modal-body">
                 <div class="ai-confirm-section">
-                    <label class="muted">Original:</label>
+                    <label class="muted" data-i18n="ai_original_label">Original:</label>
                     <p id="aiOriginalText" class="ai-text-preview"></p>
                 </div>
                 <div class="ai-confirm-section">
-                    <label class="muted">Vervollständigt (editierbar):</label>
+                    <label class="muted" data-i18n="ai_completed_label">Vervollständigt (editierbar):</label>
                     <textarea id="aiCompletedText" class="ai-text-preview ai-completed ai-editable" rows="3"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="rejectAiBtn">❌ Abbrechen</button>
-                <button class="btn btn-primary" id="acceptAiBtn">✅ Übernehmen & Sprechen</button>
+                <button class="btn btn-secondary" id="rejectAiBtn" data-i18n="ai_reject_btn">❌ Abbrechen</button>
+                <button class="btn btn-primary" id="acceptAiBtn" data-i18n="ai_accept_btn">✅ Übernehmen &amp; Sprechen</button>
             </div>
         </div>
     </div>

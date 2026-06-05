@@ -5,6 +5,9 @@
 // Theme sofort anwenden (vor Rendering)
 document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');
 
+// i18n shorthand (falls i18n.js noch nicht geladen)
+function charStr(n) { return `${n} ${window.t ? window.t('chars') : 'Zeichen'}`; }
+
 // API_URL kommt vom preload.js als window.API_URL
 
 // State
@@ -387,7 +390,7 @@ async function checkStatus() {
     } catch (error) {
         elements.status.classList.remove('connected');
         elements.status.classList.add('error');
-        elements.statusText.textContent = 'Nicht verbunden';
+        elements.statusText.textContent = t('not_connected');
         return null;
     }
 }
@@ -437,7 +440,7 @@ async function loadVoiceModel(name) {
     }
     
     try {
-        elements.statusText.textContent = `Lade ${name}...`;
+        elements.statusText.textContent = tf('loading_model', name);
         await api(`/api/voice-models/${name}/load`, { method: 'POST' });
         if (currentProvider !== 'elevenlabs') {
             elements.currentVoice.querySelector('.voice-name').textContent = name;
@@ -463,9 +466,9 @@ async function deleteVoiceModel() {
     }
     
     try {
-        elements.statusText.textContent = `Lösche ${selectedVoice}...`;
+        elements.statusText.textContent = tf('deleting_voice', selectedVoice);
         await api(`/api/voice-models/${selectedVoice}`, { method: 'DELETE' });
-        elements.statusText.textContent = `Stimme "${selectedVoice}" gelöscht`;
+        elements.statusText.textContent = tf('voice_deleted', selectedVoice);
         if (elements.voiceSelect) elements.voiceSelect.value = '';
         await loadVoiceModels();
     } catch (error) {
@@ -479,7 +482,7 @@ async function deleteVoiceModel() {
 async function completeWithAI(text) {
     const apiKey = localStorage.getItem('claudeApiKey') || '';
     if (!apiKey) {
-        showToast('Bitte API Key in den Einstellungen hinterlegen.', 'error');
+        showToast(t('toast_no_api_key'), 'error');
         return null;
     }
     
@@ -566,7 +569,7 @@ async function speak() {
     
     currentText = text;
     elements.speakBtn.disabled = true;
-    elements.statusText.textContent = 'Generiere Audio...';
+    elements.statusText.textContent = t('generating_audio');
     
     try {
         const result = await api('/api/tts/speak', {
@@ -615,7 +618,7 @@ async function speak() {
             elements.textInput.value = '';
             updatePrivacyOverlay();
             if (elements.charCount) {
-                elements.charCount.textContent = '0 Zeichen';
+                elements.charCount.textContent = charStr(0);
             }
         }
     } catch (error) {
@@ -639,7 +642,7 @@ async function generateOnly() {
     elements.speakBtn.disabled = true;
     const originalText = elements.generateBtn.textContent;
     elements.generateBtn.textContent = '⏳ Generiere...';
-    elements.statusText.textContent = 'Generiere Audio im Hintergrund...';
+    elements.statusText.textContent = t('generating_bg');
     
     try {
         const result = await api('/api/tts/speak', {
@@ -664,7 +667,7 @@ async function generateOnly() {
             elements.textInput.value = '';
             updatePrivacyOverlay();
             if (elements.charCount) {
-                elements.charCount.textContent = '0 Zeichen';
+                elements.charCount.textContent = charStr(0);
             }
             
             showToast('Audio erfolgreich generiert!', 'success');
@@ -1150,7 +1153,7 @@ function addToQuickAccess(item) {
     // Prüfen ob schon vorhanden
     const exists = quickAccessItems.some(q => q.id === item.id);
     if (exists) {
-        showToast('Bereits im Schnellzugriff', 'info');
+        showToast(t('toast_already_in_qa'), 'info');
         return;
     }
     
@@ -1259,7 +1262,7 @@ function closeSetPickerPopup() {
 
 function saveQuickAccessSet() {
     if (quickAccessItems.length === 0) {
-        showToast('Schnellzugriff ist leer', 'info');
+        showToast(t('toast_qa_empty'), 'info');
         return;
     }
     const selected = currentQuickAccessSetName;
@@ -1384,7 +1387,7 @@ function renameQuickAccessSet(oldName) {
                 }
                 const sets = getQuickAccessSets();
                 if (sets[newName]) {
-                    showToast('Name existiert bereits', 'info');
+                    showToast(t('toast_name_exists'), 'info');
                     return;
                 }
                 sets[newName] = sets[oldName];
@@ -1794,7 +1797,7 @@ async function loadTagBrowserMessages() {
             item.querySelectorAll('.tag-browser-msg-actions .btn')[2].onclick = (e) => {
                 e.stopPropagation();
                 elements.textInput.value = msg.text;
-                if (elements.charCount) elements.charCount.textContent = `${msg.text.length} Zeichen`;
+                if (elements.charCount) elements.charCount.textContent = `${msg.text.length} ${t('chars')}`;
                 showToast('Text übernommen', 'info');
             };
             
@@ -1987,7 +1990,7 @@ async function generateAutoTags() {
     
     const apiKey = localStorage.getItem('claudeApiKey') || '';
     if (!apiKey) {
-        showToast('Bitte Claude API Key in den Einstellungen hinterlegen.', 'error');
+        showToast(t('toast_no_api_key'), 'error');
         return;
     }
     
@@ -2175,7 +2178,7 @@ async function generateImportAutoTags() {
     
     const apiKey = localStorage.getItem('claudeApiKey') || '';
     if (!apiKey) {
-        showToast('Bitte Claude API Key in den Einstellungen hinterlegen.', 'error');
+        showToast(t('toast_no_api_key'), 'error');
         return;
     }
     
@@ -2849,7 +2852,7 @@ function updateMiniPositionUI(position) {
 // Letzte Nachricht wiederholen
 async function repeatLastMessage() {
     if (!currentAudioUrl) {
-        showToast('Keine letzte Nachricht vorhanden.', 'info');
+        showToast(t('toast_no_last_msg'), 'info');
         return;
     }
     
@@ -3159,7 +3162,7 @@ function renderSuggestions() {
             elements.textInput.value = _suggestions[idx].text;
             hideSuggestions();
             if (elements.charCount) {
-                elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
+                elements.charCount.textContent = `${elements.textInput.value.length} ${t('chars')}`;
             }
             updatePrivacyOverlay();
             elements.textInput.focus();
@@ -3297,7 +3300,7 @@ function setupEventListeners() {
     // Text input
     elements.textInput.addEventListener('input', () => {
         if (elements.charCount) {
-            elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
+            elements.charCount.textContent = `${elements.textInput.value.length} ${t('chars')}`;
         }
         // Tipp-Geräusch abspielen
         onTypingActivity();
@@ -3329,7 +3332,7 @@ function setupEventListeners() {
                 elements.textInput.value = _suggestions[_suggestIndex].text;
                 hideSuggestions();
                 if (elements.charCount) {
-                    elements.charCount.textContent = `${elements.textInput.value.length} Zeichen`;
+                    elements.charCount.textContent = `${elements.textInput.value.length} ${t('chars')}`;
                 }
                 updatePrivacyOverlay();
                 return;
@@ -3372,7 +3375,7 @@ function setupEventListeners() {
             if (completed) {
                 elements.textInput.value = completed;
                 if (elements.charCount) {
-                    elements.charCount.textContent = `${completed.length} Zeichen`;
+                    elements.charCount.textContent = `${completed.length} ${t('chars')}`;
                 }
                 elements.statusText.textContent = 'KI-Text übernommen – Enter zum Sprechen';
                 elements.textInput.focus();
@@ -3385,7 +3388,7 @@ function setupEventListeners() {
                 const keyIdx = QUICK_ACCESS_KEYS.indexOf(text.toUpperCase());
                 if (keyIdx >= 0) {
                     elements.textInput.value = '';
-                    if (elements.charCount) elements.charCount.textContent = '0 Zeichen';
+                    if (elements.charCount) elements.charCount.textContent = charStr(0);
                     const sets = await getQuickAccessSets();
                     const setNames = Object.keys(sets).slice(0, QUICK_ACCESS_KEYS.length);
                     if (keyIdx < setNames.length) {
@@ -3401,7 +3404,7 @@ function setupEventListeners() {
                 const keyIdx = QUICK_ACCESS_KEYS.indexOf(text.toUpperCase());
                 if (keyIdx >= 0 && keyIdx < quickAccessItems.length) {
                     elements.textInput.value = '';
-                    if (elements.charCount) elements.charCount.textContent = '0 Zeichen';
+                    if (elements.charCount) elements.charCount.textContent = charStr(0);
                     playQuickAccessItem(quickAccessItems[keyIdx]);
                     return;
                 }
@@ -3417,7 +3420,7 @@ function setupEventListeners() {
                     const corrected = await completeWithAI(text);
                     if (corrected) {
                         elements.textInput.value = corrected;
-                        if (elements.charCount) elements.charCount.textContent = `${corrected.length} Zeichen`;
+                        if (elements.charCount) elements.charCount.textContent = `${corrected.length} ${t('chars')}`;
                     }
                     speak();
                 } else {
@@ -3452,7 +3455,7 @@ function setupEventListeners() {
             }
             elements.generateBtn && (elements.generateBtn.disabled = true);
             elements.speakBtn && (elements.speakBtn.disabled = true);
-            elements.statusText.textContent = 'Generiere Audio...';
+            elements.statusText.textContent = t('generating_audio');
             try {
                 const result = await api('/api/tts/speak', {
                     method: 'POST',
@@ -3471,7 +3474,7 @@ function setupEventListeners() {
                     loadHistory();
                     elements.textInput.value = '';
                     updatePrivacyOverlay();
-                    if (elements.charCount) elements.charCount.textContent = '0 Zeichen';
+                    if (elements.charCount) elements.charCount.textContent = charStr(0);
                     elements.statusText.textContent = 'Bereit';
                     showToast('Generiert & zur Schnellauswahl hinzugefügt', 'success');
                 }
@@ -3891,7 +3894,7 @@ function setupEventListeners() {
             saveQuickAccessToStorage();
             renderQuickAccess();
             renderQuickAccessSetSelect();
-            showToast('Neues Set – Liste geleert', 'info');
+            showToast(t('toast_new_set'), 'info');
         });
     }
     if (elements.clearQuickAccessBtn) {
@@ -4013,6 +4016,18 @@ function debounce(func, wait) {
 
 async function init() {
     console.log('Initializing SpeakAlike...');
+    
+    // Apply i18n translations
+    if (window.i18n) window.i18n.apply();
+    
+    // Language toggle button
+    const uiLangBtn = document.getElementById('uiLangBtn');
+    if (uiLangBtn) {
+        uiLangBtn.addEventListener('click', () => {
+            const newLang = window.i18n.currentLang === 'de' ? 'en' : 'de';
+            window.i18n.setLang(newLang);
+        });
+    }
     
     setupEventListeners();
     updateTitle();
@@ -4218,3 +4233,4 @@ function updateVoiceCloningAvailability() {
 
 // Start
 document.addEventListener('DOMContentLoaded', init);
+
