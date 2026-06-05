@@ -1154,10 +1154,14 @@ async def complete_sentence_endpoint(
 # === Tag Generation ===
 
 @app.post("/api/tags/generate")
-async def generate_tags_endpoint(request: TagGenerateRequest):
+async def generate_tags_endpoint(request: TagGenerateRequest, x_api_key: Optional[str] = Header(None)):
     """Generiert Tags mit Claude AI"""
     if not catalog:
         raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+    
+    api_key = x_api_key or os.environ.get("CLAUDE_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Kein Claude API Key konfiguriert")
     
     existing_tags = [t[0] for t in catalog.get_all_tags()]
     
@@ -1165,7 +1169,8 @@ async def generate_tags_endpoint(request: TagGenerateRequest):
         tags = generate_tags(
             text=request.text,
             existing_tags=existing_tags,
-            num_tags=request.num_tags
+            num_tags=request.num_tags,
+            api_key=api_key
         )
         return {"tags": tags}
     except Exception as e:

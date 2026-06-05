@@ -1985,12 +1985,19 @@ async function saveToCatalog() {
 async function generateAutoTags() {
     if (!currentText) return;
     
+    const apiKey = localStorage.getItem('claudeApiKey') || '';
+    if (!apiKey) {
+        showToast('Bitte Claude API Key in den Einstellungen hinterlegen.', 'error');
+        return;
+    }
+    
     elements.autoTagsBtn.disabled = true;
     elements.autoTagsBtn.textContent = '⏳ Generiere...';
     
     try {
         const result = await api('/api/tags/generate', {
             method: 'POST',
+            headers: { 'X-API-Key': apiKey },
             body: JSON.stringify({
                 text: currentText,
                 num_tags: 5
@@ -2166,12 +2173,19 @@ async function generateImportAutoTags() {
         return;
     }
     
+    const apiKey = localStorage.getItem('claudeApiKey') || '';
+    if (!apiKey) {
+        showToast('Bitte Claude API Key in den Einstellungen hinterlegen.', 'error');
+        return;
+    }
+    
     elements.importAutoTagsBtn.disabled = true;
     elements.importAutoTagsBtn.textContent = '⏳';
     
     try {
         const response = await api('/api/tags/generate', {
             method: 'POST',
+            headers: { 'X-API-Key': apiKey },
             body: JSON.stringify({ text: text, num_tags: 3 })
         });
         
@@ -2837,6 +2851,11 @@ async function repeatLastMessage() {
     if (!currentAudioUrl) {
         showToast('Keine letzte Nachricht vorhanden.', 'info');
         return;
+    }
+    
+    if (confirmSend) {
+        const confirmed = await showConfirmSend(currentText || '🔁 Wiederholen');
+        if (!confirmed) return;
     }
     
     elements.miniRepeatBtn.disabled = true;

@@ -1625,6 +1625,12 @@ body {
     font-size: 0.875rem;
 }
 
+.setting-hint {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    font-weight: normal;
+}
+
 /* Favorite Button */
 .favorite-btn {
     background: transparent;
