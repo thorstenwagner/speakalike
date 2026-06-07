@@ -7,7 +7,7 @@
             toggle_input_title: 'Texteingabe oben/unten',
             mini_mode_title: 'Mini-Modus',
             settings_title: 'Einstellungen',
-            ui_lang_title: 'Switch to English',
+            ui_lang_label: '🌐 Sprache der Oberfläche',
             ui_lang_label: '🌐 Oberflächensprache',
 
             // Main area
@@ -183,7 +183,7 @@
             toggle_input_title: 'Move text input up/down',
             mini_mode_title: 'Mini mode',
             settings_title: 'Settings',
-            ui_lang_title: 'Zu Deutsch wechseln',
+            ui_lang_label: '🌐 Interface Language',
             ui_lang_label: '🌐 UI Language',
 
             // Main area

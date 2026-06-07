@@ -8,6 +8,9 @@ document.documentElement.setAttribute('data-theme', localStorage.getItem('theme'
 // i18n shorthand (falls i18n.js noch nicht geladen)
 function charStr(n) { return `${n} ${window.t ? window.t('chars') : 'Zeichen'}`; }
 
+// i18n sofort anwenden (gespeicherte Sprache aus localStorage)
+if (window.i18n) window.i18n.apply();
+
 // API_URL kommt vom preload.js als window.API_URL
 
 // State
@@ -165,6 +168,7 @@ const elements = {
     apiKeyInput: document.getElementById('apiKeyInput'),
     aiModelSelect: document.getElementById('aiModelSelect'),
     themeSelect: document.getElementById('themeSelect'),
+    uiLangSelect: document.getElementById('uiLangSelect'),
     aiContextInput: document.getElementById('aiContextInput'),
     
     // ElevenLabs
@@ -2419,6 +2423,11 @@ elements.temperatureSlider?.value != null && (elements.temperatureSlider.value =
         const savedTheme = localStorage.getItem('theme') || 'dark';
         elements.themeSelect.value = savedTheme;
 
+        // UI-Sprache laden
+        if (elements.uiLangSelect && window.i18n) {
+            elements.uiLangSelect.value = window.i18n.currentLang;
+        }
+
         // Privacy: letztes Wort anzeigen laden
         privacyShowWord = localStorage.getItem('privacyShowWordDefault') === 'true';
         if (elements.privacyShowWordDefault) elements.privacyShowWordDefault.checked = privacyShowWord;
@@ -2521,6 +2530,11 @@ async function saveSettings() {
         const theme = elements.themeSelect.value;
         localStorage.setItem('theme', theme);
         document.documentElement.setAttribute('data-theme', theme);
+
+        // UI-Sprache speichern und anwenden
+        if (elements.uiLangSelect && window.i18n) {
+            window.i18n.setLang(elements.uiLangSelect.value);
+        }
 
         // Privacy-Default speichern
         const showWordDefault = elements.privacyShowWordDefault?.checked || false;
@@ -4019,15 +4033,6 @@ async function init() {
     
     // Apply i18n translations
     if (window.i18n) window.i18n.apply();
-    
-    // Language toggle button
-    const uiLangBtn = document.getElementById('uiLangBtn');
-    if (uiLangBtn) {
-        uiLangBtn.addEventListener('click', () => {
-            const newLang = window.i18n.currentLang === 'de' ? 'en' : 'de';
-            window.i18n.setLang(newLang);
-        });
-    }
     
     setupEventListeners();
     updateTitle();
