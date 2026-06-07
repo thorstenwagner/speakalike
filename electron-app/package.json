@@ -44,7 +44,7 @@
       {
         "from": "../voice_models",
         "to": "voice_models",
-        "filter": ["*.pt", ".last_model", ".last_tts_model", ".elevenlabs_config"]
+        "filter": ["*.pt", ".last_model", ".last_tts_model"]
       }
     ],
     "files": [
