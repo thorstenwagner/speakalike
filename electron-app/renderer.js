@@ -373,16 +373,24 @@ async function checkStatus() {
         const status = await api('/api/status');
         elements.status.classList.add('connected');
         elements.status.classList.remove('error');
-        elements.statusText.textContent = status.message;
+        // Bekannte Backend-Status-Meldungen übersetzen
+        const msg = status.message || '';
+        if (msg === 'Bereit' || msg === 'Ready') {
+            elements.statusText.textContent = t('status_ready');
+        } else if (msg.startsWith('Voice-Modell geladen:')) {
+            elements.statusText.textContent = msg.replace('Voice-Modell geladen:', t('status_voice_loaded'));
+        } else {
+            elements.statusText.textContent = msg;
+        }
         
         // Speak-Button deaktivieren während TTS lädt
         if (status.loading) {
             elements.speakBtn.disabled = true;
-            elements.speakBtn.innerHTML = '⏳ <span class="hide-in-mini">TTS lädt...</span>';
+            elements.speakBtn.innerHTML = `⏳ <span class="hide-in-mini">${t('tts_loading')}</span>`;
             elements.status.classList.add('loading');
         } else {
             elements.speakBtn.disabled = false;
-            elements.speakBtn.innerHTML = '🔊 <span class="hide-in-mini">Sprechen</span>';
+            elements.speakBtn.innerHTML = `🔊 <span class="hide-in-mini" data-i18n="speak_label">${t('speak_label')}</span>`;
             elements.status.classList.remove('loading');
         }
         
@@ -644,8 +652,7 @@ async function generateOnly() {
     currentText = text;
     elements.generateBtn.disabled = true;
     elements.speakBtn.disabled = true;
-    const originalText = elements.generateBtn.textContent;
-    elements.generateBtn.textContent = '⏳ Generiere...';
+    elements.generateBtn.textContent = `⏳ ${t('generating_label') || 'Generiere...'}`;
     elements.statusText.textContent = t('generating_bg');
     
     try {
@@ -681,7 +688,7 @@ async function generateOnly() {
     } finally {
         elements.generateBtn.disabled = false;
         elements.speakBtn.disabled = false;
-        elements.generateBtn.textContent = originalText;
+        elements.generateBtn.innerHTML = `<span data-i18n="generate_label">${t('generate_label')}</span>`;
         checkStatus();
     }
 }
@@ -2868,11 +2875,6 @@ async function repeatLastMessage() {
     if (!currentAudioUrl) {
         showToast(t('toast_no_last_msg'), 'info');
         return;
-    }
-    
-    if (confirmSend) {
-        const confirmed = await showConfirmSend(currentText || '🔁 Wiederholen');
-        if (!confirmed) return;
     }
     
     elements.miniRepeatBtn.disabled = true;
