@@ -21,7 +21,6 @@
                     <span class="status-dot"></span>
                     <span class="status-text" data-i18n="status_connecting">Verbinde...</span>
                 </div>
-                <button class="btn btn-icon" id="uiLangBtn" title="Switch to English">🇬🇧</button>
                 <button class="btn btn-icon" id="toggleInputPositionBtn" data-i18n-title="toggle_input_title" title="Texteingabe oben/unten">⬇️</button>
                 <button class="btn btn-icon" id="miniModeBtn" data-i18n-title="mini_mode_title" title="Mini-Modus">📌</button>
                 <button class="btn btn-icon" id="settingsBtn" data-i18n-title="settings_title" title="Einstellungen">⚙️</button>
@@ -74,6 +73,7 @@
                         <textarea 
                             class="text-input" 
                             id="textInput" 
+                            data-i18n-placeholder="text_input_placeholder"
                             placeholder="Strg+Shift+Enter=KI | Strg+L=Sprache | Strg+D=Signal | Strg+Shift+D=Vor-Signal | Strg+P=Privat"
                             rows="2"
                         ></textarea>
@@ -87,7 +87,7 @@
                     <button class="btn btn-success btn-speak" id="speakBtn">
                         🔊 <span class="hide-in-mini" data-i18n="speak_label">Sprechen</span>
                     </button>
-                    <button class="btn btn-primary btn-generate hide-in-mini" id="generateBtn" title="Nur generieren, nicht abspielen">
+                    <button class="btn btn-primary btn-generate hide-in-mini" id="generateBtn" data-i18n-title="generate_only_title" title="Nur generieren, nicht abspielen">
                         <span data-i18n="generate_label">💾 Generieren</span>
                     </button>
                     <button class="btn btn-secondary btn-mic-toggle hide-in-mini" id="micToggleBtn" data-i18n-title="mic_toggle_title" title="Mikrofon-Ausgabe (für Telefonie)">🎤</button>
@@ -350,6 +350,13 @@
                     </label>
                 </div>
                 <div class="setting-group">
+                    <label data-i18n="ui_lang_label">🌐 Sprache der Oberfläche</label>
+                    <select class="select" id="uiLangSelect">
+                        <option value="de">🇩🇪 Deutsch</option>
+                        <option value="en">🇬🇧 English</option>
+                    </select>
+                </div>
+                <div class="setting-group">
                     <label data-i18n="theme_label">🎨 Design</label>
                     <select class="select" id="themeSelect">
                         <option value="dark" data-i18n="opt_dark">🌙 Dunkel</option>
@@ -487,7 +494,7 @@
                         <!-- Selected tags will be shown here -->
                     </div>
                     <div class="tag-input-row">
-                        <input type="text" class="input" id="editTagInputField" placeholder="Tag eingeben...">
+                        <input type="text" class="input" id="editTagInputField" data-i18n-placeholder="tag_input_placeholder" placeholder="Tag eingeben...">
                         <button class="btn btn-small" id="addEditTagBtn">+</button>
                     </div>
                 </div>
