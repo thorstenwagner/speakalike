@@ -695,11 +695,11 @@ async def load_voice_model(name: str):
         if not success:
             raise HTTPException(status_code=404, detail="Modell nicht gefunden oder konnte nicht geladen werden")
         
-        current_status["message"] = f"Voice-Modell geladen: {name}"
+        current_status["message"] = "Bereit"
         return {"success": True, "name": name}
         
     except Exception as e:
-        current_status["message"] = f"Fehler: {str(e)}"
+        current_status["message"] = "Bereit"
         raise HTTPException(status_code=500, detail=str(e))
 
 
