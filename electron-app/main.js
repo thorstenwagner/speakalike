@@ -15,7 +15,7 @@ let miniModeKeepOnTopInterval = null;
 
 const BACKEND_URL = 'http://127.0.0.1:8765';
 
-// Prüft ob das Backend erreichbar ist
+// Checks whether the backend is reachable
 function checkBackend() {
     return new Promise((resolve) => {
         const req = http.get(`${BACKEND_URL}/api/status`, (res) => {
@@ -62,7 +62,7 @@ function createSplashWindow() {
         }
     });
     
-    // Inline HTML für Splash-Screen
+    // Inline HTML for splash screen
     const splashHtml = `
         <!DOCTYPE html>
         <html>
@@ -126,11 +126,11 @@ function startBackend() {
     let exePath, cwd;
     
     if (app.isPackaged) {
-        // Produktionsmodus: gebündeltes Backend aus resources/backend/
+        // Production mode: bundled backend from resources/backend/
         exePath = path.join(process.resourcesPath, 'backend', 'backend_api.exe');
         cwd = path.join(process.resourcesPath, 'backend');
         
-        // Voice-Modelle in AppData (beschreibbar) kopieren falls nötig
+        // Copy voice models to AppData (writable) if needed
         const appDataVoiceModels = path.join(app.getPath('userData'), 'voice_models');
         if (!fs.existsSync(appDataVoiceModels)) {
             fs.mkdirSync(appDataVoiceModels, { recursive: true });
@@ -199,7 +199,7 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
     
-    // DevTools mit F12 öffnen
+    // Open DevTools with F12
     mainWindow.webContents.on('before-input-event', (event, input) => {
         if (input.key === 'F12') {
             mainWindow.webContents.toggleDevTools();
@@ -239,7 +239,7 @@ app.whenReady().then(async () => {
         return;
     }
     
-    // Splash schließen und Hauptfenster öffnen
+    // Close splash and open main window
     if (splashWindow && !splashWindow.isDestroyed()) {
         splashWindow.close();
     }
@@ -247,7 +247,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-    // Interval aufräumen
+    // Clean up interval
     if (miniModeKeepOnTopInterval) {
         clearInterval(miniModeKeepOnTopInterval);
         miniModeKeepOnTopInterval = null;
@@ -265,7 +265,7 @@ app.on('activate', () => {
     }
 });
 
-// IPC Handler für Datei-Dialoge
+// IPC handlers for file dialogs
 ipcMain.handle('open-file-dialog', async (event, options) => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openFile', 'multiSelections'],
@@ -324,7 +324,7 @@ ipcMain.handle('toggle-mini-mode', async () => {
     const workAreaPos = display.workArea;
     
     if (!isMiniMode) {
-        // Speichere ob maximiert und aktuelle Fenstergröße
+        // Save whether maximised and current window size
         const wasMaximized = mainWindow.isMaximized();
         
         if (wasMaximized) {
@@ -373,7 +373,7 @@ ipcMain.handle('toggle-mini-mode', async () => {
         isMiniMode = true;
         console.log('Mini-Modus aktiviert - Finale Bounds:', mainWindow.getBounds());
     } else {
-        // Zurück zum normalen Modus
+        // Return to normal mode
         if (miniModeKeepOnTopInterval) {
             clearInterval(miniModeKeepOnTopInterval);
             miniModeKeepOnTopInterval = null;
@@ -391,7 +391,7 @@ ipcMain.handle('toggle-mini-mode', async () => {
         mainWindow.maximize();
         isMiniMode = false;
         
-        // Schnellzugriff-Fenster schließen
+        // Close quick access window
         if (quickAccessWindow && !quickAccessWindow.isDestroyed()) {
             quickAccessWindow.close();
             quickAccessWindow = null;
@@ -401,7 +401,7 @@ ipcMain.handle('toggle-mini-mode', async () => {
     return isMiniMode;
 });
 
-// Mini-Modus Position ändern (oben/unten)
+// Change mini mode position (top/bottom)
 ipcMain.handle('toggle-mini-position', async () => {
     if (!isMiniMode) return miniModePosition;
     
@@ -409,7 +409,7 @@ ipcMain.handle('toggle-mini-position', async () => {
     const workArea = display.workAreaSize;
     const workAreaPos = display.workArea;
     
-    // Feste Mini-Größe erzwingen, damit das Fenster nicht wächst
+    // Enforce fixed mini size so the window does not grow
     const miniWidth = 850;
     const miniHeight = 120;
     mainWindow.setSize(miniWidth, miniHeight);
@@ -440,7 +440,7 @@ ipcMain.handle('get-mini-mode-status', async () => {
     return { isMiniMode, position: miniModePosition };
 });
 
-// Mini-Modus Fensterhöhe temporär ändern (für Popup-Dialoge)
+// Temporarily change mini mode window height (for popup dialogs)
 const MINI_HEIGHT = 120;
 ipcMain.handle('set-mini-height', async (event, height) => {
     if (!isMiniMode || !mainWindow) return;

@@ -1,22 +1,25 @@
-# SpeakAlike
+﻿# SpeakAlike
 
-**Sprachsynthese-Tool mit KI-gestützter Textkorrektur, Voice Cloning und Augensteuerung**
+**Sprachsynthese-Tool für Augensteuerung – mit KI-Korrektur, Mini-Modus und Telefonie-Integration**
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
 ![Electron](https://img.shields.io/badge/Electron-28-47848F.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-SpeakAlike wurde speziell für Menschen entwickelt, die per Augensteuerung kommunizieren. Es verwandelt kurze, fehlerhafte Texteingaben in natürlich klingende Sprache – unterstützt durch künstliche Intelligenz, die Tippfehler automatisch korrigiert und den Gesprächskontext versteht.
+SpeakAlike wurde für Menschen entwickelt, die per Augensteuerung kommunizieren. Es verwandelt kurze, fehlerhafte Texteingaben in natürlich klingende Sprache – unterstützt durch Claude AI, die Tippfehler automatisch korrigiert und den Gesprächskontext versteht.
+
+Zwei besonders wichtige Features: Der **Mini-Modus** – ein kompaktes Always-on-Top-Overlay, das jederzeit per `Strg+M` erreichbar ist – und die vollständige **Tastatursteuerung** aller Kernfunktionen per Tastenkürzel, damit Mausbedienung nie notwendig ist.
 
 ---
 
 ## Highlights
 
-- **KI-Korrektur in Echtzeit** – Claude AI korrigiert Tippfehler aus der Augensteuerung, ohne Wörter hinzuzufügen
-- **Voice Cloning** – Eigene Stimme klonen und in Gesprächen verwenden
-- **Mikrofon-Ausgabe für Telefonie** – Sprache direkt über virtuelle Audiokabel (z.B. VB-Cable) in Zoom, Teams oder Telefon einspeisen
-- **Schnellzugriffe** – Häufig verwendete Sätze per Tastendruck abspielen
-- **Privacy-Modus** – Eingabetext wird verborgen, ideal wenn andere den Bildschirm sehen
+- **KI-Korrektur** – Claude AI korrigiert Augensteuerungs-Tippfehler, ohne Wörter hinzuzufügen
+- **ElevenLabs TTS** – natürlich klingende Stimmen in der Cloud (mehrere Modelle und Stimmen wählbar)
+- **Mini-Modus** – kompaktes Always-on-Top-Fenster, ideal für den Einsatz neben anderen Apps
+- **Mikrofon-Ausgabe** – Sprache über virtuelles Audiokabel direkt in Zoom, Teams oder Telefon einspeisen
+- **A–Z Schnellzugriff** – bis zu 26 Sätze per einzelner Taste sofort abrufen
+- **Privacy-Modus** – Eingabe wird verborgen, nur das letzte Zeichen bleibt sichtbar
 
 ---
 
@@ -26,21 +29,18 @@ SpeakAlike wurde speziell für Menschen entwickelt, die per Augensteuerung kommu
 
 | Feature | Beschreibung |
 |---------|-------------|
-| **Coqui XTTS v2** | Lokale, GPU-beschleunigte Sprachsynthese mit Voice Cloning (17 Sprachen) |
-| **ElevenLabs** | Cloud-basierte Synthese (Multilingual v2/v3, Flash v2.5, Turbo v2.5) |
-| **Voice Cloning** | Eigene Stimme aus 5–30 Sekunden Audio klonen und als Modell speichern |
-| **Sprachparameter** | Geschwindigkeit (0.5x–2.0x), Temperatur, Wiederholungsstrafe feinjustierbar |
+| **ElevenLabs (Cloud)** | Natürlich klingende Stimmen; Modelle: Multilingual v2/v3, Flash v2.5, Turbo v2.5 |
+| **pyttsx3 (Offline)** | Systemstimmen über Windows SAPI5, kein Internet erforderlich |
 | **Dual-Output** | Gleichzeitige Ausgabe über Lautsprecher und virtuelles Mikrofon |
+| **Lautstärkeregelung** | Stummschalten und Lautstärke per Schieberegler |
 
 ### KI-Korrektur (Claude)
 
 | Feature | Beschreibung |
 |---------|-------------|
-| **Automatische Korrektur** | Fehlende/falsche Buchstaben werden erkannt und korrigiert |
-| **Gesprächskontext** | Letzte 5 Minuten Nachrichten werden als Kontext mitgesendet |
-| **Kontextfeld** | Gesprächssituation beschreiben (z.B. „Arztbesuch", „Einkaufen") für bessere Ergebnisse |
-| **KI an/aus** | Per Strg+Enter im leeren Feld umschaltbar, grüner „KI"-Badge zeigt Status |
-| **Bestätigungsdialog** | KI-Vorschlag vor dem Sprechen prüfen und bearbeiten |
+| **Automatische Korrektur** | Fehlende/falsche Buchstaben werden ergänzt, keine inhaltlichen Änderungen |
+| **Gesprächskontext** | Letzte Nachrichten und ein frei beschreibbares Kontextfeld werden mitgesendet |
+| **Bestätigungsdialog** | KI-Vorschlag vor dem Sprechen prüfen und manuell bearbeiten |
 | **Modellwahl** | Claude Haiku 4.5 (schnell) oder Claude Sonnet 4.6 (präziser) |
 
 ### Tastenkürzel
@@ -48,43 +48,50 @@ SpeakAlike wurde speziell für Menschen entwickelt, die per Augensteuerung kommu
 | Kürzel | Funktion |
 |--------|----------|
 | **Enter** | Text sprechen (bei leerem Feld: letzte Nachricht wiederholen) |
-| **Strg+Enter** | KI-Korrektur auslösen / KI-Modus umschalten |
-| **Strg+L** | Sprache wechseln (Deutsch ↔ Englisch) |
+| **A–Z + Enter** | Schnellzugriff-Satz für den jeweiligen Buchstaben abspielen |
+| **Strg+Enter** | KI-Vervollständigung auslösen |
+| **Strg+Shift+Enter** | KI-Modus dauerhaft ein/aus |
+| **Strg+S** | Audio generieren und zum Schnellzugriff hinzufügen |
+| **Strg+L** | Sprache wechseln |
 | **Strg+D** | Signalton abspielen |
+| **Strg+Shift+D** | Vorsignal abspielen |
 | **Strg+P** | Privacy-Modus ein/aus |
-| **Strg+M** | Mikrofon-Ausgabe ein/aus |
-| **Q, E, T, U, I, Y, C, N** | Schnellzugriff-Sätze 1–8 abspielen |
-| **Escape** | Dialoge schließen / Mini-Modus beenden |
-| **Tab** | Durch Vorschläge navigieren |
+| **Strg+M** | Mini-Modus ein/aus |
+| **Escape** | Dialoge schließen |
 
-### Katalog & Schnellzugriffe
+### Schnellzugriff (A–Z)
+
+- Bis zu **26 Sätze** (A bis Z) als Schnellzugriff speicherbar
+- Abruf durch Eingabe des Buchstabens + Enter im Textfeld
+- **Sets** speichern und laden – unterschiedliche Sets für verschiedene Situationen
+- Sätze aus dem Katalog oder direkt per `Strg+S` hinzufügen
+
+### Katalog
 
 | Feature | Beschreibung |
 |---------|-------------|
-| **Katalog** | Häufig verwendete Sätze mit Audio speichern und organisieren |
-| **Auto-Tagging** | KI generiert automatisch passende Tags für gespeicherte Sätze |
-| **Tag-Filter** | Sätze nach Tags filtern (UND/ODER-Modus) |
-| **Schnellzugriffe** | Bis zu 20 Sätze per Drag & Drop als Schnellzugriff anlegen |
-| **Schnellzugriff-Sets** | Verschiedene Sets nach Situation speichern und laden |
-| **Wiedergabezähler** | Zeigt an, welche Sätze am häufigsten verwendet werden |
+| **Nachrichtenkatalog** | Häufig verwendete Sätze mit Audio, Tags und Metadaten speichern |
+| **Auto-Tagging** | Claude AI generiert automatisch passende Tags |
+| **Tag-Filter** | UND/ODER-Filterung nach beliebig vielen Tags |
+| **Favoriten** | Sätze markieren für schnellen Zugriff |
+| **Wiedergabezähler** | Zeigt am häufigsten verwendete Sätze |
+| **Audio-Import** | MP3/WAV/OGG importieren mit automatischer Transkription (Whisper) |
 
 ### Smarte Vorschläge
 
 | Feature | Beschreibung |
 |---------|-------------|
-| **Semantische Suche** | Ähnliche Sätze aus dem Verlauf werden beim Tippen vorgeschlagen |
-| **Multilingual-Embeddings** | Vorschläge basieren auf Bedeutung, nicht nur Wortgleichheit |
-| **Kontextbewusstsein** | Berücksichtigt den aktuellen Gesprächsverlauf |
+| **Semantische Suche** | Ähnliche Sätze aus dem Verlauf erscheinen beim Tippen als Vorschlag |
+| **Multilingual-Embeddings** | Ähnlichkeit basiert auf Bedeutung, nicht Wortgleichheit |
 
-### Barrierefreiheit
+### Barrierefreiheit & Mini-Modus
 
 | Feature | Beschreibung |
 |---------|-------------|
+| **Mini-Modus** | Kompaktes Always-on-Top-Overlay (`Strg+M`), Position oben/unten wählbar |
+| **Privacy-Modus** | Eingabe unlesbar, nur letztes Zeichen sichtbar (`Strg+P`) |
 | **Große Bedienelemente** | Optimiert für Augensteuerung und eingeschränkte Motorik |
-| **Privacy-Modus** | Eingabetext wird unlesbar, nur letztes Zeichen sichtbar (Strg+P) |
-| **Mini-Modus** | Kompaktes Overlay-Fenster, bleibt im Vordergrund |
 | **Visuelle Badges** | „KI" (grün) und „MIC" (rot) zeigen aktive Features auf einen Blick |
-| **Tastatursteuerung** | Alle wichtigen Funktionen ohne Maus erreichbar |
 
 ### Telefonie-Integration
 
@@ -93,37 +100,41 @@ SpeakAlike wurde speziell für Menschen entwickelt, die per Augensteuerung kommu
 | **Virtuelles Mikrofon** | Sprachausgabe über VB-Cable o.ä. in Zoom, Teams, Telefon einspeisen |
 | **Tipp-Geräusche** | Simuliert Tastaturklicks auf dem Mikrofon-Kanal während der Eingabe |
 | **Echo-Test** | Mikrofon-Gerät direkt in den Einstellungen testen |
-| **MIC-Badge** | Roter pulsierender Badge zeigt aktive Mikrofon-Ausgabe |
-
-### Weitere Features
-
-| Feature | Beschreibung |
-|---------|-------------|
-| **Dark Mode** | Standard-Theme, heller Modus umschaltbar |
-| **Verlauf** | Letzte 50 Nachrichten mit Zeitstempel |
-| **Audio-Import** | MP3/WAV/OGG importieren mit automatischer Transkription (Whisper) |
-| **Audio-Download** | Generierte Sprache als WAV speichern |
-| **Deutsch & Englisch** | Volle Unterstützung beider Sprachen |
+| **MIC-Badge** | Pulsierender Badge zeigt aktive Mikrofon-Ausgabe |
 
 ---
 
 ## Installation
 
-### Installer (empfohlen)
-
-`SpeakAlike Setup 1.0.0.exe` ausführen – enthält Electron-App, Python-Backend und Voice Models.
-
 ### Entwicklermodus
 
 ```bash
-# Backend starten
-conda activate .conda-py311
+# 1. Abhängigkeiten installieren
+pip install -r requirements.txt
+
+# 2. Backend starten
 python backend_api.py
 
-# Frontend starten (separates Terminal)
+# 3. Frontend starten (separates Terminal)
 cd electron-app
 npm install
 npm start
+```
+
+---
+
+## Konfiguration
+
+### ElevenLabs
+
+ElevenLabs API-Key und Stimme in den **Einstellungen → Sprache** hinterlegen. Der Key wird lokal in `voice_models/.elevenlabs_config` gespeichert (nicht in der Versionskontrolle).
+
+### Claude AI (für KI-Korrektur und Auto-Tagging)
+
+Claude API-Key in den **Einstellungen → Allgemein** hinterlegen oder als Umgebungsvariable setzen:
+
+```bash
+CLAUDE_API_KEY=sk-ant-...
 ```
 
 ---
@@ -135,29 +146,44 @@ npm start
 │   Electron-App      │ ◄──────────────►  │   Python Backend     │
 │   (Frontend)        │    Port 8765      │   (FastAPI/Uvicorn)  │
 │                     │                   │                      │
-│  • index.html       │                   │  • Coqui XTTS (GPU)  │
+│  • index.html       │                   │  • pyttsx3 (SAPI5)   │
 │  • renderer.js      │                   │  • ElevenLabs API    │
 │  • styles.css       │                   │  • Claude AI API     │
 │  • preload.js       │                   │  • Whisper (Import)  │
-│  • quick-access.html│                   │  • Embeddings        │
+│  • quick-access.html│                   │  • SQLite (Katalog)  │
 └─────────────────────┘                   └──────────────────────┘
+```
+
+---
+
+## Projektstruktur
+
+```
+fastspeak/
+├── backend_api.py        # FastAPI-Server (alle REST-Endpunkte)
+├── main.py               # TTS-Engine (ElevenLabs / pyttsx3)
+├── catalog.py            # SQLite-Katalog
+├── tag_generator.py      # Claude-basiertes Auto-Tagging
+├── audio_processor.py    # Audio-Vorverarbeitung (Whisper-Import)
+├── requirements.txt
+└── electron-app/
+    ├── main.js           # Electron-Hauptprozess
+    ├── renderer.js       # Frontend-Logik
+    ├── index.html        # Haupt-UI
+    ├── quick-access.html # Schnellzugriff-Popup
+    ├── i18n.js           # Übersetzungen (DE/EN)
+    └── styles.css
 ```
 
 ---
 
 ## Systemanforderungen
 
-### Minimum
-
-- CPU: Intel Core i5 / AMD Ryzen 5
-- RAM: 8 GB
-- Speicher: 5 GB
-
-### Empfohlen
-
-- GPU: NVIDIA RTX 3060 oder besser (8+ GB VRAM)
-- RAM: 16 GB
-- Speicher: 10 GB SSD
+- **OS**: Windows 10/11
+- **Python**: 3.11+
+- **RAM**: 4 GB (8 GB empfohlen)
+- **Internet**: für ElevenLabs und Claude AI erforderlich
+- **Optional**: VB-Cable für Telefonie-Integration
 
 ---
 

@@ -1,5 +1,5 @@
 """
-SpeakAlike - Text-to-Speech Anwendung
+SpeakAlike - Text-to-Speech Application
 """
 import sys
 import threading
@@ -7,23 +7,23 @@ from pathlib import Path
 import tempfile
 import os
 
-# Windows Konsole auf UTF-8 setzen, um Unicode-Fehler zu vermeiden
+# Set Windows console to UTF-8 to avoid Unicode errors
 if sys.platform == 'win32':
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
         sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
-        pass  # Falls reconfigure nicht verfügbar ist
+        pass  # reconfigure may not be available on older Python versions
 
-# Füge espeak-ng zum PATH hinzu
+# Add espeak-ng to PATH
 os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get("PATH", "")
 
-# Coqui TTS Imports werden lazy geladen um Startzeit zu verkürzen wenn ElevenLabs aktiv ist
+# Coqui TTS imports are lazy-loaded to reduce startup time when ElevenLabs is active
 COQUI_AVAILABLE = False
 XTTS_DIRECT = False
 
 def _load_coqui_imports():
-    """Lädt Coqui TTS Bibliotheken bei Bedarf"""
+    """Loads Coqui TTS libraries on demand"""
     global COQUI_AVAILABLE, XTTS_DIRECT, TTS, XttsConfig, Xtts
     if COQUI_AVAILABLE:
         return True
@@ -47,14 +47,14 @@ def _load_coqui_imports():
         except ImportError:
             COQUI_AVAILABLE = False
             XTTS_DIRECT = False
-            print("Warnung: Coqui TTS nicht verfügbar.")
+            print("Warning: Coqui TTS not available.")
             return False
 
 
 class TextToSpeech:
-    """Text-to-Speech Engine Wrapper mit optimiertem Voice Cloning"""
+    """Text-to-Speech engine wrapper with optimised voice cloning"""
     
-    # Verzeichnis für gespeicherte Voice-Modelle
+    # Directory for saved voice models
     _voice_models_env = os.environ.get('SPEAKALIKE_VOICE_MODELS')
     if _voice_models_env:
         VOICE_MODELS_DIR = Path(_voice_models_env)
@@ -63,67 +63,67 @@ class TextToSpeech:
     LAST_MODEL_FILE = VOICE_MODELS_DIR / ".last_model"
     LAST_TTS_MODEL_FILE = VOICE_MODELS_DIR / ".last_tts_model"
     
-    # ElevenLabs Konfigurationsdateien
+    # ElevenLabs configuration files
     ELEVENLABS_CONFIG_FILE = VOICE_MODELS_DIR / ".elevenlabs_config"
     
-    # Verfügbare TTS-Modelle für Voice Cloning
+    # Available TTS models for voice cloning
     AVAILABLE_TTS_MODELS = {
         "xtts_v2": {
             "name": "XTTS v2 (Standard)",
             "model_name": "tts_models/multilingual/multi-dataset/xtts_v2",
             "supports_cloning": True,
             "languages": ["de", "en", "es", "fr", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh-cn", "ja", "ko", "hu", "hi"],
-            "description": "Beste Qualität, 17 Sprachen, Voice Cloning"
+            "description": "Best quality, 17 languages, voice cloning"
         },
         "xtts_v1.1": {
             "name": "XTTS v1.1",
             "model_name": "tts_models/multilingual/multi-dataset/xtts_v1.1",
             "supports_cloning": True,
             "languages": ["de", "en", "es", "fr", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh-cn", "ja", "ko", "hu", "hi"],
-            "description": "Ältere Version, etwas schneller"
+            "description": "Older version, slightly faster"
         },
         "bark": {
             "name": "Bark (Kreativ)",
             "model_name": "tts_models/multilingual/multi-dataset/bark",
             "supports_cloning": True,
             "languages": ["de", "en", "es", "fr", "it", "pt", "pl", "zh", "ja", "ko", "ru", "tr", "hi", "ar"],
-            "description": "Kreative Stimme, unterstützt Emotionen"
+            "description": "Creative voice, supports emotions"
         },
         "tortoise_v2": {
             "name": "Tortoise v2 (Langsam, HQ)",
             "model_name": "tts_models/en/multi-dataset/tortoise-v2",
             "supports_cloning": True,
             "languages": ["en"],
-            "description": "Sehr hohe Qualität, nur Englisch, langsam"
+            "description": "Very high quality, English only, slow"
         },
         "vits_de": {
             "name": "VITS Deutsch (Schnell)",
             "model_name": "tts_models/de/thorsten/vits",
             "supports_cloning": False,
             "languages": ["de"],
-            "description": "Schnell, kein Voice Cloning, deutsche Stimme"
+            "description": "Fast, no voice cloning, German voice"
         }
     }
     
     def __init__(self, model_id="xtts_v2"):
         self.is_speaking = False
         self.speaker_wav = None
-        self.seed = 42  # Fester Seed für konsistente Ausgabe
+        self.seed = 42  # Fixed seed for consistent output
         
-        # Ausgabegerät (None = Standard-Gerät)
+        # Output device (None = default device)
         self.output_device = None
         
-        # Aktuelles TTS-Modell
+        # Current TTS model
         self.current_tts_model_id = model_id
         
-        # TTS Provider: "elevenlabs" oder "pyttsx3"
-        self.tts_provider = "pyttsx3"  # Standard (wird ggf. durch ElevenLabs-Konfig überschrieben)
+        # TTS provider: "elevenlabs" or "pyttsx3"
+        self.tts_provider = "pyttsx3"  # Default (may be overridden by ElevenLabs config)
         
-        # pyttsx3 State
-        self.pyttsx3_voice_id = None  # spezifische SAPI5 Voice-ID (None = auto per Sprache)
-        self.pyttsx3_gender = None    # 'male', 'female' oder None (auto)
+        # pyttsx3 state
+        self.pyttsx3_voice_id = None  # specific SAPI5 voice ID (None = auto by language)
+        self.pyttsx3_gender = None    # 'male', 'female' or None (auto)
 
-        # ElevenLabs State
+        # ElevenLabs state
         self.elevenlabs_client = None
         self.elevenlabs_api_key = None
         self.elevenlabs_voice_id = None
@@ -134,61 +134,61 @@ class TextToSpeech:
         self.elevenlabs_use_speaker_boost = False
         self._load_elevenlabs_config()
         
-        # Speaker Embedding Cache für bessere Qualität und Performance
+        # Speaker embedding cache for better quality and performance
         self.gpt_cond_latent = None
         self.speaker_embedding = None
         self.cached_speaker_wav = None
-        self.current_voice_name = None  # Name des aktuell geladenen Voice-Modells
+        self.current_voice_name = None  # Name of the currently loaded voice model
         
-        # Performance-Einstellungen
-        self.use_streaming = False  # Streaming für schnellere erste Ausgabe
+        # Performance settings
+        self.use_streaming = False  # Streaming for faster first output
         
-        # Optimierte Inference-Parameter (Balance zwischen Qualität und Geschwindigkeit)
-        self.gpt_cond_len = 6  # Reduziert für schnellere Generierung (Standard: 12)
-        self.gpt_cond_chunk_len = 3  # Kleinere Chunks = schneller (Standard: 4)
-        self.max_ref_len = 30  # Reduziert für Performance (Standard: 10)
+        # Optimised inference parameters (balance between quality and speed)
+        self.gpt_cond_len = 6  # Reduced for faster generation (default: 12)
+        self.gpt_cond_chunk_len = 3  # Smaller chunks = faster (default: 4)
+        self.max_ref_len = 30  # Reduced for performance (default: 10)
         
-        # Erweiterte Qualitätseinstellungen
-        self.temperature = 0.65  # Standard-Wert für bessere Generierung
-        self.top_k = 50  # Standard-Wert
-        self.top_p = 0.8  # Standard-Wert
-        self.repetition_penalty = 1.5  # Reduziert von 2.0 - zu hohe Werte können Wörter verschlucken
-        self.speed = 1.0  # Sprechgeschwindigkeit
-        self.length_penalty = 1.0  # Standard-Wert
+        # Advanced quality settings
+        self.temperature = 0.65  # Default value for better generation
+        self.top_k = 50  # Default value
+        self.top_p = 0.8  # Default value
+        self.repetition_penalty = 1.5  # Reduced from 2.0 — too high clips words
+        self.speed = 1.0  # Speech speed
+        self.length_penalty = 1.0  # Default value
         
-        # Erstelle Voice-Modell-Verzeichnis falls nicht vorhanden
+        # Create voice model directory if it doesn't exist
         self.VOICE_MODELS_DIR.mkdir(exist_ok=True)
 
-        # pyttsx3 immer als Fallback initialisieren
+        # Always initialise pyttsx3 as fallback
         self._init_pyttsx3()
         self.gpu_available = False
         self.model = None
         self.use_coqui = False
         self.use_direct = False
         if self.tts_provider == 'elevenlabs':
-            print("ElevenLabs als Provider aktiv, pyttsx3 als Fallback bereit")
+            print("ElevenLabs provider active, pyttsx3 ready as fallback")
     
     def _get_model_name(self):
-        """Gibt den model_name für das aktuelle TTS-Modell zurück"""
+        """Returns the model_name for the current TTS model"""
         if self.current_tts_model_id in self.AVAILABLE_TTS_MODELS:
             return self.AVAILABLE_TTS_MODELS[self.current_tts_model_id]["model_name"]
         return "tts_models/multilingual/multi-dataset/xtts_v2"
     
     def _init_xtts_direct(self):
-        """Initialisiert XTTS mit direktem Modell-Zugriff für beste Qualität"""
+        """Initialises XTTS with direct model access for best quality"""
         import torch
         
-        # GPU-Optimierungen aktivieren
+        # Enable GPU optimisations
         torch.backends.cudnn.benchmark = True
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
         
         model_name = self._get_model_name()
         
-        # Lade Modell über TTS API (lädt automatisch herunter)
+        # Load model via TTS API (downloads automatically)
         self.tts_api = TTS(model_name=model_name, gpu=True)
         
-        # Direkter Zugriff auf das XTTS-Modell für erweiterte Kontrolle
+        # Direct access to the XTTS model for extended control
         self.model = self.tts_api.synthesizer.tts_model
         
         self.use_coqui = True
@@ -196,14 +196,14 @@ class TextToSpeech:
         
         gpu_name = torch.cuda.get_device_name(0)
         model_info = self.AVAILABLE_TTS_MODELS.get(self.current_tts_model_id, {})
-        print(f"{model_info.get('name', 'TTS')} initialisiert (Direkter Zugriff) mit GPU: {gpu_name}")
-        print(f"  - cudnn.benchmark: aktiviert")
-        print(f"  - gpt_cond_len: {self.gpt_cond_len}s (mehr Kontext)")
-        print(f"  - gpt_cond_chunk_len: {self.gpt_cond_chunk_len}s (stabilere Latents)")
-        print(f"  - max_ref_len: {self.max_ref_len}s (längere Referenz)")
+        print(f"{model_info.get('name', 'TTS')} initialised (direct access) with GPU: {gpu_name}")
+        print(f"  - cudnn.benchmark: enabled")
+        print(f"  - gpt_cond_len: {self.gpt_cond_len}s (more context)")
+        print(f"  - gpt_cond_chunk_len: {self.gpt_cond_chunk_len}s (more stable latents)")
+        print(f"  - max_ref_len: {self.max_ref_len}s (longer reference)")
     
     def _init_tts_api(self):
-        """Fallback auf TTS API"""
+        """Fallback to TTS API"""
         import torch
         model_name = self._get_model_name()
         self.tts_api = TTS(model_name=model_name, gpu=self.gpu_available)
@@ -214,28 +214,28 @@ class TextToSpeech:
         model_info = self.AVAILABLE_TTS_MODELS.get(self.current_tts_model_id, {})
         if self.gpu_available:
             gpu_name = torch.cuda.get_device_name(0)
-            print(f"{model_info.get('name', 'TTS')} initialisiert (API-Modus) mit GPU: {gpu_name}")
+            print(f"{model_info.get('name', 'TTS')} initialised (API mode) with GPU: {gpu_name}")
         else:
-            print(f"{model_info.get('name', 'TTS')} initialisiert (API-Modus) mit CPU")
+            print(f"{model_info.get('name', 'TTS')} initialised (API mode) with CPU")
     
     def _init_fallback(self):
-        """Fallback auf einfacheres Modell"""
+        """Fallback to a simpler model"""
         self.tts_api = TTS(model_name="tts_models/de/thorsten/tacotron2-DDC")
         self.model = None
         self.use_coqui = True
         self.use_direct = False
         self.current_tts_model_id = "fallback"
-        print("Coqui TTS initialisiert (Thorsten Fallback)")
+        print("Coqui TTS initialised (Thorsten fallback)")
     
     def _init_pyttsx3(self):
-        """pyttsx3 als Fallback initialisieren"""
+        """Initialise pyttsx3 as fallback"""
         import pyttsx3
         self.engine = pyttsx3.init()
         self.current_tts_model_id = "pyttsx3"
-        print("pyttsx3 TTS initialisiert (Fallback)")
+        print("pyttsx3 TTS initialised (fallback)")
 
     def _check_internet(self):
-        """Prüft ob eine Internetverbindung besteht"""
+        """Checks whether an internet connection is available"""
         import socket
         try:
             socket.setdefaulttimeout(3)
@@ -245,7 +245,7 @@ class TextToSpeech:
             return False
 
     def _speak_pyttsx3_and_save(self, text, language='de', rate=150):
-        """Sprachausgabe mit pyttsx3 und Rückgabe des Audio-Pfads (Subprocess, COM-sicher)"""
+        """Speech output via pyttsx3, returns audio path (subprocess, COM-safe)"""
         import subprocess, sys
         temp_dir = tempfile.gettempdir()
         output_path = os.path.join(temp_dir, "speakalike_last_audio.wav")
@@ -276,17 +276,17 @@ class TextToSpeech:
                 check=True
             )
         except subprocess.TimeoutExpired:
-            print("pyttsx3 Subprocess Timeout")
+            print("pyttsx3 subprocess timeout")
             return None
         except subprocess.CalledProcessError as e:
-            print(f"pyttsx3 Subprocess Fehler: {e}")
+            print(f"pyttsx3 subprocess error: {e}")
             return None
         if os.path.exists(output_path):
             return output_path
         return None
 
     def get_pyttsx3_voices(self):
-        """Gibt Liste der verfügbaren pyttsx3-Stimmen zurück"""
+        """Returns a list of available pyttsx3 voices"""
         import pyttsx3
         try:
             e = pyttsx3.init()
@@ -294,83 +294,83 @@ class TextToSpeech:
             e.stop()
             return voices
         except Exception as ex:
-            print(f"Fehler beim Laden der pyttsx3-Stimmen: {ex}")
+            print(f"Error loading pyttsx3 voices: {ex}")
             return []
 
     def set_speaker_wav(self, wav_files):
         """
-        Setzt Audio-Samples für Voice Cloning und berechnet Speaker Embeddings
+        Sets audio samples for voice cloning and computes speaker embeddings
         
         Args:
-            wav_files (list): Liste von Pfaden zu WAV-Dateien oder None
+            wav_files (list): List of paths to WAV files, or None
         """
         self.speaker_wav = wav_files
         
-        # Invalidiere Cache wenn sich die Samples ändern
+        # Invalidate cache when samples change
         if wav_files != self.cached_speaker_wav:
             self.gpt_cond_latent = None
             self.speaker_embedding = None
             self.cached_speaker_wav = wav_files
             
-            # Berechne Embeddings vorab für bessere Qualität
+            # Pre-compute embeddings for better quality
             if wav_files and len(wav_files) > 0 and self.use_direct and self.model:
                 self._compute_speaker_latents(wav_files)
     
     def _compute_speaker_latents(self, wav_files):
         """
-        Berechnet Speaker Latents mit optimierten Parametern für bessere Stimmerfassung
+        Computes speaker latents with optimised parameters for better voice capture
         """
         try:
             import torch
-            print("Berechne optimierte Speaker-Embeddings...")
+            print("Computing optimised speaker embeddings...")
             
-            # Seed setzen für Reproduzierbarkeit
+            # Set seed for reproducibility
             torch.manual_seed(self.seed)
             if torch.cuda.is_available():
                 torch.cuda.manual_seed(self.seed)
             
-            # Erweiterte Konditionierung für bessere Stimmerfassung
-            # Nur Parameter verwenden, die von der API unterstützt werden
+            # Extended conditioning for better voice capture
+            # Only use parameters supported by the API
             self.gpt_cond_latent, self.speaker_embedding = self.model.get_conditioning_latents(
                 audio_path=wav_files,
-                gpt_cond_len=self.gpt_cond_len,  # Mehr Audio für GPT-Konditionierung
-                gpt_cond_chunk_len=self.gpt_cond_chunk_len,  # Stabilere Chunk-Verarbeitung
+                gpt_cond_len=self.gpt_cond_len,  # More audio for GPT conditioning
+                gpt_cond_chunk_len=self.gpt_cond_chunk_len,  # More stable chunk processing
             )
             
-            print(f"Speaker-Embeddings berechnet aus {len(wav_files)} Sample(s)")
+            print(f"Speaker embeddings computed from {len(wav_files)} sample(s)")
             print(f"  - GPT Latent Shape: {self.gpt_cond_latent.shape}")
             print(f"  - Speaker Embedding Shape: {self.speaker_embedding.shape}")
             
         except Exception as e:
-            print(f"Fehler bei Speaker-Embedding-Berechnung: {e}")
+            print(f"Error computing speaker embeddings: {e}")
             self.gpt_cond_latent = None
             self.speaker_embedding = None
     
     def save_voice_model(self, name):
         """
-        Speichert das aktuelle Voice-Modell (Speaker-Embeddings) auf der Festplatte
+        Saves the current voice model (speaker embeddings) to disk
         
         Args:
-            name (str): Name für das Voice-Modell (z.B. "meine_stimme")
+            name (str): Name for the voice model (e.g. "my_voice")
             
         Returns:
-            str: Pfad zur gespeicherten Datei oder None bei Fehler
+            str: Path to the saved file, or None on error
         """
         if self.gpt_cond_latent is None or self.speaker_embedding is None:
-            print("Keine Speaker-Embeddings zum Speichern vorhanden!")
+            print("No speaker embeddings to save!")
             return None
         
         try:
             import torch
             
-            # Bereinige den Namen für Dateinamen
+            # Clean the name for use as filename
             safe_name = "".join(c for c in name if c.isalnum() or c in "._- ").strip()
             if not safe_name:
                 safe_name = "voice_model"
             
             model_path = self.VOICE_MODELS_DIR / f"{safe_name}.pt"
             
-            # Speichere die Embeddings und alle Parameter
+            # Save embeddings and all parameters
             sample_count = len(self.speaker_wav) if self.speaker_wav else 1
             torch.save({
                 'gpt_cond_latent': self.gpt_cond_latent,
@@ -388,95 +388,95 @@ class TextToSpeech:
             }, model_path)
             
             self.current_voice_name = name
-            print(f"Voice-Modell '{name}' gespeichert unter: {model_path}")
+            print(f"Voice model '{name}' saved to: {model_path}")
             
-            # Speichere als zuletzt genutztes Modell
+            # Save as last used model
             self._save_last_model_name(name)
             
             return str(model_path)
             
         except Exception as e:
-            print(f"Fehler beim Speichern des Voice-Modells: {e}")
+            print(f"Error saving voice model: {e}")
             import traceback
             traceback.print_exc()
             return None
     
     def load_voice_model(self, name_or_path):
         """
-        Lädt ein gespeichertes Voice-Modell von der Festplatte
+        Loads a saved voice model from disk
         
         Args:
-            name_or_path (str): Name des Modells oder vollständiger Pfad
+            name_or_path (str): Model name or full file path
             
         Returns:
-            bool: True bei Erfolg, False bei Fehler
+            bool: True on success, False on error
         """
         try:
             import torch
             
-            # Prüfe ob es ein Pfad oder ein Name ist
+            # Check whether it's a path or a name
             if os.path.isfile(name_or_path):
                 model_path = Path(name_or_path)
             else:
-                # Suche im Voice-Modell-Verzeichnis
+                # Look in the voice model directory
                 model_path = self.VOICE_MODELS_DIR / f"{name_or_path}.pt"
             
             if not model_path.exists():
-                print(f"Voice-Modell nicht gefunden: {model_path}")
+                print(f"Voice model not found: {model_path}")
                 return False
             
-            # Lade die Embeddings
+            # Load the embeddings
             data = torch.load(model_path, map_location='cuda' if torch.cuda.is_available() else 'cpu')
             
             self.gpt_cond_latent = data['gpt_cond_latent']
             self.speaker_embedding = data['speaker_embedding']
             self.current_voice_name = data.get('name', model_path.stem)
             
-            # HINWEIS: gpt_cond_len und temperature werden NICHT aus der Datei geladen,
-            # da die optimierten Standardwerte (gpt_cond_len=5, temperature=0.70) 
-            # bessere Pitch-Reproduktion liefern (getestet mit Samples 29+41)
+            # NOTE: gpt_cond_len and temperature are NOT restored from file,
+            # because the optimised defaults (gpt_cond_len=5, temperature=0.70)
+            # produce better pitch reproduction (tested with samples 29+41)
             
-            # Nur diese Parameter wiederherstellen:
+            # Restore only these parameters:
             if 'top_k' in data:
                 self.top_k = data['top_k']
             if 'top_p' in data:
                 self.top_p = data['top_p']
             if 'repetition_penalty' in data:
-                # Begrenze auf gültigen Bereich (1.0 - 2.0)
+                # Clamp to valid range (1.0 – 2.0)
                 self.repetition_penalty = min(data['repetition_penalty'], 2.0)
             if 'speed' in data:
                 self.speed = data['speed']
             if 'seed' in data:
                 self.seed = data['seed']
             
-            print(f"Voice-Modell '{self.current_voice_name}' geladen!")
+            print(f"Voice model '{self.current_voice_name}' loaded!")
             print(f"  - GPT Latent Shape: {self.gpt_cond_latent.shape}")
             print(f"  - Speaker Embedding Shape: {self.speaker_embedding.shape}")
-            print(f"  - Aktuelle Parameter: gpt_cond_len={self.gpt_cond_len}, temperature={self.temperature}")
+            print(f"  - Current parameters: gpt_cond_len={self.gpt_cond_len}, temperature={self.temperature}")
             
-            # Speichere als zuletzt genutztes Modell
+            # Save as last used model
             self._save_last_model_name(self.current_voice_name)
             
             return True
             
         except Exception as e:
-            print(f"Fehler beim Laden des Voice-Modells: {e}")
+            print(f"Error loading voice model: {e}")
             import traceback
             traceback.print_exc()
             return False
     
     def list_saved_voice_models(self):
         """
-        Listet alle gespeicherten Voice-Modelle auf
+        Lists all saved voice models
         
         Returns:
-            list: Liste von Dictionaries mit 'name', 'path' und 'sample_count' für jedes Modell
+            list: List of dicts with 'name', 'path' and 'sample_count' for each model
         """
         import torch
         models = []
         if self.VOICE_MODELS_DIR.exists():
             for model_file in self.VOICE_MODELS_DIR.glob("*.pt"):
-                # Versuche sample_count aus der Datei zu lesen
+                # Try to read sample_count from the file
                 sample_count = 1  # Default
                 try:
                     data = torch.load(model_file, map_location='cpu', weights_only=False)
@@ -493,74 +493,74 @@ class TextToSpeech:
     
     def delete_voice_model(self, name):
         """
-        Löscht ein gespeichertes Voice-Modell
+        Deletes a saved voice model
         
         Args:
-            name (str): Name des zu löschenden Modells
+            name (str): Name of the model to delete
             
         Returns:
-            bool: True bei Erfolg, False bei Fehler
+            bool: True on success, False on error
         """
         try:
             model_path = self.VOICE_MODELS_DIR / f"{name}.pt"
             if model_path.exists():
                 model_path.unlink()
-                print(f"Voice-Modell '{name}' gelöscht")
+                print(f"Voice model '{name}' deleted")
                 return True
             else:
-                print(f"Voice-Modell '{name}' nicht gefunden")
+                print(f"Voice model '{name}' not found")
                 return False
         except Exception as e:
-            print(f"Fehler beim Löschen: {e}")
+            print(f"Error deleting voice model: {e}")
             return False
     
     def _save_last_model_name(self, name):
-        """Speichert den Namen des zuletzt genutzten Modells"""
+        """Saves the name of the last used voice model"""
         try:
             self.LAST_MODEL_FILE.write_text(name, encoding='utf-8')
         except Exception as e:
-            print(f"Fehler beim Speichern des letzten Modellnamens: {e}")
+            print(f"Error saving last model name: {e}")
     
     def _get_last_model_name(self):
-        """Gibt den Namen des zuletzt genutzten Modells zurück"""
+        """Returns the name of the last used voice model"""
         try:
             if self.LAST_MODEL_FILE.exists():
                 return self.LAST_MODEL_FILE.read_text(encoding='utf-8').strip()
         except Exception as e:
-            print(f"Fehler beim Lesen des letzten Modellnamens: {e}")
+            print(f"Error reading last model name: {e}")
         return None
     
     def _save_last_tts_model(self, model_id):
-        """Speichert die ID des zuletzt genutzten TTS-Modells"""
+        """Saves the ID of the last used TTS model"""
         try:
             self.LAST_TTS_MODEL_FILE.write_text(model_id, encoding='utf-8')
         except Exception as e:
-            print(f"Fehler beim Speichern des TTS-Modells: {e}")
+            print(f"Error saving TTS model: {e}")
     
     def _get_last_tts_model(self):
-        """Gibt die ID des zuletzt genutzten TTS-Modells zurück"""
+        """Returns the ID of the last used TTS model"""
         try:
             if self.LAST_TTS_MODEL_FILE.exists():
                 return self.LAST_TTS_MODEL_FILE.read_text(encoding='utf-8').strip()
         except Exception as e:
-            print(f"Fehler beim Lesen des TTS-Modells: {e}")
+            print(f"Error reading TTS model: {e}")
         return None
     
     def get_available_tts_models(self):
         """
-        Gibt alle verfügbaren TTS-Modelle zurück
+        Returns all available TTS models
         
         Returns:
-            dict: Dictionary mit Modell-IDs als Keys und Modell-Infos als Values
+            dict: Dictionary with model IDs as keys and model info as values
         """
         return self.AVAILABLE_TTS_MODELS
     
     def get_current_tts_model(self):
         """
-        Gibt das aktuell geladene TTS-Modell zurück
+        Returns the currently loaded TTS model
         
         Returns:
-            dict: Dictionary mit model_id und model_info
+            dict: Dictionary with model_id and model_info
         """
         model_info = self.AVAILABLE_TTS_MODELS.get(self.current_tts_model_id, {})
         return {
@@ -571,58 +571,58 @@ class TextToSpeech:
     
     def switch_tts_model(self, model_id):
         """
-        Wechselt zu einem anderen TTS-Modell
+        Switches to a different TTS model
         
         Args:
-            model_id (str): ID des neuen Modells (z.B. "xtts_v2", "bark", "vits_de")
+            model_id (str): ID of the new model (e.g. "xtts_v2", "bark", "vits_de")
             
         Returns:
-            bool: True bei Erfolg, False bei Fehler
+            bool: True on success, False on error
         """
         if model_id not in self.AVAILABLE_TTS_MODELS:
-            print(f"Unbekanntes TTS-Modell: {model_id}")
+            print(f"Unknown TTS model: {model_id}")
             return False
         
         if model_id == self.current_tts_model_id:
-            print(f"TTS-Modell {model_id} ist bereits aktiv")
+            print(f"TTS model {model_id} is already active")
             return True
         
         try:
             import torch
             
-            print(f"Wechsle TTS-Modell zu: {self.AVAILABLE_TTS_MODELS[model_id]['name']}")
+            print(f"Switching TTS model to: {self.AVAILABLE_TTS_MODELS[model_id]['name']}")
             
-            # Alte Ressourcen freigeben
+            # Release old resources
             if hasattr(self, 'tts_api') and self.tts_api:
                 del self.tts_api
             if hasattr(self, 'model') and self.model:
                 del self.model
             
-            # GPU-Speicher freigeben
+            # Free GPU memory
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             
-            # Neues Modell setzen
+            # Set new model
             self.current_tts_model_id = model_id
             
-            # Cache invalidieren
+            # Invalidate cache
             self.gpt_cond_latent = None
             self.speaker_embedding = None
             
-            # Neues Modell laden
+            # Load new model
             if XTTS_DIRECT and self.gpu_available and model_id.startswith("xtts"):
                 self._init_xtts_direct()
             else:
                 self._init_tts_api()
             
-            # Präferenz speichern
+            # Save preference
             self._save_last_tts_model(model_id)
             
-            print(f"TTS-Modell gewechselt zu: {self.AVAILABLE_TTS_MODELS[model_id]['name']}")
+            print(f"TTS model switched to: {self.AVAILABLE_TTS_MODELS[model_id]['name']}")
             return True
             
         except Exception as e:
-            print(f"Fehler beim Wechseln des TTS-Modells: {e}")
+            print(f"Error switching TTS model: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -630,7 +630,7 @@ class TextToSpeech:
     # === ElevenLabs Integration ===
     
     def _load_elevenlabs_config(self):
-        """Lädt ElevenLabs-Konfiguration von Disk"""
+        """Loads ElevenLabs configuration from disk"""
         try:
             if self.ELEVENLABS_CONFIG_FILE.exists():
                 import json
@@ -648,10 +648,10 @@ class TextToSpeech:
                     self.tts_provider = config.get('provider', 'elevenlabs')
                     self._init_elevenlabs()
         except Exception as e:
-            print(f"Fehler beim Laden der ElevenLabs-Konfiguration: {e}")
+            print(f"Error loading ElevenLabs configuration: {e}")
     
     def _save_elevenlabs_config(self):
-        """Speichert ElevenLabs-Konfiguration auf Disk"""
+        """Saves ElevenLabs configuration to disk"""
         try:
             import json
             config = {
@@ -670,20 +670,20 @@ class TextToSpeech:
                 json.dumps(config), encoding='utf-8'
             )
         except Exception as e:
-            print(f"Fehler beim Speichern der ElevenLabs-Konfiguration: {e}")
+            print(f"Error saving ElevenLabs configuration: {e}")
     
     def _init_elevenlabs(self):
-        """Initialisiert den ElevenLabs-Client"""
+        """Initialises the ElevenLabs client"""
         if not self.elevenlabs_api_key:
-            print("ElevenLabs: Kein API-Key konfiguriert")
+            print("ElevenLabs: No API key configured")
             return False
         try:
             from elevenlabs.client import ElevenLabs
             self.elevenlabs_client = ElevenLabs(api_key=self.elevenlabs_api_key)
-            print("ElevenLabs-Client initialisiert")
+            print("ElevenLabs client initialised")
             return True
         except Exception as e:
-            print(f"Fehler bei ElevenLabs-Initialisierung: {e}")
+            print(f"Error initialising ElevenLabs: {e}")
             self.elevenlabs_client = None
             return False
     
@@ -691,10 +691,10 @@ class TextToSpeech:
                                stability=None, similarity_boost=None, style=None,
                                use_speaker_boost=None):
         """
-        Konfiguriert ElevenLabs API-Key, Voice-ID und Modell.
+        Configures ElevenLabs API key, voice ID and model.
         
         Returns:
-            bool: True bei Erfolg
+            bool: True on success
         """
         if api_key is not None:
             self.elevenlabs_api_key = api_key
@@ -719,24 +719,24 @@ class TextToSpeech:
     
     def set_tts_provider(self, provider):
         """
-        Wechselt den TTS-Provider.
+        Switches the TTS provider.
 
         Args:
-            provider: "elevenlabs" oder "pyttsx3"
+            provider: "elevenlabs" or "pyttsx3"
         """
         if provider not in ("elevenlabs", "pyttsx3"):
             return False
         self.tts_provider = provider
         self._save_elevenlabs_config()
-        print(f"TTS-Provider gewechselt zu: {provider}")
+        print(f"TTS provider switched to: {provider}")
         return True
     
     def list_elevenlabs_voices(self):
         """
-        Listet alle ElevenLabs-Stimmen auf.
+        Lists all ElevenLabs voices.
         
         Returns:
-            list: Liste von Dictionaries mit 'voice_id' und 'name'
+            list: List of dicts with 'voice_id' and 'name'
         """
         if not self.elevenlabs_client:
             if not self._init_elevenlabs():
@@ -752,36 +752,36 @@ class TextToSpeech:
                 })
             return voices
         except Exception as e:
-            print(f"Fehler beim Abrufen der ElevenLabs-Stimmen: {e}")
+            print(f"Error fetching ElevenLabs voices: {e}")
             return []
     
     def _speak_elevenlabs_and_save(self, text, language):
         """
-        Generiert Audio über ElevenLabs API und speichert als WAV.
-        Fällt bei Fehler automatisch auf Coqui zurück.
+        Generates audio via the ElevenLabs API and saves it as WAV.
+        Falls back to pyttsx3 automatically on error.
         """
         import time
         start_time = time.time()
 
         if not self._check_internet():
-            print("Keine Internetverbindung, Fallback auf pyttsx3...")
+            print("No internet connection, falling back to pyttsx3...")
             return self._speak_pyttsx3_and_save(text, language)
 
         if not self.elevenlabs_client:
             if not self._init_elevenlabs():
-                print("ElevenLabs nicht verfügbar, Fallback auf pyttsx3...")
+                print("ElevenLabs not available, falling back to pyttsx3...")
                 return self._speak_pyttsx3_and_save(text, language)
 
         if not self.elevenlabs_voice_id:
-            print("ElevenLabs: Keine Voice-ID konfiguriert, Fallback auf pyttsx3...")
+            print("ElevenLabs: No voice ID configured, falling back to pyttsx3...")
             return self._speak_pyttsx3_and_save(text, language)
         
         try:
-            print(f"ElevenLabs: Generiere Audio...")
-            print(f"  Voice-ID: {self.elevenlabs_voice_id}")
-            print(f"  Modell: {self.elevenlabs_model_id}")
+            print(f"ElevenLabs: Generating audio...")
+            print(f"  Voice ID: {self.elevenlabs_voice_id}")
+            print(f"  Model: {self.elevenlabs_model_id}")
             
-            # Sprachcode-Mapping: v3 nutzt ISO 639-3 (3-Buchstaben), v2 nutzt ISO 639-1 (2-Buchstaben)
+            # Language code mapping: v3 uses ISO 639-3 (3-letter), v2 uses ISO 639-1 (2-letter)
             is_v3 = 'v3' in (self.elevenlabs_model_id or '')
             if is_v3:
                 lang_map = {"de": "deu", "en": "eng", "es": "spa", "fr": "fra", "it": "ita",
@@ -793,12 +793,12 @@ class TextToSpeech:
                 lang_map = {"de": "de", "en": "en", "es": "es", "fr": "fr", "it": "it"}
             language_code = lang_map.get(language, language)
             
-            # Text für TTS vorbereiten
+            # Prepare text for TTS
             tts_text = text.strip()
             word_count = len(tts_text.split())
             
             if is_v3 and word_count <= 3 and language_code != "eng":
-                # v3: Audio-Tag für Sprachsteuerung bei kurzen Texten
+                # v3: audio tag for language control on short texts
                 accent_map = {"deu": "German", "spa": "Spanish", "fra": "French",
                               "ita": "Italian", "por": "Portuguese", "nld": "Dutch",
                               "pol": "Polish", "rus": "Russian", "jpn": "Japanese"}
@@ -806,7 +806,7 @@ class TextToSpeech:
                 if accent:
                     tts_text = f"[strong {accent} accent] {tts_text}"
             elif not is_v3 and word_count <= 3 and language_code != "en":
-                # v2: Punkt am Ende erzwingen bei kurzen Texten
+                # v2: force period at end for short texts
                 if tts_text and tts_text[-1] not in '.!?…':
                     tts_text = tts_text + '.'
             
@@ -827,17 +827,17 @@ class TextToSpeech:
                 voice_settings=voice_settings
             )
             
-            # Audio-Bytes sammeln
+            # Collect audio bytes
             audio_bytes = b""
             for chunk in audio_generator:
                 if isinstance(chunk, bytes):
                     audio_bytes += chunk
             
             if not audio_bytes:
-                print("ElevenLabs: Keine Audio-Daten erhalten, Fallback auf pyttsx3...")
+                print("ElevenLabs: No audio data received, falling back to pyttsx3...")
                 return self._speak_pyttsx3_and_save(text, language)
             
-            # PCM 24kHz 16-bit mono → WAV speichern
+            # PCM 24 kHz 16-bit mono → save as WAV
             import numpy as np
             import scipy.io.wavfile as wavfile
             
@@ -851,7 +851,7 @@ class TextToSpeech:
             audio_duration = len(wav_data) / 24000
             print(f"  ElevenLabs Audio generiert in {elapsed:.2f}s ({audio_duration:.1f}s Audio)")
             
-            # Audio abspielen (nur wenn nicht headless/API-Modus)
+            # Play audio (only when not in headless/API mode)
             if not getattr(self, 'headless_mode', False):
                 import sounddevice as sd
                 import soundfile as sf
@@ -862,36 +862,36 @@ class TextToSpeech:
             return output_path
             
         except Exception as e:
-            print(f"ElevenLabs Fehler: {e}, Fallback auf pyttsx3...")
+            print(f"ElevenLabs error: {e}, falling back to pyttsx3...")
             import traceback
             traceback.print_exc()
             return self._speak_pyttsx3_and_save(text, language)
     
     def load_last_model(self):
         """
-        Lädt automatisch das zuletzt genutzte Voice-Modell
+        Automatically loads the last used voice model
         
         Returns:
-            bool: True wenn ein Modell geladen wurde, False sonst
+            bool: True if a model was loaded, False otherwise
         """
         last_name = self._get_last_model_name()
         if last_name:
             model_path = self.VOICE_MODELS_DIR / f"{last_name}.pt"
             if model_path.exists():
-                print(f"Lade zuletzt genutztes Voice-Modell: {last_name}")
+                print(f"Loading last used voice model: {last_name}")
                 return self.load_voice_model(last_name)
             else:
-                print(f"Zuletzt genutztes Modell '{last_name}' nicht mehr vorhanden")
+                print(f"Last used model '{last_name}' no longer available")
         return False
             
     def speak(self, text, rate=150, language='de'):
         """
-        Spricht den übergebenen Text mit optimiertem Voice Cloning aus
+        Speaks the given text
         
         Args:
-            text (str): Der zu sprechende Text
-            rate (int): Sprechgeschwindigkeit (Wörter pro Minute)
-            language (str): Sprachcode (z.B. 'de', 'en')
+            text (str): The text to speak
+            rate (int): Speech rate (words per minute)
+            language (str): Language code (e.g. 'de', 'en')
         """
         if not text.strip():
             return
@@ -912,15 +912,15 @@ class TextToSpeech:
     
     def speak_and_save(self, text, rate=150, language='de'):
         """
-        Spricht den Text aus und gibt den Pfad zur Audio-Datei zurück
+        Speaks the text and returns the path to the audio file
         
         Args:
-            text (str): Der zu sprechende Text
-            rate (int): Sprechgeschwindigkeit (Wörter pro Minute)
-            language (str): Sprachcode (z.B. 'de', 'en')
+            text (str): The text to speak
+            rate (int): Speech rate (words per minute)
+            language (str): Language code (e.g. 'de', 'en')
             
         Returns:
-            str: Pfad zur gespeicherten WAV-Datei oder None bei Fehler
+            str: Path to the saved WAV file, or None on error
         """
         if not text.strip():
             return None
@@ -928,11 +928,11 @@ class TextToSpeech:
         self.is_speaking = True
         
         try:
-            # ElevenLabs als primärer Provider
+            # ElevenLabs as primary provider
             if self.tts_provider == "elevenlabs":
                 return self._speak_elevenlabs_and_save(text, language)
 
-            # pyttsx3 als Fallback
+            # pyttsx3 as fallback
             return self._speak_pyttsx3_and_save(text, language)
         except Exception as e:
             print(f"Fehler beim Vorlesen: {e}")
@@ -943,14 +943,14 @@ class TextToSpeech:
             self.is_speaking = False
     
     def _speak_coqui_and_save(self, text, language):
-        """Sprachausgabe mit Coqui TTS und Rückgabe des Audio-Pfads"""
+        """Speech output via Coqui TTS, returns audio path"""
         import torch
         import numpy as np
         import random
         import sounddevice as sd
         import soundfile as sf
         
-        # Seed setzen für konsistente Ausgabe
+        # Set seed for consistent output
         torch.manual_seed(self.seed)
         np.random.seed(self.seed)
         random.seed(self.seed)
@@ -958,7 +958,7 @@ class TextToSpeech:
             torch.cuda.manual_seed(self.seed)
             torch.cuda.manual_seed_all(self.seed)
         
-        # Persistente Datei im temp-Verzeichnis erstellen
+        # Create persistent file in temp directory
         temp_dir = tempfile.gettempdir()
         output_path = os.path.join(temp_dir, "speakalike_last_audio.wav")
         
@@ -969,7 +969,7 @@ class TextToSpeech:
         else:
             self._inference_api_default(text, language, output_path)
         
-        # Audio abspielen (nur wenn nicht headless/API-Modus)
+        # Play audio (only when not in headless/API mode)
         if not getattr(self, 'headless_mode', False):
             data, samplerate = sf.read(output_path)
             sd.play(data, samplerate, device=self.output_device)
@@ -978,14 +978,14 @@ class TextToSpeech:
         return output_path
     
     def _speak_coqui(self, text, language):
-        """Sprachausgabe mit Coqui TTS (optimiert)"""
+        """Speech output via Coqui TTS (optimised)"""
         import torch
         import numpy as np
         import random
         import sounddevice as sd
         import soundfile as sf
         
-        # Seed setzen für konsistente Ausgabe
+        # Set seed for consistent output
         torch.manual_seed(self.seed)
         np.random.seed(self.seed)
         random.seed(self.seed)
@@ -998,16 +998,16 @@ class TextToSpeech:
         
         try:
             if self.use_direct and self.model and self.gpt_cond_latent is not None:
-                # Direkter XTTS-Zugriff mit gecachten Embeddings (beste Qualität)
+                # Direct XTTS access with cached embeddings (best quality)
                 self._inference_direct(text, language, output_path)
             elif self.speaker_wav and len(self.speaker_wav) > 0:
-                # TTS API mit Voice Cloning
+                # TTS API with voice cloning
                 self._inference_api_cloning(text, language, output_path)
             else:
-                # TTS API ohne Voice Cloning
+                # TTS API without voice cloning
                 self._inference_api_default(text, language, output_path)
             
-            # Audio abspielen
+            # Play audio
             data, samplerate = sf.read(output_path)
             sd.play(data, samplerate, device=self.output_device)
             sd.wait()
@@ -1019,7 +1019,7 @@ class TextToSpeech:
                 pass
     
     def _inference_direct(self, text, language, output_path):
-        """Direkte XTTS-Inference mit optimierten Parametern"""
+        """Direct XTTS inference with optimised parameters"""
         import torch
         import numpy as np
         import scipy.io.wavfile as wavfile
@@ -1029,22 +1029,22 @@ class TextToSpeech:
         print(f"Generiere Audio...")
         print(f"  Parameter: gpt_cond_len={self.gpt_cond_len}, temperature={self.temperature}")
         
-        # Originaltext speichern (ohne Stop-Marker) für Trimming
+        # Save original text (without stop marker) for trimming
         original_text = text
         
-        # Stop-Marker zum Text hinzufügen
+        # Append stop marker to text
         text_with_marker = self._add_stop_marker(text, language)
-        print(f"  Text mit Stop-Marker: '{text_with_marker}'")
+        print(f"  Text with stop marker: '{text_with_marker}'")
         
-        # Streaming-Modus für schnelleres erstes Audio
+        # Streaming mode for faster first audio output
         if self.use_streaming:
             self._inference_direct_streaming(original_text, language, output_path)
-            print(f"  Generierung abgeschlossen in {time.time() - start_time:.2f}s (Streaming)")
+            print(f"  Generation complete in {time.time() - start_time:.2f}s (streaming)")
             return
         
         # --- TIMING: XTTS Inference ---
         t_inference = time.time()
-        # Generiere den gesamten Text in einem Stück (mit Stop-Marker)
+        # Generate the entire text in one pass (with stop marker)
         with torch.inference_mode():
             out = self.model.inference(
                 text=text_with_marker,
@@ -1064,7 +1064,7 @@ class TextToSpeech:
         wav = np.array(out["wav"])
         audio_duration = len(wav) / 24000
         
-        # DEBUG: Speichere Audio VOR dem Trimming auf Desktop
+        # DEBUG: Save audio BEFORE trimming to Desktop
         import os
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         debug_path = os.path.join(desktop, "DEBUG_vor_trim.wav")
@@ -1074,42 +1074,42 @@ class TextToSpeech:
         
         # --- TIMING: Whisper Trimming ---
         t_whisper = time.time()
-        # Artefakte am Ende entfernen (sucht nach Stop-Marker)
+        # Remove artifacts at the end (searches for stop marker)
         wav = self._remove_artifacts_with_transcription(wav, original_text, sample_rate=24000, language=language)
         t_whisper = time.time() - t_whisper
         
-        # --- TIMING: WAV speichern ---
+        # --- TIMING: WAV saving ---
         t_save = time.time()
-        # Speichern als Standard-PCM WAV (16-bit) für maximale Kompatibilität
+        # Save as standard PCM WAV (16-bit) for maximum compatibility
         wav = np.clip(wav, -1.0, 1.0)
         wav_int16 = (wav * 32767).astype(np.int16)
         wavfile.write(output_path, 24000, wav_int16)
         t_save = time.time() - t_save
         
         total = time.time() - start_time
-        print(f"\n  ⏱ TIMING-Übersicht:")
+        print(f"\n  ⏱ TIMING overview:")
         print(f"    XTTS Inference:    {t_inference:.2f}s  ({t_inference/total*100:.0f}%)")
-        print(f"    Audio-Dauer:       {audio_duration:.2f}s  (Realtime-Faktor: {t_inference/audio_duration:.1f}x)")
+        print(f"    Audio duration:    {audio_duration:.2f}s  (realtime factor: {t_inference/audio_duration:.1f}x)")
         print(f"    Whisper Trimming:  {t_whisper:.2f}s  ({t_whisper/total*100:.0f}%)")
-        print(f"    WAV speichern:     {t_save:.2f}s  ({t_save/total*100:.0f}%)")
-        print(f"    GESAMT:            {total:.2f}s")
+        print(f"    WAV save:          {t_save:.2f}s  ({t_save/total*100:.0f}%)")
+        print(f"    TOTAL:             {total:.2f}s")
     
     def _inference_direct_streaming(self, text, language, output_path):
-        """Streaming-Inference für schnellere erste Audioausgabe"""
+        """Streaming inference for faster first audio output"""
         import torch
         import torchaudio
         import numpy as np
         
-        # Originaltext speichern (ohne Stop-Marker) für Trimming
+        # Save original text (without stop marker) for trimming
         original_text = text
         
-        # Stop-Marker zum Text hinzufügen
+        # Append stop marker to text
         text_with_marker = self._add_stop_marker(text, language)
-        print(f"  Text mit Stop-Marker (Streaming): '{text_with_marker}'")
+        print(f"  Text with stop marker (streaming): '{text_with_marker}'")
         
         chunks = []
         
-        # Streaming-Generator verwenden (mit Stop-Marker)
+        # Use streaming generator (with stop marker)
         for chunk in self.model.inference_stream(
             text=text_with_marker,
             language=language,
@@ -1122,48 +1122,48 @@ class TextToSpeech:
             top_p=self.top_p,
             speed=self.speed,
             enable_text_splitting=True,
-            stream_chunk_size=20  # Kleinere Chunks = schnellerer Start
+            stream_chunk_size=20  # Smaller chunks = faster start
         ):
             chunks.append(chunk)
         
-        # Alle Chunks zusammenfügen
+        # Concatenate all chunks
         if chunks:
             wav = np.concatenate([c.cpu().numpy() for c in chunks])
             
-            # Artefakte am Ende entfernen (sucht nach Stop-Marker)
+            # Remove artifacts at the end (searches for stop marker)
             wav = self._remove_artifacts_with_transcription(wav, original_text, sample_rate=24000, language=language)
             torchaudio.save(output_path, torch.tensor(wav).unsqueeze(0), 24000)
 
-    # Universeller Stop-Marker für alle Sprachen
-    # "Tango Tango Tango" ist phonetisch einzigartig, klingt in jeder Sprache gleich,
-    # und interferiert NICHT mit XTTS (im Gegensatz zu "Ende der Nachricht" das Wörter verschluckte)
+    # Universal stop marker for all languages.
+    # "Tango Tango Tango" is phonetically unique, sounds the same in every language,
+    # and does NOT interfere with XTTS (unlike "Ende der Nachricht" which swallowed words)
     STOP_MARKER = "Tango Tango Tango."
     
-    # Erkennungsmuster: Whisper kann "Tango" leicht variiert transkribieren
+    # Recognition patterns: Whisper may transcribe "Tango" with slight variations
     STOP_MARKER_WORDS = ["tango", "tangoo", "tanco", "ango", "tanga", "ango", "tangutan"]
 
     def _add_stop_marker(self, text, language):
         """
-        Fügt den universellen Stop-Marker am Ende des Textes hinzu.
+        Appends the universal stop marker to the end of the text.
         """
         marker = self.STOP_MARKER
         
-        # Prüfe, ob der Text BEREITS den Stop-Marker enthält
+        # Check whether the text ALREADY contains the stop marker
         if "tango" in text.lower():
-            print(f"  WARNUNG: Text enthält bereits 'tango'!")
+            print(f"  WARNING: Text already contains 'tango'!")
             return text
         
         result = f"{text.rstrip()}... {marker}"
-        print(f"  Stop-Marker: '{marker}' angehängt (mit '...' Pause)")
+        print(f"  Stop marker: '{marker}' appended (with '...' pause)")
         return result
 
     def _find_stop_marker_position(self, recognized_words, language):
         """
-        Findet die Position des Stop-Markers "Tango Tango Tango" in den erkannten Wörtern.
-        Sucht nach mindestens 2 aufeinanderfolgenden "tango"-Wörtern.
+        Finds the position of the stop marker "Tango Tango Tango" in the recognised words.
+        Searches for at least 2 consecutive "tango" words.
         
         Returns:
-            Tuple (Start-Zeit, Index) oder (None, None)
+            Tuple (start time, index) or (None, None)
         """
         import re
         
@@ -1172,42 +1172,42 @@ class TextToSpeech:
         
         words_text = [normalize(w["word"]) for w in recognized_words]
         
-        print(f"  Suche Stop-Marker 'tango' in: {words_text[-10:] if len(words_text) > 10 else words_text}")
+        print(f"  Searching for stop marker 'tango' in: {words_text[-10:] if len(words_text) > 10 else words_text}")
         
         def is_tango(word):
             return any(t in word for t in self.STOP_MARKER_WORDS)
         
-        # Suche nach mindestens 2 aufeinanderfolgenden "tango"-Wörtern
+        # Search for at least 2 consecutive "tango" words
         for i in range(len(words_text) - 1):
             if is_tango(words_text[i]) and is_tango(words_text[i + 1]):
-                print(f"  -> Stop-Marker '{words_text[i]}' + '{words_text[i+1]}' bei {recognized_words[i]['start']:.2f}s (Index {i})")
+                print(f"  -> Stop marker '{words_text[i]}' + '{words_text[i+1]}' at {recognized_words[i]['start']:.2f}s (index {i})")
                 return recognized_words[i]["start"], i
         
-        # Fallback: Einzelnes "tango" in den letzten 30% der Wörter
+        # Fallback: single "tango" in the last 30% of words
         search_start = max(1, int(len(words_text) * 0.7))
         for i in range(len(words_text) - 1, search_start - 1, -1):
             if is_tango(words_text[i]):
-                print(f"  -> Einzelnes Stop-Marker-Wort '{words_text[i]}' bei {recognized_words[i]['start']:.2f}s (Index {i}) [Fallback]")
+                print(f"  -> Single stop marker word '{words_text[i]}' at {recognized_words[i]['start']:.2f}s (index {i}) [fallback]")
                 return recognized_words[i]["start"], i
         
-        print(f"  -> Stop-Marker NICHT gefunden!")
+        print(f"  -> Stop marker NOT found!")
         return None, None
 
     def _remove_artifacts_with_transcription(self, audio, expected_text, sample_rate=24000, language="de"):
         """
-        Entfernt Artefakte am Ende des Audios durch Whisper-Transkription.
+        Removes artifacts at the end of audio using Whisper transcription.
         
-        Verwendet einen Stop-Marker-Satz der zum Text hinzugefügt wurde.
-        Das Audio wird am Anfang des Stop-Markers abgeschnitten.
+        Uses a stop-marker sentence appended to the text.
+        The audio is cut at the start of the stop marker.
         
         Args:
-            audio: Audio-Array (numpy)
-            expected_text: Der erwartete Text der gesprochen wurde (ohne Stop-Marker)
-            sample_rate: Sample-Rate des Audios
-            language: Sprachcode für Stop-Marker-Erkennung
+            audio: Audio array (numpy)
+            expected_text: The expected text that was spoken (without stop marker)
+            sample_rate: Audio sample rate
+            language: Language code for stop marker detection
             
         Returns:
-            Getrimmtes Audio-Array
+            Trimmed audio array
         """
         import numpy as np
         
@@ -1215,52 +1215,52 @@ class TextToSpeech:
             return audio
         
         try:
-            # Lazy-Load faster-whisper beim ersten Aufruf
+            # Lazy-load faster-whisper on first call
             if not hasattr(self, '_whisper_model') or self._whisper_model is None:
-                print("  Lade faster-whisper-Modell für Artefakt-Erkennung...")
+                print("  Loading faster-whisper model for artifact detection...")
                 import os
-                # CTranslate2 ROCm-Pfad-Bug auf NVIDIA umgehen
+                # Work around CTranslate2 ROCm path bug on NVIDIA
                 os.environ["CT2_SUPPRESS_ROCM_INIT"] = "1"
                 from faster_whisper import WhisperModel
-                # medium Modell mit CTranslate2 - erkennt Stop-Marker zuverlässiger als base
+                # medium model with CTranslate2 – detects stop marker more reliably than base
                 try:
                     self._whisper_model = WhisperModel("medium", device="cuda", compute_type="float16")
-                    print("  faster-whisper-Modell (medium, CUDA float16) geladen.")
+                    print("  faster-whisper model (medium, CUDA float16) loaded.")
                 except Exception:
-                    # Fallback auf CPU falls CUDA-Probleme
+                    # Fallback to CPU if CUDA has issues
                     self._whisper_model = WhisperModel("medium", device="cpu", compute_type="int8")
-                    print("  faster-whisper-Modell (medium, CPU int8) geladen.")
+                    print("  faster-whisper model (medium, CPU int8) loaded.")
             
             import torch
             import torchaudio
             
-            # Konvertiere numpy zu torch tensor
+            # Convert numpy to torch tensor
             audio_tensor = torch.tensor(audio).float()
             if audio_tensor.dim() == 1:
                 audio_tensor = audio_tensor.unsqueeze(0)
             
-            # Resample zu 16kHz mit torchaudio (bessere Qualität als scipy)
+            # Resample to 16 kHz using torchaudio (better quality than scipy)
             if sample_rate != 16000:
                 resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
                 audio_16k = resampler(audio_tensor).squeeze().numpy()
             else:
                 audio_16k = audio_tensor.squeeze().numpy()
             
-            # Normalisiere Audio für Whisper (wichtig!)
+            # Normalise audio for Whisper (important!)
             audio_16k = audio_16k.astype(np.float32)
             max_val = np.max(np.abs(audio_16k))
             if max_val > 0:
                 audio_16k = audio_16k / max_val
             
-            # Debug: Zeige Audio-Info
-            print(f"  Whisper-Input: {len(audio_16k)} samples, max={np.max(np.abs(audio_16k)):.3f}, dtype={audio_16k.dtype}")
+            # Debug: show audio info
+            print(f"  Whisper input: {len(audio_16k)} samples, max={np.max(np.abs(audio_16k)):.3f}, dtype={audio_16k.dtype}")
             
-            # Bestimme Whisper-Sprache (mapping für einige Sprachen)
+            # Determine Whisper language (mapping for some languages)
             whisper_lang = language
             if language == "zh-cn":
                 whisper_lang = "zh"
             
-            # Transkribiere mit faster-whisper (word_timestamps)
+            # Transcribe with faster-whisper (word_timestamps)
             segments, info = self._whisper_model.transcribe(
                 audio_16k,
                 language=whisper_lang,
@@ -1268,7 +1268,7 @@ class TextToSpeech:
                 vad_filter=False
             )
             
-            # Sammle alle erkannten Wörter mit Zeitstempeln
+            # Collect all recognised words with timestamps
             recognized_words = []
             full_text = ""
             for segment in segments:
@@ -1283,35 +1283,35 @@ class TextToSpeech:
                                 "end": word_info.end
                             })
             
-            # Debug: Zeige was erkannt wurde
+            # Debug: show what was recognised
             if full_text:
-                print(f"  Whisper erkannt: '{full_text[:100]}...' " if len(full_text) > 100 else f"  Whisper erkannt: '{full_text}'")
+                print(f"  Whisper recognised: '{full_text[:100]}...' " if len(full_text) > 100 else f"  Whisper recognised: '{full_text}'")
             else:
-                print("  Whisper: Kein Text erkannt")
+                print("  Whisper: No text recognised")
             
             if not recognized_words:
-                print("  Keine Wörter erkannt, verwende Fallback-Trimming")
+                print("  No words recognised, using fallback trimming")
                 return self._remove_trailing_artifacts(audio, sample_rate)
             
-            # Debug: Zeige erkannte Wörter
-            print(f"  Erkannte Wörter ({len(recognized_words)}): {[w['word'] for w in recognized_words]}")
+            # Debug: show recognised words
+            print(f"  Recognised words ({len(recognized_words)}): {[w['word'] for w in recognized_words]}")
             
-            # NEUE STRATEGIE: Suche nach dem Stop-Marker
+            # NEW STRATEGY: search for the stop marker
             stop_marker_start, stop_marker_index = self._find_stop_marker_position(recognized_words, language)
             
             if stop_marker_start is not None:
-                print(f"  Stop-Marker gefunden bei {stop_marker_start:.2f}s (Index {stop_marker_index})")
+                print(f"  Stop marker found at {stop_marker_start:.2f}s (index {stop_marker_index})")
                 
-                # Finde das Ende des letzten Wortes VOR dem Stop-Marker
-                # WICHTIG: Überspringe Wörter die auch zum Stop-Marker gehören könnten
+                # Find the end of the last word BEFORE the stop marker.
+                # IMPORTANT: skip words that may also belong to the stop marker
                 import re
                 def normalize(w):
                     return re.sub(r'[^\w]', '', w.lower())
                 
-                # Stop-Marker-Wörter die übersprungen werden sollen
+                # Stop marker words to skip
                 stop_words = set(self.STOP_MARKER_WORDS)
                 
-                # Suche rückwärts nach dem ersten Wort das NICHT zum Stop-Marker gehört
+                # Search backwards for the first word that does NOT belong to the stop marker
                 last_content_index = stop_marker_index - 1
                 while last_content_index >= 0:
                     word = normalize(recognized_words[last_content_index]["word"])
@@ -1322,17 +1322,17 @@ class TextToSpeech:
                 if last_content_index >= 0:
                     last_content_word = recognized_words[last_content_index]
                     last_word_end = last_content_word["end"]
-                    print(f"  Letztes Inhaltswort: '{last_content_word['word']}' endet bei {last_word_end:.2f}s (Index {last_content_index})")
-                    # Schneide nach dem letzten Inhaltswort ab (+ 200ms Puffer für natürliches Ausklingen)
+                    print(f"  Last content word: '{last_content_word['word']}' ends at {last_word_end:.2f}s (index {last_content_index})")
+                    # Cut after last content word (+ 200 ms buffer for natural fade)
                     cut_time = last_word_end + 0.2
                 else:
-                    # Fallback: Schneide 300ms vor dem Stop-Marker ab
-                    print(f"  Kein Inhaltswort gefunden, verwende Fallback")
+                    # Fallback: cut 300 ms before stop marker
+                    print(f"  No content word found, using fallback")
                     cut_time = max(0, stop_marker_start - 0.3)
                 
                 end_sample = int(cut_time * sample_rate)
                 
-                # Sanftes Fade-Out (100ms)
+                # Soft fade-out (100 ms)
                 fade_duration = 0.1
                 fade_samples = int(fade_duration * sample_rate)
                 if end_sample > fade_samples:
@@ -1346,48 +1346,48 @@ class TextToSpeech:
                 original_duration = len(audio) / sample_rate
                 trimmed_duration = len(trimmed) / sample_rate
                 
-                print(f"  -> Stop-Marker-Trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
-                      f"({original_duration - trimmed_duration:.2f}s entfernt)")
+                print(f"  -> Stop marker trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
+                      f"({original_duration - trimmed_duration:.2f}s removed)")
                 
                 return trimmed
             
-            # FALLBACK: Stop-Marker nicht gefunden, verwende alte Wort-Zähl-Methode
-            print(f"  Stop-Marker nicht erkannt, verwende Wort-Zählung als Fallback")
+            # FALLBACK: stop marker not found, use word-count method
+            print(f"  Stop marker not recognised, using word count as fallback")
             
             expected_words = self._normalize_text(expected_text).split()
-            print(f"  Erwartete Wörter ({len(expected_words)}): {expected_words}")
+            print(f"  Expected words ({len(expected_words)}): {expected_words}")
             
-            # Strategie: Einfach zählen!
-            # Der erwartete Text hat N Wörter → nimm das Ende des N-ten erkannten Wortes
+            # Strategy: simply count words.
+            # The expected text has N words → take the end of the Nth recognised word
             num_expected = len(expected_words)
             
             if len(recognized_words) >= num_expected:
-                # Alle Wörter erkannt - schneide nach dem letzten erwarteten Wort
+                # All words recognised — cut after the last expected word
                 last_valid_word_info = recognized_words[num_expected - 1]
                 last_valid_end = last_valid_word_info["end"]
                 last_valid_word = last_valid_word_info["word"]
                 
-                print(f"  Erwarte {num_expected} Wörter, schneide nach Wort {num_expected}: '{last_valid_word}' bei {last_valid_end:.2f}s")
+                print(f"  Expecting {num_expected} words, cutting after word {num_expected}: '{last_valid_word}' at {last_valid_end:.2f}s")
             else:
-                # Weniger erkannte Wörter als erwartet - nimm alles
+                # Fewer recognised words than expected — take everything
                 last_valid_word_info = recognized_words[-1]
                 last_valid_end = last_valid_word_info["end"]
                 last_valid_word = last_valid_word_info["word"]
                 
-                print(f"  Nur {len(recognized_words)} von {num_expected} Wörtern erkannt, verwende alle bis '{last_valid_word}' bei {last_valid_end:.2f}s")
+                print(f"  Only {len(recognized_words)} of {num_expected} words recognised, using all up to '{last_valid_word}' at {last_valid_end:.2f}s")
             
             if last_valid_end > 0:
-                # Konvertiere Zeit zurück zu Sample-Position (bei Original-Samplerate)
+                # Convert time back to sample position (at original sample rate)
                 end_sample = int(last_valid_end * sample_rate)
-                # Füge 350ms Puffer hinzu für natürliches Ausklingen
+                # Add 350 ms buffer for natural fade
                 end_sample = min(end_sample + int(0.35 * sample_rate), len(audio))
                 
-                # Sanftes Fade-Out (150ms) für natürlichen Übergang
-                fade_duration = 0.15  # 150ms
+                # Soft fade-out (150 ms) for natural transition
+                fade_duration = 0.15  # 150 ms
                 fade_samples = int(fade_duration * sample_rate)
                 if end_sample > fade_samples:
                     fade_start = end_sample - fade_samples
-                    # Exponentielles Fade-Out für natürlicheren Klang
+                    # Exponential fade-out for more natural sound
                     fade_curve = np.power(np.linspace(1.0, 0.0, fade_samples), 2)
                     audio = audio.copy()
                     audio[fade_start:end_sample] *= fade_curve[:end_sample - fade_start]
@@ -1398,51 +1398,51 @@ class TextToSpeech:
                 trimmed_duration = len(trimmed) / sample_rate
                 
                 if original_duration - trimmed_duration > 0.05:
-                    print(f"  -> Whisper-Trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
-                          f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
-                    print(f"    Letztes Wort: '{last_valid_word}'")
+                    print(f"  -> Whisper trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
+                          f"({original_duration - trimmed_duration:.2f}s artifacts removed)")
+                    print(f"    Last word: '{last_valid_word}'")
                 
                 return trimmed
             else:
-                print("  Kein Text erkannt, verwende Fallback-Trimming")
+                print("  No text recognised, using fallback trimming")
                 return self._remove_trailing_artifacts(audio, sample_rate)
                 
         except ImportError:
-            print("  Whisper nicht installiert, verwende Fallback-Trimming")
+            print("  Whisper not installed, using fallback trimming")
             return self._remove_trailing_artifacts(audio, sample_rate)
         except Exception as e:
-            print(f"  Whisper-Fehler: {e}, verwende Fallback-Trimming")
+            print(f"  Whisper error: {e}, using fallback trimming")
             return self._remove_trailing_artifacts(audio, sample_rate)
     
     def _normalize_text(self, text):
-        """Normalisiert Text für Vergleich (Kleinbuchstaben, nur alphanumerisch)"""
+        """Normalises text for comparison (lowercase, alphanumeric only)"""
         import re
         text = text.lower().strip()
-        # Entferne Satzzeichen
+        # Remove punctuation
         text = re.sub(r'[^\w\s]', '', text)
         return text
     
     def _is_likely_artifact(self, word):
         """
-        Prüft ob ein Wort wahrscheinlich ein Artefakt/Halluzination ist.
+        Checks whether a word is likely an artifact/hallucination.
         
-        Artefakte haben oft:
-        - Nicht-lateinische Zeichen
-        - Sehr kurze ungewöhnliche Zeichenfolgen
-        - Sonderzeichen
+        Artifacts often have:
+        - Non-Latin characters
+        - Very short unusual character sequences
+        - Special characters
         """
         import re
         
         if not word:
             return True
         
-        # Prüfe auf nicht-lateinische Zeichen (außer deutschen Umlauten)
-        # Erlaubt: a-z, äöüß, Zahlen
+        # Check for non-Latin characters (except German umlauts)
+        # Allowed: a-z, äöüß, digits
         latin_pattern = re.compile(r'^[a-zäöüß0-9]+$', re.IGNORECASE)
         if not latin_pattern.match(word):
             return True
         
-        # Sehr kurze Wörter die keine deutschen Wörter sind
+        # Very short words that are not valid German words
         common_short = {'ich', 'du', 'er', 'es', 'ja', 'so', 'da', 'an', 'in', 'um', 'zu', 'ob', 'wo', 'oh', 'ah', 'na', 'ey', 'hi', 'ok'}
         if len(word) <= 2 and word.lower() not in common_short:
             return True
@@ -1450,15 +1450,15 @@ class TextToSpeech:
         return False
     
     def _words_match(self, word1, word2, threshold=0.5):
-        """Prüft ob zwei Wörter ähnlich genug sind (fuzzy match)"""
+        """Checks whether two words are similar enough (fuzzy match)"""
         w1 = word1.lower()
         w2 = word2.lower()
         
-        # Exakter Match
+        # Exact match
         if w1 == w2:
             return True
         
-        # Normalisiere phonetisch ähnliche Schreibweisen (deutsch/englisch)
+        # Normalise phonetically similar spellings (German/English)
         def normalize(w):
             replacements = [
                 ('tz', 'z'), ('ts', 'z'), ('ceps', 'zeps'),  # biceps -> bizeps
@@ -1474,36 +1474,36 @@ class TextToSpeech:
         w1_norm = normalize(w1)
         w2_norm = normalize(w2)
         
-        # Match nach Normalisierung
+        # Match after normalisation
         if w1_norm == w2_norm:
             return True
         
-        # Ein Wort enthält das andere - aber nur wenn das kürzere Wort lang genug ist
-        # und das längere Wort nicht viel länger ist (verhindert "der" in "ender")
+        # One word contains the other — only if the shorter word is long enough
+        # and the longer word is not much longer (prevents "der" in "ender")
         min_len = min(len(w1), len(w2))
         max_len = max(len(w1), len(w2))
-        if min_len >= 4 and max_len <= min_len + 2:  # Strenger: mind. 4 Zeichen, max 2 Zeichen Differenz
+        if min_len >= 4 and max_len <= min_len + 2:  # Stricter: at least 4 chars, max 2 char difference
             if w1 in w2 or w2 in w1:
                 return True
             if w1_norm in w2_norm or w2_norm in w1_norm:
                 return True
         
-        # Gleicher Anfang (mind. 3 Zeichen) - nur wenn Längen ähnlich sind
+        # Same start (at least 3 chars) — only if lengths are similar
         if len(w1) >= 3 and len(w2) >= 3 and abs(len(w1) - len(w2)) <= 2:
             if w1[:3] == w2[:3]:
                 return True
-            # Oder gleicher Anfang mit 2 Zeichen bei kürzeren Wörtern
+            # Or same first 2 chars for shorter words
             if w1[:2] == w2[:2] and (len(w1) <= 5 or len(w2) <= 5):
                 return True
         
-        # Levenshtein-ähnliche Prüfung für kleine Unterschiede
+        # Levenshtein-like check for small differences
         if abs(len(w1) - len(w2)) <= 3:
             matches = sum(c1 == c2 for c1, c2 in zip(w1, w2))
             max_len = max(len(w1), len(w2))
             if max_len > 0 and matches / max_len >= threshold:
                 return True
         
-        # Auch für normalisierte Versionen
+        # Also for normalised versions
         if abs(len(w1_norm) - len(w2_norm)) <= 3:
             matches = sum(c1 == c2 for c1, c2 in zip(w1_norm, w2_norm))
             max_len = max(len(w1_norm), len(w2_norm))
@@ -1516,24 +1516,24 @@ class TextToSpeech:
                                     silence_threshold_db=-35, 
                                     min_silence_duration=0.15):
         """
-        Entfernt Artefakte/Halluzinationen am Ende des Audios.
+        Removes artifacts/hallucinations at the end of audio.
         
-        Sucht nach der letzten signifikanten Sprachaktivität und schneidet
-        danach ab, um unverständliche Laute am Ende zu entfernen.
+        Searches for the last significant speech activity and cuts after it
+        to remove unintelligible sounds at the end.
         
         Args:
-            audio: Audio-Array
-            sample_rate: Sample-Rate
-            silence_threshold_db: Schwellwert für Stille in dB
-            min_silence_duration: Minimale Stille-Dauer um Ende zu erkennen
+            audio: Audio array
+            sample_rate: Sample rate
+            silence_threshold_db: Silence threshold in dB
+            min_silence_duration: Minimum silence duration to detect end
         """
         import numpy as np
         
         if len(audio) == 0:
             return audio
         
-        # Berechne RMS-Energie in kleinen Fenstern
-        window_size = int(0.02 * sample_rate)  # 20ms Fenster
+        # Compute RMS energy in small windows
+        window_size = int(0.02 * sample_rate)  # 20 ms window
         hop_size = window_size // 2
         
         # Sliding window RMS
@@ -1551,15 +1551,15 @@ class TextToSpeech:
         
         rms_values = np.array(rms_values)
         
-        # Konvertiere zu dB
+        # Convert to dB
         rms_db = 20 * np.log10(rms_values + 1e-10)
         max_db = np.max(rms_db)
         rms_db_normalized = rms_db - max_db
         
-        # Finde die letzte Position mit Sprache
+        # Find the last position with speech
         is_speech = rms_db_normalized > silence_threshold_db
         
-        # Suche von hinten nach vorne nach dem letzten Sprachsegment
+        # Search backwards for the last speech segment
         min_silence_windows = int(min_silence_duration * sample_rate / hop_size)
         
         last_speech_window = len(is_speech) - 1
@@ -1568,8 +1568,8 @@ class TextToSpeech:
         for i in range(len(is_speech) - 1, -1, -1):
             if is_speech[i]:
                 if silence_count >= min_silence_windows:
-                    # Wir haben ein Stille-Segment nach Sprache gefunden
-                    # Das könnte der Beginn von Artefakten sein
+                    # We found a silence segment after speech —
+                    # this could be the start of artifacts
                     last_speech_window = i + min_silence_windows // 2
                     break
                 silence_count = 0
@@ -1579,39 +1579,39 @@ class TextToSpeech:
         # Berechne die Sample-Position
         end_sample = min((last_speech_window + 1) * hop_size + window_size, len(audio))
         
-        # Füge ein kurzes Fade-Out hinzu (50ms)
+        # Add a short fade-out (50 ms)
         fade_samples = int(0.05 * sample_rate)
         if end_sample > fade_samples:
             fade_start = end_sample - fade_samples
             fade_curve = np.linspace(1.0, 0.0, fade_samples)
             audio[fade_start:end_sample] *= fade_curve[:end_sample - fade_start]
         
-        # Schneide ab
+        # Cut
         trimmed = audio[:end_sample]
         
         original_duration = len(audio) / sample_rate
         trimmed_duration = len(trimmed) / sample_rate
         
         if original_duration - trimmed_duration > 0.1:
-            print(f"  -> Audio getrimmt: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
-                  f"({original_duration - trimmed_duration:.2f}s Artefakte entfernt)")
+            print(f"  -> Audio trimmed: {original_duration:.2f}s -> {trimmed_duration:.2f}s "
+                  f"({original_duration - trimmed_duration:.2f}s artifacts removed)")
         
         return trimmed
     
     def _remove_trailing_silence(self, audio, sample_rate=24000, silence_threshold_db=-40):
         """
-        Entfernt nur echte Stille am Ende des Audios (weniger aggressiv).
+        Removes only genuine silence at the end of audio (less aggressive).
         
-        Behält mehr Audio als _remove_trailing_artifacts, gut wenn
-        Whisper nicht alles erkannt hat aber das Audio komplett ist.
+        Keeps more audio than _remove_trailing_artifacts — useful when
+        Whisper has not recognised everything but the audio is complete.
         """
         import numpy as np
         
         if len(audio) == 0:
             return audio
         
-        # Berechne RMS-Energie in kleinen Fenstern
-        window_size = int(0.05 * sample_rate)  # 50ms Fenster
+        # Compute RMS energy in small windows
+        window_size = int(0.05 * sample_rate)  # 50 ms window
         hop_size = window_size // 2
         
         num_windows = (len(audio) - window_size) // hop_size + 1
@@ -1627,10 +1627,10 @@ class TextToSpeech:
             rms_db = 20 * np.log10(rms + 1e-10)
             
             if rms_db > silence_threshold_db:
-                # Hier ist noch Audio - schneide 300ms danach ab
+                # There is still audio here — cut 300 ms later
                 end_sample = min(end + int(0.3 * sample_rate), len(audio))
                 
-                # Fade-Out (100ms)
+                # Fade-out (100 ms)
                 fade_samples = int(0.1 * sample_rate)
                 if end_sample > fade_samples:
                     fade_start = end_sample - fade_samples
@@ -1644,21 +1644,21 @@ class TextToSpeech:
                 trimmed_duration = len(trimmed) / sample_rate
                 
                 if original_duration - trimmed_duration > 0.1:
-                    print(f"  -> Silence-Trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s")
+                    print(f"  -> Silence trimming: {original_duration:.2f}s -> {trimmed_duration:.2f}s")
                 
                 return trimmed
         
         return audio
     
     def _inference_api_cloning(self, text, language, output_path):
-        """TTS API Inference mit Voice Cloning"""
+        """TTS API inference with voice cloning"""
         self.tts_api.tts_to_file(
             text=text,
             file_path=output_path,
             speaker_wav=self.speaker_wav,
             language=language,
             split_sentences=True,
-            temperature=0.4,  # Niedrigere Temperatur für Konsistenz
+            temperature=0.4,  # Lower temperature for consistency
             length_penalty=1.0,
             repetition_penalty=2.0,
             top_k=30,
@@ -1666,14 +1666,14 @@ class TextToSpeech:
         )
     
     def _inference_api_default(self, text, language, output_path):
-        """TTS API Inference ohne Voice Cloning - verwendet eingebaute Stimme"""
-        # XTTS v2 hat eingebaute Speaker - verwende einen davon
-        # Verfügbare Speaker können mit tts_api.speakers abgefragt werden
+        """TTS API inference without voice cloning — uses built-in voice"""
+        # XTTS v2 has built-in speakers — use one of them
+        # Available speakers can be queried with tts_api.speakers
         try:
-            # Versuche einen eingebauten Speaker zu verwenden
+            # Try to use a built-in speaker
             available_speakers = getattr(self.tts_api, 'speakers', None)
             if available_speakers and len(available_speakers) > 0:
-                # Verwende den ersten verfügbaren Speaker
+                # Use the first available speaker
                 speaker = available_speakers[0]
                 self.tts_api.tts_to_file(
                     text=text,
@@ -1686,18 +1686,18 @@ class TextToSpeech:
                     repetition_penalty=2.0
                 )
             else:
-                # Fallback: Verwende eine Standard-Referenz-WAV oder einfache Ausgabe
-                # Bei XTTS ohne Speaker-Wav funktioniert nur mit speaker_idx
+                # Fallback: use a standard reference WAV or simple output.
+                # XTTS without speaker_wav only works with speaker_idx
                 self.tts_api.tts_to_file(
                     text=text,
                     file_path=output_path,
-                    speaker="Claribel Dervla",  # Standard XTTS Speaker
+                    speaker="Claribel Dervla",  # Default XTTS speaker
                     language=language,
                     split_sentences=True
                 )
         except Exception as e:
-            print(f"Fehler bei Standard-TTS, versuche Fallback: {e}")
-            # Letzter Fallback - einfachste Form
+            print(f"Error in default TTS, trying fallback: {e}")
+            # Last resort — simplest form
             self.tts_api.tts_to_file(
                 text=text,
                 file_path=output_path,
@@ -1705,7 +1705,7 @@ class TextToSpeech:
             )
     
     def _speak_pyttsx3(self, text, rate, language):
-        """Fallback Sprachausgabe mit pyttsx3"""
+        """Fallback speech output with pyttsx3"""
         self.engine.setProperty('rate', rate)
         voices = self.engine.getProperty('voices')
         
@@ -1718,31 +1718,31 @@ class TextToSpeech:
         self.engine.runAndWait()
     
     def speak_async(self, text, rate=150, language='de'):
-        """Spricht Text asynchron in einem separaten Thread"""
+        """Speaks text asynchronously in a separate thread"""
         thread = threading.Thread(target=self.speak, args=(text, rate, language))
         thread.daemon = True
         thread.start()
         return thread
     
     def stop(self):
-        """Stoppt die Wiedergabe"""
+        """Stops playback"""
         if not self.use_coqui and hasattr(self, 'engine') and hasattr(self.engine, 'stop'):
             self.engine.stop()
         self.is_speaking = False
 
 
 def main():
-    """Kommandozeilen-Version für schnelle Tests"""
+    """Command-line version for quick tests"""
     if len(sys.argv) > 1:
         text = ' '.join(sys.argv[1:])
         tts = TextToSpeech()
         print(f"Spreche: {text}")
         tts.speak(text)
     else:
-        print("SpeakAlike - Text-to-Speech mit Coqui TTS")
-        print("\nVerwendung:")
-        print("  python main.py \"Ihr Text hier\"")
-        print("\nOder starten Sie die GUI:")
+        print("SpeakAlike - Text-to-Speech")
+        print("\nUsage:")
+        print("  python main.py \"Your text here\"")
+        print("\nOr start the GUI:")
         print("  python gui.py")
 
 

@@ -16,14 +16,13 @@ if (window.i18n) window.i18n.apply();
 // State
 let currentAudioUrl = null;
 let currentText = null;
-let voiceModels = [];
 let catalogTags = [];
 let selectedFiles = [];
 let currentTTSModel = 'xtts_v2';
 let availableTTSModels = {};
 let privacyMode = false;
 let privacyShowWord = false; // default: letztes Wort nicht anzeigen
-let confirmSend = true; // default: Bestätigungsdialog aktiv
+let confirmSend = true; // default: confirmation dialog active
 let currentProvider = 'pyttsx3';
 let kiAutoCorrect = false;
 let signalBeforeSpeak = false;
@@ -41,12 +40,7 @@ const elements = {
     ttsModelSelect: document.getElementById('ttsModelSelect'),
     
     // Voice
-    voiceSelect: document.getElementById('voiceSelect'),
     currentVoice: document.getElementById('currentVoice'),
-    newVoiceBtn: document.getElementById('newVoiceBtn'),
-    deleteVoiceBtn: document.getElementById('deleteVoiceBtn'),
-    elevenlabsVoiceQuick: document.getElementById('elevenlabsVoiceQuick'),
-    elevenlabsVoiceQuickSelect: document.getElementById('elevenlabsVoiceQuickSelect'),
     elevenlabsVoiceQuick: document.getElementById('elevenlabsVoiceQuick'),
     elevenlabsVoiceQuickSelect: document.getElementById('elevenlabsVoiceQuickSelect'),
     
@@ -89,15 +83,6 @@ const elements = {
     saveSettingsBtn: document.getElementById('saveSettingsBtn'),
     privacyShowWordDefault: document.getElementById('privacyShowWordDefault'),
     confirmSendDefault: document.getElementById('confirmSendDefault'),
-    
-    // New Voice Modal
-    newVoiceModal: document.getElementById('newVoiceModal'),
-    closeNewVoiceBtn: document.getElementById('closeNewVoiceBtn'),
-    voiceName: document.getElementById('voiceName'),
-    fileDropZone: document.getElementById('fileDropZone'),
-    fileList: document.getElementById('fileList'),
-    createVoiceBtn: document.getElementById('createVoiceBtn'),
-    cancelNewVoiceBtn: document.getElementById('cancelNewVoiceBtn'),
     
     // Catalog Modal
     catalogModal: document.getElementById('catalogModal'),
@@ -373,17 +358,17 @@ async function checkStatus() {
         const status = await api('/api/status');
         elements.status.classList.add('connected');
         elements.status.classList.remove('error');
-        // Bekannte Backend-Status-Meldungen übersetzen
+        // Translate known backend status messages
         const msg = status.message || '';
         if (msg === 'Bereit' || msg === 'Ready') {
             elements.statusText.textContent = t('status_ready');
-        } else if (msg.startsWith('Voice-Modell geladen:')) {
-            elements.statusText.textContent = msg.replace('Voice-Modell geladen:', t('status_voice_loaded'));
+        } else if (msg.startsWith('Voice-Modell geladen:') || msg.startsWith('Loading voice model:') || msg.startsWith('Voice model')) {
+            elements.statusText.textContent = msg;
         } else {
             elements.statusText.textContent = msg;
         }
         
-        // Speak-Button deaktivieren während TTS lädt
+        // Disable speak button while TTS is loading
         if (status.loading) {
             elements.speakBtn.disabled = true;
             elements.speakBtn.innerHTML = `⏳ <span class="hide-in-mini">${t('tts_loading')}</span>`;
@@ -407,87 +392,6 @@ async function checkStatus() {
     }
 }
 
-// === Voice Models ===
-
-async function loadVoiceModels() {
-    try {
-        voiceModels = await api('/api/voice-models');
-        
-        if (elements.voiceSelect) {
-            elements.voiceSelect.innerHTML = '<option value="">Standard (XTTS)</option>';
-        }
-        
-        let hasActiveVoice = false;
-        voiceModels.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.name;
-            option.textContent = `${model.name} (${model.sample_count} Samples)`;
-            if (model.is_active) {
-                option.selected = true;
-                if (currentProvider !== 'elevenlabs') {
-                    elements.currentVoice.querySelector('.voice-name').textContent = model.name;
-                }
-                hasActiveVoice = true;
-            }
-            if (elements.voiceSelect) elements.voiceSelect.appendChild(option);
-        });
-        
-        // Falls keine aktive Stimme, aber Stimmen vorhanden sind, wähle die erste
-        if (!hasActiveVoice && voiceModels.length > 0) {
-            const firstVoice = voiceModels[0].name;
-            if (elements.voiceSelect) elements.voiceSelect.value = firstVoice;
-            await loadVoiceModel(firstVoice);
-        }
-    } catch (error) {
-        console.error('Failed to load voice models:', error);
-    }
-}
-
-async function loadVoiceModel(name) {
-    if (!name) {
-        if (currentProvider !== 'elevenlabs') {
-            elements.currentVoice.querySelector('.voice-name').textContent = 'Standard';
-        }
-        return;
-    }
-    
-    try {
-        elements.statusText.textContent = tf('loading_model', name);
-        await api(`/api/voice-models/${name}/load`, { method: 'POST' });
-        if (currentProvider !== 'elevenlabs') {
-            elements.currentVoice.querySelector('.voice-name').textContent = name;
-        }
-        await checkStatus();
-    } catch (error) {
-        alert(`Fehler beim Laden: ${error.message}`);
-    }
-}
-
-async function deleteVoiceModel() {
-    const selectedVoice = elements.voiceSelect?.value;
-    
-    if (!selectedVoice) {
-        alert('Bitte wähle zuerst eine Stimme aus, die gelöscht werden soll.');
-        return;
-    }
-    
-    const confirmed = confirm(`Möchtest du die Stimme "${selectedVoice}" wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`);
-    
-    if (!confirmed) {
-        return;
-    }
-    
-    try {
-        elements.statusText.textContent = tf('deleting_voice', selectedVoice);
-        await api(`/api/voice-models/${selectedVoice}`, { method: 'DELETE' });
-        elements.statusText.textContent = tf('voice_deleted', selectedVoice);
-        if (elements.voiceSelect) elements.voiceSelect.value = '';
-        await loadVoiceModels();
-    } catch (error) {
-        alert(`Fehler beim Löschen: ${error.message}`);
-    }
-}
-
 // === Text-to-Speech ===
 
 // AI Sentence Completion
@@ -507,7 +411,7 @@ async function completeWithAI(text) {
             recentMessages = history
                 .filter(item => new Date(item.timestamp).getTime() > fiveMinAgo)
                 .map(item => item.text)
-                .reverse(); // älteste zuerst
+                .reverse(); // oldest first
         }
     } catch (e) {
         console.warn('Could not load recent history for AI context:', e);
@@ -576,7 +480,7 @@ async function speak() {
         return;
     }
 
-    // AI-Flag zurücksetzen
+    // Reset AI flag
     delete elements.textInput.dataset.aiCompleted;
     
     currentText = text;
@@ -602,7 +506,7 @@ async function speak() {
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
 
-            // Audio über Backend auf ausgewähltem Gerät abspielen
+            // Play audio via backend on selected device
             try {
                 const volume = elements.volumeSlider.value / 100;
                 await api('/api/tts/play-audio', {
@@ -612,7 +516,7 @@ async function speak() {
                         volume: volume
                     })
                 });
-                console.log('Audio wird auf Backend-Gerät abgespielt');
+                console.log('Audio playing on backend device');
             } catch (playError) {
                 console.error('Backend Play Fehler:', playError);
                 // Fallback: Im Browser abspielen
@@ -620,7 +524,7 @@ async function speak() {
                 await elements.audioPlayer.play();
             }
             
-            // Zum Wiedergabe-Verlauf hinzufügen
+            // Add to playback history
             await addToPlaybackHistory(text, result.audio_url, null);
             
             // History aktualisieren
@@ -668,7 +572,7 @@ async function generateOnly() {
             currentAudioUrl = `${window.API_URL}${result.audio_url}`;
             console.log('Audio generiert (nicht abgespielt):', currentAudioUrl);
             
-            // Zum Wiedergabe-Verlauf hinzufügen
+            // Add to playback history
             await addToPlaybackHistory(text, result.audio_url, null);
             
             // History aktualisieren
@@ -835,7 +739,7 @@ async function loadCatalog() {
         elements.catalogGrid.innerHTML = '';
         
         if (messages.length === 0) {
-            elements.catalogGrid.innerHTML = '<p class="muted" style="padding: 20px;">Keine Einträge gefunden</p>';
+            elements.catalogGrid.innerHTML = '<p class="muted" style="padding: 20px;">No entries found</p>';
             return;
         }
         
@@ -848,17 +752,17 @@ async function loadCatalog() {
     }
 }
 
-// Sprach-Tag Mapping (global verfügbar)
+// Language-tag mapping (globally available)
 const langNames = {
-    'de': 'deutsch', 'en': 'englisch', 'es': 'spanisch', 'fr': 'französisch',
-    'it': 'italienisch', 'pt': 'portugiesisch', 'pl': 'polnisch', 'tr': 'türkisch',
-    'ru': 'russisch', 'nl': 'niederländisch', 'ja': 'japanisch', 'zh-cn': 'chinesisch'
+    'de': 'german', 'en': 'english', 'es': 'spanish', 'fr': 'french',
+    'it': 'italian', 'pt': 'portuguese', 'pl': 'polish', 'tr': 'turkish',
+    'ru': 'russian', 'nl': 'dutch', 'ja': 'japanese', 'zh-cn': 'chinese'
 };
 
-// Alle Sprach-Tags als Set für schnelle Prüfung
+// All language tags as set for fast lookup
 const allLangTags = new Set(Object.values(langNames));
 
-// Prüft ob ein Eintrag zur aktuellen Sprache passt (oder kein Sprach-Tag hat)
+// Checks whether an entry matches the current language (or has no language tag)
 function matchesLanguageFilter(item, currentLangTag) {
     const itemTags = item.tags || [];
     const hasAnyLangTag = itemTags.some(tag => allLangTags.has(tag));
@@ -869,7 +773,7 @@ function matchesLanguageFilter(item, currentLangTag) {
 
 async function loadCatalogPreview() {
     try {
-        // Lade Einträge für die Vorschau
+        // Load entries for preview
         const params = new URLSearchParams();
         params.set('order_by', 'play_count');
         params.set('limit', '100');  // Mehr laden, da wir im Frontend filtern
@@ -882,7 +786,7 @@ async function loadCatalogPreview() {
         
         console.log(`\n=== Katalog-Vorschau Filter ===`);
         console.log(`Aktuelle Sprache: ${currentLang} → Tag: "${langTag}"`);
-        console.log(`Einträge vom Backend: ${messages.length}`);
+        console.log(`Entries from backend: ${messages.length}`);
         
         const beforeFilter = messages.length;
         messages = messages.filter(msg => {
@@ -907,7 +811,7 @@ async function loadCatalogPreview() {
         }
         messages = messages.slice(0, 50);
         
-        console.log(`Angezeigte Einträge: ${messages.length}`);
+        console.log(`Displayed entries: ${messages.length}`);
         messages.slice(0, 5).forEach(msg => {
             const tags = msg.tags || [];
             console.log(`  ✓ "${msg.text.substring(0, 30)}..." | Tags: [${tags.join(', ')}]`);
@@ -915,7 +819,7 @@ async function loadCatalogPreview() {
         if (messages.length > 5) console.log(`  ... und ${messages.length - 5} weitere`);
         
         if (messages.length === 0) {
-            const noResultsText = globalSearchTerms.length > 0 ? 'Keine Treffer' : 'Noch keine Einträge im Katalog';
+            const noResultsText = globalSearchTerms.length > 0 ? 'No results' : 'No entries in the catalog';
             elements.catalogPreview.innerHTML = `<p class="muted">${noResultsText}</p>`;
             return;
         }
@@ -996,7 +900,7 @@ async function loadHistory() {
 }
 
 async function playHistoryAudio(audioUrl, text, catalogId) {
-    // Audio über Backend auf ausgewähltem Gerät abspielen
+    // Play audio via backend on selected device
     try {
         const volume = elements.volumeSlider.value / 100;
         await api('/api/tts/play-audio', {
@@ -1010,7 +914,7 @@ async function playHistoryAudio(audioUrl, text, catalogId) {
         elements.audioPlayer.play();
     }
     
-    // Zum Wiedergabe-Verlauf hinzufügen
+    // Add to playback history
     await addToPlaybackHistory(text, audioUrl, catalogId);
     loadHistory();
 }
@@ -1021,7 +925,7 @@ async function saveHistoryAudio(audioUrl, text) {
         const response = await fetch(`${window.API_URL}${audioUrl}`);
         const blob = await response.blob();
         
-        // Dateiname aus Text erstellen (erste 30 Zeichen)
+        // Create filename from text (first 30 characters)
         const safeName = text.substring(0, 30).replace(/[^a-zA-Z0-9äöüÄÖÜß\s]/g, '').trim().replace(/\s+/g, '_');
         const filename = `${safeName}.wav`;
         
@@ -1084,7 +988,7 @@ async function loadFavorites() {
         });
         
         if (favorites.length === 0) {
-            const noResultsText = globalSearchTerms.length > 0 ? 'Keine Treffer' : 'Keine Favoriten für diese Sprache';
+            const noResultsText = globalSearchTerms.length > 0 ? 'No results' : 'No favourites for this Sprache';
             elements.favoritesList.innerHTML = `<p class="muted">${noResultsText}</p>`;
             return;
         }
@@ -1113,7 +1017,7 @@ async function loadFavorites() {
 
 async function playCatalogItem(item) {
     if (item.audio_url) {
-        // Audio über Backend auf ausgewähltem Gerät abspielen
+        // Play audio via backend on selected device
         try {
             const volume = elements.volumeSlider.value / 100;
             await api('/api/tts/play-audio', {
@@ -1127,7 +1031,7 @@ async function playCatalogItem(item) {
             elements.audioPlayer.play();
         }
         
-        // Play count erhöhen
+        // Increment play count
         await api(`/api/catalog/${item.id}/play`, { method: 'POST' });
         loadFavorites();
         loadCatalogPreview();
@@ -1144,7 +1048,7 @@ function loadQuickAccessFromStorage() {
     try {
         const stored = localStorage.getItem('quickAccessItems');
         if (stored) {
-            // Temporäre Items beim Laden verwerfen
+            // Discard temporary items on load
             quickAccessItems = JSON.parse(stored).filter(q => !q._temporary);
         }
     } catch (e) {
@@ -1161,14 +1065,14 @@ function saveQuickAccessToStorage() {
 }
 
 function addToQuickAccess(item) {
-    // Prüfen ob schon vorhanden
+    // Check if already present
     const exists = quickAccessItems.some(q => q.id === item.id);
     if (exists) {
         showToast(t('toast_already_in_qa'), 'info');
         return;
     }
     
-    // Am Ende hinzufügen (inkl. tags für Suchfilter)
+    // Add at end (incl. tags for search filter)
     quickAccessItems.push({
         id: item.id,
         text: item.text,
@@ -1185,7 +1089,7 @@ function addToQuickAccess(item) {
     
     saveQuickAccessToStorage();
     renderQuickAccess();
-    showToast('Zum Schnellzugriff hinzugefügt', 'success');
+    showToast('Added to quick access', 'success');
 }
 
 function removeFromQuickAccess(itemId) {
@@ -1199,10 +1103,10 @@ let clearQuickAccessPending = false;
 function clearQuickAccess() {
     if (quickAccessItems.length === 0) return;
     
-    // Doppelklick zum Bestätigen
+    // Double-click to confirm
     if (!clearQuickAccessPending) {
         clearQuickAccessPending = true;
-        showToast('Nochmal klicken zum Bestätigen', 'info');
+        showToast('Click again to confirm', 'info');
         setTimeout(() => {
             clearQuickAccessPending = false;
         }, 2000);
@@ -1279,7 +1183,7 @@ function saveQuickAccessSet() {
     const selected = currentQuickAccessSetName;
     
     if (selected && selected !== '__new__') {
-        // Bestehendes Set überschreiben
+        // Overwrite existing set
         const sets = getQuickAccessSets();
         sets[selected] = JSON.parse(JSON.stringify(quickAccessItems));
         saveQuickAccessSets(sets);
@@ -1364,7 +1268,7 @@ function renderSetManager() {
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn btn-small btn-danger';
         deleteBtn.textContent = '✕';
-        deleteBtn.title = 'Löschen';
+        deleteBtn.title = 'Delete';
         deleteBtn.onclick = () => deleteQuickAccessSet(name);
         
         row.appendChild(label);
@@ -1425,7 +1329,7 @@ function deleteQuickAccessSet(name) {
     saveQuickAccessSets(sets);
     renderQuickAccessSetSelect();
     renderSetManager();
-    showToast(`Set "${name}" gelöscht`, 'success');
+    showToast(`Set "${name}" deleted`, 'success');
 }
 
 function renderQuickAccess() {
@@ -1435,7 +1339,7 @@ function renderQuickAccess() {
     const filteredItems = quickAccessItems.filter(item => matchesGlobalSearch(item));
     
     if (filteredItems.length === 0) {
-        const emptyText = globalSearchTerms.length > 0 ? 'Keine Treffer' : 'Nachrichten hier hinzufügen mit dem ➕ Button';
+        const emptyText = globalSearchTerms.length > 0 ? 'No results' : 'Add messages here with them ➕ Button';
         elements.quickAccessList.innerHTML = `<p class="muted">${emptyText}</p>`;
         if (window.electronAPI?.updateQuickAccessWindow) {
             window.electronAPI.updateQuickAccessWindow(quickAccessItems.slice(0, QUICK_ACCESS_KEYS.length));
@@ -1455,7 +1359,7 @@ function renderQuickAccess() {
             ${badge}
             <span class="quick-text" title="${escapeHtml(item.text)}">${escapeHtml(textPreview)}</span>
             <div class="quick-actions">
-                <button class="btn btn-secondary btn-small use-btn" title="Text übernehmen">📝</button>
+                <button class="btn btn-secondary btn-small use-btn" title="Use text">📝</button>
                 <button class="btn btn-danger btn-small remove-btn" title="Entfernen">✕</button>
             </div>
         `;
@@ -1508,7 +1412,7 @@ async function playQuickAccessItem(item) {
                     method: 'POST',
                     body: JSON.stringify({ audio_url: result.audio_url, volume: volume })
                 });
-                // Temporäre Items nach Regenerierung auch entfernen
+                // Also remove temporary items after regeneration
                 if (item._temporary) {
                     removeFromQuickAccess(item.id);
                 }
@@ -1520,15 +1424,15 @@ async function playQuickAccessItem(item) {
     }
 
     if (item.audio_url) {
-        // Audio über Backend auf ausgewähltem Gerät abspielen
+        // Play audio via backend on selected device
         try {
             await api('/api/tts/play-audio', {
                 method: 'POST',
                 body: JSON.stringify({ audio_url: item.audio_url, volume: volume })
             });
-            // Play count erhöhen (nur Katalog-Items)
+            // Increment play count (nur Katalog-Items)
             try { await api(`/api/catalog/${item.id}/play`, { method: 'POST' }); } catch (_) {}
-            // Temporäre Items nach dem Abspielen entfernen
+            // Remove temporary items after playback
             if (item._temporary) {
                 removeFromQuickAccess(item.id);
             }
@@ -1615,7 +1519,7 @@ function matchesGlobalSearch(item) {
         // ODER: Mindestens ein Begriff muss matchen
         return globalSearchTerms.some(term => searchableContent.includes(term));
     } else {
-        // UND: Alle Begriffe müssen matchen
+        // AND: all terms must match
         return globalSearchTerms.every(term => searchableContent.includes(term));
     }
 }
@@ -1672,7 +1576,7 @@ function loadTagCloud(filteredTags) {
         tagElements.push(el);
     });
     
-    // Auto-Skalierung: Schriftgröße so groß wie möglich ohne Scrollen
+    // Auto-scaling: font size as large as possible without scrolling
     requestAnimationFrame(() => fitTagCloud(tagElements));
 }
 
@@ -1682,12 +1586,12 @@ function fitTagCloud(tagElements) {
     const containerH = container.clientHeight;
     if (containerH <= 0) return;
     
-    // Basis-Schriftgrößen: Min und Max in px
+    // Base font sizes: min and max in px
     const MIN_BASE = 0.7;
     const MAX_BASE = 3.0;
     let lo = MIN_BASE, hi = MAX_BASE;
     
-    // Binäre Suche nach optimaler Basisgröße
+    // Binary search for optimal base size
     for (let i = 0; i < 10; i++) {
         const mid = (lo + hi) / 2;
         applyTagSizes(tagElements, mid);
@@ -1703,7 +1607,7 @@ function fitTagCloud(tagElements) {
 function applyTagSizes(tagElements, baseRem) {
     tagElements.forEach(el => {
         const w = parseFloat(el.dataset.weight);
-        // Gewichtete Größe: kleine Tags = 60% der Basis, große = 100%
+        // Weighted size: small tags = 60% of base, large = 100%
         const size = baseRem * (0.6 + 0.4 * w);
         el.style.fontSize = `${size}rem`;
         const pad = Math.max(4, size * 5);
@@ -1720,7 +1624,7 @@ function toggleTagBrowserFilter(tagName) {
     }
     
     updateTagBrowserActiveFilters();
-    loadTagBrowserMessages(); // lädt Nachrichten und aktualisiert Tag-Cloud
+    loadTagBrowserMessages(); // loads messages and updates tag cloud
 }
 
 function updateTagBrowserActiveFilters() {
@@ -1740,13 +1644,13 @@ function clearAllTagBrowserFilters() {
     tagBrowserSelectedTags = [];
     updateTagBrowserActiveFilters();
     loadTagCloud(); // Alle Tags anzeigen
-    elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Wähle einen Tag um Nachrichten anzuzeigen</p>';
+    elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Select a tag to display messages</p>';
     elements.tagBrowserCount.textContent = '';
 }
 
 async function loadTagBrowserMessages() {
     if (tagBrowserSelectedTags.length === 0) {
-        elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Wähle einen Tag um Nachrichten anzuzeigen</p>';
+        elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Select a tag to display messages</p>';
         elements.tagBrowserCount.textContent = '';
         return;
     }
@@ -1771,7 +1675,7 @@ async function loadTagBrowserMessages() {
             .sort((a, b) => b.count - a.count);
         loadTagCloud(filteredTags);
         
-        elements.tagBrowserCount.textContent = `${messages.length} Einträge`;
+        elements.tagBrowserCount.textContent = `${messages.length} entries`;
         
         if (messages.length === 0) {
             elements.tagBrowserMessagesList.innerHTML = '<p class="muted">Keine Nachrichten mit diesen Tags</p>';
@@ -1791,7 +1695,7 @@ async function loadTagBrowserMessages() {
                 <div class="tag-browser-msg-actions">
                     <button class="btn btn-small play-btn" title="Abspielen">▶️</button>
                     <button class="btn btn-small" title="Zum Schnellzugriff">➕</button>
-                    <button class="btn btn-small" title="In Textfeld übernehmen">📝</button>
+                    <button class="btn btn-small" title="Copy to text field">📝</button>
                 </div>
             `;
             
@@ -1803,13 +1707,13 @@ async function loadTagBrowserMessages() {
             item.querySelectorAll('.tag-browser-msg-actions .btn')[1].onclick = (e) => {
                 e.stopPropagation();
                 addToQuickAccess(msg);
-                showToast('Zum Schnellzugriff hinzugefügt', 'success');
+                showToast('Added to quick access', 'success');
             };
             item.querySelectorAll('.tag-browser-msg-actions .btn')[2].onclick = (e) => {
                 e.stopPropagation();
                 elements.textInput.value = msg.text;
                 if (elements.charCount) elements.charCount.textContent = `${msg.text.length} ${t('chars')}`;
-                showToast('Text übernommen', 'info');
+                showToast('Text copied', 'info');
             };
             
             elements.tagBrowserMessagesList.appendChild(item);
@@ -1898,7 +1802,7 @@ async function toggleFavorite(id, setTo = null) {
 async function playCatalogAudio(id, text) {
     const audioUrl = `/api/catalog/${id}/audio`;
     
-    // Audio über Backend auf ausgewähltem Gerät abspielen
+    // Play audio via backend on selected device
     try {
         const volume = elements.volumeSlider.value / 100;
         await api('/api/tts/play-audio', {
@@ -1912,13 +1816,13 @@ async function playCatalogAudio(id, text) {
         elements.audioPlayer.play();
     }
     
-    // Zum Wiedergabe-Verlauf hinzufügen
+    // Add to playback history
     await addToPlaybackHistory(text, audioUrl, id);
     loadHistory();
 }
 
 async function deleteCatalogMessage(id) {
-    if (!confirm('Nachricht wirklich löschen?')) return;
+    if (!confirm('Really delete this message?')) return;
     
     try {
         await api(`/api/catalog/${id}`, { method: 'DELETE' });
@@ -1986,7 +1890,7 @@ async function saveToCatalog() {
         closeSaveCatalogModal();
         
         // Toast statt alert, um Fokus-Probleme zu vermeiden
-        showToast('Zum Katalog hinzugefügt!', 'success');
+        showToast('Added to catalog!', 'success');
         
         loadCatalogTags();
         loadFavorites();
@@ -2119,7 +2023,7 @@ function setImportFile(file) {
     
     const ext = '.' + file.name.split('.').pop().toLowerCase();
     if (!validTypes.includes(file.type) && !validExtensions.includes(ext)) {
-        alert('Bitte wählen Sie eine Audio-Datei (MP3, WAV, OGG, M4A)');
+        alert('Please select an audio file (MP3, WAV, OGG, M4A)');
         return;
     }
     
@@ -2228,7 +2132,7 @@ function addImportTag(tag) {
 
 async function importMp3() {
     if (!importFile) {
-        alert('Bitte wählen Sie eine Audio-Datei aus.');
+        alert('Please select an audio file.');
         return;
     }
     
@@ -2270,115 +2174,54 @@ async function importMp3() {
     }
 }
 
-// === New Voice ===
-
-async function createVoice() {
-    const name = elements.voiceName.value.trim();
-    if (!name) {
-        alert('Bitte geben Sie einen Namen ein.');
-        return;
-    }
-    
-    if (selectedFiles.length === 0) {
-        alert('Bitte wählen Sie mindestens eine Audio-Datei aus.');
-        return;
-    }
-    
-    elements.createVoiceBtn.disabled = true;
-    elements.createVoiceBtn.textContent = 'Erstelle...';
-    
-    try {
-        const formData = new FormData();
-        formData.append('name', name);
-        selectedFiles.forEach(file => {
-            formData.append('files', file);
-        });
-        
-        const response = await fetch(`${window.API_URL}/api/voice-models/create`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Fehler beim Erstellen');
-        }
-        
-        closeNewVoiceModal();
-        showToast(`Stimme "${name}" erfolgreich erstellt!`, 'success');
-        loadVoiceModels();
-    } catch (error) {
-        showToast(`Fehler: ${error.message}`, 'error');
-    } finally {
-        elements.createVoiceBtn.disabled = false;
-        elements.createVoiceBtn.textContent = 'Stimme erstellen';
-    }
-}
-
-function handleFileSelect(files) {
-    selectedFiles = Array.from(files).filter(f => 
-        f.type.startsWith('audio/') || 
-        f.name.endsWith('.wav') || 
-        f.name.endsWith('.mp3') || 
-        f.name.endsWith('.ogg')
-    );
-    
-    updateFileList();
-    elements.createVoiceBtn.disabled = selectedFiles.length === 0;
-}
-
-function updateFileList() {
-    elements.fileList.innerHTML = '';
-    selectedFiles.forEach((file, index) => {
-        const div = document.createElement('div');
-        div.className = 'file-item';
-        div.innerHTML = `
-            <span>🎵 ${file.name}</span>
-            <button class="btn btn-small" data-index="${index}">✕</button>
-        `;
-        div.querySelector('button').onclick = () => {
-            selectedFiles.splice(index, 1);
-            updateFileList();
-            elements.createVoiceBtn.disabled = selectedFiles.length === 0;
-        };
-        elements.fileList.appendChild(div);
-    });
-}
-
 // === Settings ===
 
 async function loadAudioDevices() {
     try {
-        const data = await api('/api/audio-devices');
+        const [outputData, micData] = await Promise.all([
+            api('/api/audio-devices'),
+            api('/api/mic-devices').catch(() => ({ devices: [] }))
+        ]);
         const select = elements.audioDeviceSelect;
         const micSelect = elements.micDeviceSelect;
         
-        // Leere die Liste und füge Standard hinzu
+        // Clear the list and add default
         select.innerHTML = '<option value="-1">Standard</option>';
         micSelect.innerHTML = '<option value="-1">Nicht konfiguriert</option>';
         
-        // Füge alle Geräte hinzu
-        data.devices.forEach(device => {
+        // Speaker dropdown – output devices only
+        outputData.devices.forEach(device => {
             const option = document.createElement('option');
             option.value = device.index;
             option.textContent = device.name;
             select.appendChild(option);
-            
-            // Auch zum Mikrofon-Select hinzufügen
+        });
+        
+        // Mic routing dropdown – all devices from dedicated endpoint
+        // Deduplicate by name, preferring output (can actually be played to)
+        const seen = new Map();
+        micData.devices.forEach(device => {
+            const key = device.name;
+            if (!seen.has(key) || device.type === 'output') {
+                seen.set(key, device);
+            }
+        });
+        seen.forEach(device => {
             const micOption = document.createElement('option');
             micOption.value = device.index;
-            micOption.textContent = device.name;
+            const typeLabel = device.type === 'input' ? ' 🎤' : '';
+            micOption.textContent = device.name + typeLabel;
             micSelect.appendChild(micOption);
         });
         
-        // Wähle aktuelles Gerät aus
-        if (data.current !== null && data.current !== undefined) {
-            select.value = data.current;
+        // Select current speaker device
+        if (outputData.current !== null && outputData.current !== undefined) {
+            select.value = outputData.current;
         } else {
             select.value = '-1';
         }
         
-        // Mikrofon-Gerät laden
+        // Load microphone device
         try {
             const micData = await api('/api/mic-device');
             if (micData.device !== null && micData.device !== undefined) {
@@ -2389,7 +2232,7 @@ async function loadAudioDevices() {
             // Toggle-Button Status aktualisieren
             updateMicToggleUI(micData.enabled, micData.device);
         } catch (e) {
-            console.log('Mikrofon-Gerät konnte nicht geladen werden');
+            console.log('Microphone device could not be loaded');
         }
     } catch (error) {
         console.error('Failed to load audio devices:', error);
@@ -2439,7 +2282,7 @@ elements.temperatureSlider?.value != null && (elements.temperatureSlider.value =
         privacyShowWord = localStorage.getItem('privacyShowWordDefault') === 'true';
         if (elements.privacyShowWordDefault) elements.privacyShowWordDefault.checked = privacyShowWord;
 
-        // Bestätigung vor Abspielen laden (default: true)
+        // Load confirmation before playback (default: true)
         const confirmStored = localStorage.getItem('confirmSendDefault');
         confirmSend = confirmStored === null ? true : confirmStored === 'true';
         if (elements.confirmSendDefault) elements.confirmSendDefault.checked = confirmSend;
@@ -2483,7 +2326,7 @@ elements.temperatureSlider?.value != null && (elements.temperatureSlider.value =
         if (savedElevenKey || settings.elevenlabs_configured) {
             await loadElevenLabsVoices();
         } else if (settings.elevenlabs_voice_id) {
-            // Fallback: Temporäre Option setzen wenn kein API Key vorhanden
+            // Fallback: set temporary option when no API key is present
             const opt = document.createElement('option');
             opt.value = settings.elevenlabs_voice_id;
             opt.textContent = settings.elevenlabs_voice_id;
@@ -2491,7 +2334,7 @@ elements.temperatureSlider?.value != null && (elements.temperatureSlider.value =
             elements.elevenlabsVoiceSelect.appendChild(opt);
         }
         
-        // Audio-Geräte laden
+        // Load audio devices
         await loadAudioDevices();
     } catch (error) {
         console.error('Failed to load settings:', error);
@@ -2512,10 +2355,10 @@ async function saveSettings() {
             })
         });
         
-        // Audio-Gerät speichern
+        // Save audio device
         await setAudioDevice(elements.audioDeviceSelect.value);
         
-        // Mikrofon-Gerät speichern
+        // Save microphone device
         const micIndex = parseInt(elements.micDeviceSelect.value);
         await api('/api/mic-device', {
             method: 'PUT',
@@ -2548,7 +2391,7 @@ async function saveSettings() {
         localStorage.setItem('privacyShowWordDefault', showWordDefault.toString());
         privacyShowWord = showWordDefault;
 
-        // Bestätigungs-Default speichern
+        // Save confirmation default
         const confirmDefault = elements.confirmSendDefault?.checked || false;
         localStorage.setItem('confirmSendDefault', confirmDefault.toString());
         confirmSend = confirmDefault;
@@ -2649,11 +2492,11 @@ async function loadElevenLabsVoices() {
         const result = await api('/api/elevenlabs/voices');
         const currentVoiceId = result.current_voice_id;
         
-        // Settings-Dropdown befüllen
-        elements.elevenlabsVoiceSelect.innerHTML = '<option value="">Stimme wählen...</option>';
-        // Quick-Dropdown in Hauptansicht befüllen
+        // Populate settings dropdown
+        elements.elevenlabsVoiceSelect.innerHTML = '<option value="">Select voice...</option>';
+        // Populate quick dropdown in main view
         if (elements.elevenlabsVoiceQuickSelect) {
-            elements.elevenlabsVoiceQuickSelect.innerHTML = '<option value="">Stimme wählen...</option>';
+            elements.elevenlabsVoiceQuickSelect.innerHTML = '<option value="">Select voice...</option>';
         }
         
         for (const voice of result.voices) {
@@ -2686,15 +2529,15 @@ async function loadElevenLabsVoices() {
 
 // === Modal Functions ===
 
-// Gibt ein Promise zurück das resolved wenn der User bestätigt (true) oder abbricht (false).
-// Visualisiert den Pending-State am Sprechen-Button – kein Popup nötig.
+// Returns a Promise that resolves when the user confirms (true) or cancels (false).
+// Visualises the pending state on the speak button – no popup needed.
 function showConfirmSend(text) {
     return new Promise((resolve) => {
         const btn = elements.speakBtn;
         const originalHTML = btn.innerHTML;
 
         btn.classList.add('confirm-pending');
-        btn.innerHTML = document.body.classList.contains('mini-mode') ? '↵' : '↵ Bestätigen?';
+        btn.innerHTML = document.body.classList.contains('mini-mode') ? '↵' : '↵ Confirm?';
 
         function cleanup(result) {
             btn.classList.remove('confirm-pending');
@@ -2724,18 +2567,6 @@ function openSettingsModal() {
 
 function closeSettingsModal() {
     elements.settingsModal.classList.remove('active');
-}
-
-function openNewVoiceModal() {
-    elements.voiceName.value = '';
-    selectedFiles = [];
-    updateFileList();
-    elements.createVoiceBtn.disabled = true;
-    elements.newVoiceModal.classList.add('active');
-}
-
-function closeNewVoiceModal() {
-    elements.newVoiceModal.classList.remove('active');
 }
 
 function openCatalogModal() {
@@ -2880,10 +2711,10 @@ async function repeatLastMessage() {
     elements.miniRepeatBtn.disabled = true;
     
     try {
-        // Audio-URL extrahieren (relativer Pfad für Backend)
+        // Extract audio URL (relative path for backend)
         const audioPath = currentAudioUrl.replace(window.API_URL, '');
         
-        // Audio über Backend auf ausgewähltem Gerät abspielen
+        // Play audio via backend on selected device
         try {
             const volume = elements.volumeSlider.value / 100;
             await api('/api/tts/play-audio', {
@@ -2906,7 +2737,7 @@ async function repeatLastMessage() {
     }
 }
 
-// === Tipp-Geräusch (HTML5 Audio) ===
+// === Typing sound (HTML5 Audio) ===
 let typingSoundInterval = null;
 let typingSoundTimeout = null;
 let typingSoundReady = false;
@@ -2948,7 +2779,7 @@ function playTypingClick() {
         typingPoolIndex = (typingPoolIndex + 1) % typingSoundPool.length;
         
         const duration = audio.duration || 2;
-        // Zufälligen Startpunkt wählen
+        // Choose random start point
         const clipLen = 0.08;
         const maxStart = Math.max(0, duration - clipLen - 0.1);
         audio.currentTime = Math.random() * maxStart;
@@ -2969,7 +2800,7 @@ function playTypingClick() {
 }
 
 function startTypingSound() {
-    if (typingSoundInterval) return; // Läuft bereits
+    if (typingSoundInterval) return; // Already running
     
     // Sicherstellen dass Sound geladen ist
     if (!typingSoundReady) {
@@ -2978,7 +2809,7 @@ function startTypingSound() {
     
     typingSoundInterval = setInterval(playTypingClick, TYPING_SOUND_INTERVAL_MS);
     
-    // Auch über Mic-Device abspielen wenn aktiv
+    // Also play via mic device if active
     if (micOutputEnabled) {
         api('/api/mic-device/typing/start', { method: 'POST' }).catch(() => {});
     }
@@ -2995,11 +2826,11 @@ function stopTypingSound() {
 }
 
 function onTypingActivity() {
-    // Timeout zurücksetzen
+    // Reset timeout
     if (typingSoundTimeout) {
         clearTimeout(typingSoundTimeout);
     }
-    // Sound starten falls noch nicht läuft
+    // Start sound if not already running
     startTypingSound();
     // Sound stoppen nach Pause
     typingSoundTimeout = setTimeout(() => {
@@ -3008,7 +2839,7 @@ function onTypingActivity() {
     }, TYPING_STOP_DELAY_MS);
 }
 
-// === Mikrofon-Ausgabe (für Telefonie) ===
+// === Microphone output (for phone calls) ===
 let micOutputEnabled = false;
 
 function updateMicToggleUI(enabled, device) {
@@ -3031,12 +2862,12 @@ function updateMicToggleUI(enabled, device) {
         if (micBadge) micBadge.classList.add('active');
     } else if (hasDevice) {
         btn.classList.remove('mic-active');
-        btn.title = 'Mikrofon-Ausgabe aktivieren (für Telefonie)';
+        btn.title = 'Enable microphone output (for phone calls)';
         btn.innerHTML = '🎤';
         if (micBadge) micBadge.classList.remove('active');
     } else {
         btn.classList.remove('mic-active');
-        btn.title = 'Kein Mikrofon-Gerät konfiguriert (in Einstellungen setzen)';
+        btn.title = 'No microphone device configured (set in settings)';
         btn.innerHTML = '🎤';
         btn.style.opacity = '0.4';
         if (micBadge) micBadge.classList.remove('active');
@@ -3047,10 +2878,10 @@ function updateMicToggleUI(enabled, device) {
 
 async function toggleMicOutput() {
     try {
-        // Prüfe ob ein Mic-Device konfiguriert ist
+        // Check whether a mic device is configured
         const micData = await api('/api/mic-device');
         if (micData.device === null || micData.device === undefined) {
-            showToast('Bitte zuerst ein Mikrofon-Gerät in den Einstellungen konfigurieren (z.B. VB-Cable)', 'error');
+            showToast('Please configure a microphone device in settings first (e.g. VB-Cable)', 'error');
             openSettingsModal();
             return;
         }
@@ -3064,7 +2895,7 @@ async function toggleMicOutput() {
         localStorage.setItem('micEnabled', result.enabled.toString());
         
         if (result.enabled) {
-            showToast('🎙️ Mikrofon-Ausgabe aktiviert – Sprache wird auch über das virtuelle Mikrofon ausgegeben', 'success');
+            showToast('🎙️ Microphone output enabled – speech will also be sent via the virtual microphone', 'success');
         } else {
             showToast('🎤 Mikrofon-Ausgabe deaktiviert', 'info');
         }
@@ -3074,14 +2905,14 @@ async function toggleMicOutput() {
     }
 }
 
-// Echo-Test für Mikrofon-Ausgabe
+// Echo test for microphone output
 async function micEchoTest() {
     const btn = document.getElementById('micEchoTestBtn');
     if (!btn) return;
     
     const micIndex = parseInt(elements.micDeviceSelect.value);
     if (micIndex === -1) {
-        showToast('Bitte zuerst ein Mikrofon-Gerät auswählen', 'error');
+        showToast('Please select a microphone device first', 'error');
         return;
     }
     
@@ -3093,13 +2924,13 @@ async function micEchoTest() {
     
     btn.disabled = true;
     btn.textContent = '⏳ Test...';
-    showToast('🔊 Testton wird auf Mic-Gerät abgespielt...', 'info');
+    showToast('🔊 Playing test tone on mic device...', 'info');
     
     try {
         const result = await api('/api/mic-device/echo-test', {
             method: 'POST'
         });
-        showToast('✅ Testton abgespielt – wenn du ihn in der Telefon-App hörst, funktioniert die Verbindung!', 'success');
+        showToast('✅ Test tone played – if you hear it in the phone app, the connection works!', 'success');
     } catch (error) {
         console.error('Echo-Test Fehler:', error);
         showToast('❌ Testton fehlgeschlagen: ' + (error.message || error), 'error');
@@ -3136,9 +2967,9 @@ function playSignalTone() {
         
         const now = audioContext.currentTime;
         playTone(880, now, 0.15);        // Erster Ton (A5)
-        playTone(1100, now + 0.15, 0.2); // Zweiter Ton (höher)
+        playTone(1100, now + 0.15, 0.2); // Second tone (higher)
         
-        // AudioContext nach Abspielen schließen
+        // Close AudioContext after playback
         setTimeout(() => audioContext.close(), 500);
     } catch (error) {
         console.error('Fehler beim Abspielen des Signaltons:', error);
@@ -3165,7 +2996,7 @@ function renderSuggestions() {
         hideSuggestions();
         return;
     }
-    dd.innerHTML = '<div class="suggestion-hint"><span>Tab ↹ wechseln · Enter ↵ übernehmen · Esc schließen</span></div>' +
+    dd.innerHTML = '<div class="suggestion-hint"><span>Tab ↹ switch · Enter ↵ apply · Esc close</span></div>' +
         _suggestions.map((s, i) =>
             `<div class="suggestion-item${i === _suggestIndex ? ' active' : ''}" data-index="${i}">${escapeHtml(s.text)}</div>`
         ).join('');
@@ -3223,7 +3054,7 @@ async function showMiniSetPicker() {
 
 function hideMiniSetPicker() {
     miniSetPickerMode = false;
-    // Zurück zur normalen Item-Ansicht
+    // Return to normal item view
     showMiniQuickDropdown();
 }
 
@@ -3284,7 +3115,7 @@ async function startKeyboard() {
         });
         
         // Dock-Position entgegengesetzt zur eigenen Position setzen
-        // Wenn wir oben sind, Tastatur unten öffnen und umgekehrt
+        // If we are at the top, open keyboard below and vice versa
         const keyboardDockPosition = currentMiniPosition === 'top' ? 'bottom' : 'top';
         await fetch(`${KEYBOARD_API_URL}/dock`, { 
             method: 'POST',
@@ -3318,7 +3149,7 @@ function setupEventListeners() {
         if (elements.charCount) {
             elements.charCount.textContent = `${elements.textInput.value.length} ${t('chars')}`;
         }
-        // Tipp-Geräusch abspielen
+        // Play typing sound
         onTypingActivity();
     });
     
@@ -3330,7 +3161,7 @@ function setupEventListeners() {
     // Tastatur stoppen bei Fokusverlust
     elements.textInput.addEventListener('blur', () => {
         stopKeyboard();
-        stopTypingSound(); // Tipp-Geräusch sofort stoppen
+        stopTypingSound(); // Stop typing sound immediately
     });
     
     // Enter key to speak, Ctrl+Enter for AI completion
@@ -3385,15 +3216,15 @@ function setupEventListeners() {
                 showToast(kiAutoCorrect ? 'KI-Korrektur aktiviert' : 'KI-Korrektur deaktiviert', kiAutoCorrect ? 'success' : 'info');
                 return;
             }
-            // Ctrl+Enter mit Text = KI-Vervollständigung
-            elements.statusText.textContent = 'KI vervollständigt...';
+            // Ctrl+Enter with text = AI completion
+            elements.statusText.textContent = 'AI completing...';
             const completed = await completeWithAI(text);
             if (completed) {
                 elements.textInput.value = completed;
                 if (elements.charCount) {
                     elements.charCount.textContent = `${completed.length} ${t('chars')}`;
                 }
-                elements.statusText.textContent = 'KI-Text übernommen – Enter zum Sprechen';
+                elements.statusText.textContent = 'AI text applied – press Enter to speak';
                 elements.textInput.focus();
             }
         } else if (e.key === 'Enter' && !e.shiftKey) {
@@ -3447,9 +3278,9 @@ function setupEventListeners() {
                 repeatLastMessage();
             }
         } else if (e.key === 's' && e.ctrlKey) {
-            // Strg+S = Generieren + zur Schnellauswahl (temporär)
+            // Ctrl+S = generate + add to quick access (temporary)
             // Bei leerem Textfeld im Mini-Modus: Set-Picker anzeigen
-            // Bei leerem Textfeld sonst: alle temporären Einträge dauerhaft machen
+            // With empty text field otherwise: make all temporary entries permanent
             e.preventDefault();
             const text = elements.textInput.value.trim();
             if (!text) {
@@ -3492,7 +3323,7 @@ function setupEventListeners() {
                     updatePrivacyOverlay();
                     if (elements.charCount) elements.charCount.textContent = charStr(0);
                     elements.statusText.textContent = 'Bereit';
-                    showToast('Generiert & zur Schnellauswahl hinzugefügt', 'success');
+                    showToast('Generated & added to quick access', 'success');
                 }
             } catch (error) {
                 showToast(`Fehler: ${error.message}`, 'error');
@@ -3553,7 +3384,7 @@ function setupEventListeners() {
         _suggestTimer = setTimeout(() => fetchSuggestions(text), 300);
     });
 
-    // Suggestions verstecken bei Blur (mit Delay für Klick-Events)
+    // Hide suggestions on blur (with delay for click events)
     elements.textInput.addEventListener('blur', () => {
         setTimeout(() => hideSuggestions(), 150);
     });
@@ -3664,13 +3495,6 @@ function setupEventListeners() {
         elements.elevenStyleValue.textContent = parseFloat(e.target.value).toFixed(2);
     });
     
-    // Voice select
-    if (elements.voiceSelect) {
-        elements.voiceSelect.addEventListener('change', (e) => {
-            loadVoiceModel(e.target.value);
-        });
-    }
-    
     // Language select - aktualisiert Katalog-Vorschau und Favoriten
     elements.languageSelect.addEventListener('change', () => {
         loadCatalogPreview();
@@ -3756,46 +3580,6 @@ function setupEventListeners() {
             if (elements.repetitionValue) elements.repetitionValue.textContent = e.target.value;
         });
     }
-    
-    // New Voice
-    if (elements.newVoiceBtn) elements.newVoiceBtn.addEventListener('click', openNewVoiceModal);
-    if (elements.deleteVoiceBtn) elements.deleteVoiceBtn.addEventListener('click', deleteVoiceModel);
-    elements.closeNewVoiceBtn.addEventListener('click', closeNewVoiceModal);
-    elements.cancelNewVoiceBtn.addEventListener('click', closeNewVoiceModal);
-    elements.createVoiceBtn.addEventListener('click', createVoice);
-    
-    elements.fileDropZone.addEventListener('click', async () => {
-        const result = await window.electronAPI.openFileDialog();
-        if (!result.canceled && result.filePaths.length > 0) {
-            // Read files via IPC and convert to File objects
-            const files = await Promise.all(result.filePaths.map(async (filePath) => {
-                const fileData = await window.electronAPI.readFileAsBuffer(filePath);
-                const binaryString = atob(fileData.data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                const blob = new Blob([bytes], { type: fileData.mimeType });
-                return new File([blob], fileData.fileName, { type: fileData.mimeType });
-            }));
-            handleFileSelect(files);
-        }
-    });
-    
-    elements.fileDropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        elements.fileDropZone.classList.add('dragover');
-    });
-    
-    elements.fileDropZone.addEventListener('dragleave', () => {
-        elements.fileDropZone.classList.remove('dragover');
-    });
-    
-    elements.fileDropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        elements.fileDropZone.classList.remove('dragover');
-        handleFileSelect(e.dataTransfer.files);
-    });
     
     // Catalog
     elements.openCatalogBtn.addEventListener('click', openCatalogModal);
@@ -4008,7 +3792,7 @@ function setupEventListeners() {
             }
         }
         
-        // Ctrl+M für Mikrofon-Ausgabe Toggle
+        // Ctrl+M to toggle microphone output
         if (e.ctrlKey && e.key === 'm') {
             e.preventDefault();
             toggleMicOutput();
@@ -4050,13 +3834,13 @@ async function init() {
         await new Promise(r => setTimeout(r, 1000));
     }
     
-    // Typing-Sound verzögert im Hintergrund vorladen
+    // Pre-load typing sound in background with delay
     setTimeout(() => {
         try { preloadTypingSound(); } catch(e) { console.error('[Typing] Init-Fehler:', e); }
     }, 2000);
     
     if (connected) {
-        // Katalog und History können sofort geladen werden
+        // Catalog and history can be loaded immediately
         await loadCatalogTags();
         loadCatalogPreview();
         loadHistory();
@@ -4088,7 +3872,7 @@ async function init() {
             toggleView();
         }
         
-        // Provider-abhängige UI in Hauptansicht aktualisieren
+        // Update provider-dependent UI in main view
         // localStorage nutzen da Backend beim Start tts noch nicht geladen hat
         const savedProvider = localStorage.getItem('ttsProvider') || 'pyttsx3';
         updateProviderUI(savedProvider);
@@ -4111,7 +3895,7 @@ async function waitForTTSAndLoadModels() {
     for (let i = 0; i < 60; i++) {
         const status = await api('/api/status');
         if (!status.loading) {
-            // Provider vom Backend prüfen (jetzt ist TTS geladen)
+            // Check provider from backend (TTS is now loaded)
             try {
                 const settings = await api('/api/settings');
                 const backendProvider = settings.tts_provider || 'pyttsx3';
@@ -4127,7 +3911,6 @@ async function waitForTTSAndLoadModels() {
             } catch (e) {
                 console.log('Provider-Check nach TTS-Load fehlgeschlagen');
             }
-            loadVoiceModels();
             loadTTSModels();
             return;
         }
@@ -4162,7 +3945,6 @@ async function loadTTSModels() {
             }
             
             // Voice-Auswahl basierend auf Modell aktivieren/deaktivieren
-            updateVoiceCloningAvailability();
         }
     } catch (error) {
         console.error('Fehler beim Laden der TTS-Modelle:', error);
@@ -4182,16 +3964,10 @@ async function switchTTSModel(modelId) {
         
         if (response && response.success) {
             currentTTSModel = response.model_id;
-            updateStatus('Bereit', 'connected');
-            
-            // Voice-Auswahl aktualisieren
-            updateVoiceCloningAvailability();
-            
-            // Voice neu laden falls nötig
-            loadVoiceModels();
+            updateStatus('Ready', 'connected');
         } else {
             updateStatus('Modellwechsel fehlgeschlagen', 'error');
-            // Dropdown zurücksetzen
+            // Reset dropdown
             if (elements.ttsModelSelect) {
                 elements.ttsModelSelect.value = currentTTSModel;
             }
@@ -4199,41 +3975,9 @@ async function switchTTSModel(modelId) {
     } catch (error) {
         console.error('Fehler beim Modellwechsel:', error);
         updateStatus('Fehler beim Modellwechsel', 'error');
-        // Dropdown zurücksetzen
+        // Reset dropdown
         if (elements.ttsModelSelect) {
             elements.ttsModelSelect.value = currentTTSModel;
-        }
-    }
-}
-
-function updateVoiceCloningAvailability() {
-    const modelInfo = availableTTSModels[currentTTSModel];
-    const supportsCloning = modelInfo ? modelInfo.supports_cloning : true;
-    
-    // Voice-Auswahl und New Voice Button
-    if (elements.voiceSelect) {
-        elements.voiceSelect.disabled = !supportsCloning;
-        if (!supportsCloning) {
-            elements.voiceSelect.value = '';
-        }
-    }
-    
-    if (elements.newVoiceBtn) {
-        elements.newVoiceBtn.disabled = !supportsCloning;
-        elements.newVoiceBtn.title = supportsCloning ? 
-            'Neue Stimme erstellen' : 
-            'Dieses Modell unterstützt kein Voice Cloning';
-    }
-    
-    // Sprach-Auswahl basierend auf Modell aktualisieren
-    if (elements.languageSelect && modelInfo && modelInfo.languages) {
-        const currentLang = elements.languageSelect.value;
-        const availableLangs = modelInfo.languages;
-        
-        // Prüfen ob aktuelle Sprache unterstützt wird
-        if (!availableLangs.includes(currentLang)) {
-            // Auf erste verfügbare Sprache wechseln
-            elements.languageSelect.value = availableLangs[0] || 'de';
         }
     }
 }

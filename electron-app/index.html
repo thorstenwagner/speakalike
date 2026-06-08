@@ -49,10 +49,6 @@
                         <button class="btn btn-small btn-icon context-clear" id="clearContextBtn" data-i18n-title="clear_context_title" title="Kontext löschen">✕</button>
                     </div>
                     
-                    <!-- Current Voice Info -->
-                    <div class="current-voice" id="currentVoice">
-                        <span class="voice-name">Standard</span>
-                    </div>
                     <div class="elevenlabs-voice-quick" id="elevenlabsVoiceQuick" style="display:none;">
                         <select class="select" id="elevenlabsVoiceQuickSelect">
                             <option value="">Stimme wählen...</option>
@@ -373,34 +369,6 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" id="saveSettingsBtn" data-i18n="save_btn">Speichern</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- New Voice Modal -->
-    <div class="modal" id="newVoiceModal">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h2 data-i18n="new_voice_title">🎤 Neue Stimme erstellen</h2>
-                <button class="btn btn-icon modal-close" id="closeNewVoiceBtn">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="voiceName" data-i18n="voice_name_label">Name der Stimme</label>
-                    <input type="text" class="input" id="voiceName" data-i18n-placeholder="voice_name_placeholder" placeholder="z.B. Meine Stimme">
-                </div>
-                <div class="form-group">
-                    <label data-i18n="audio_samples_label">Audio-Samples (WAV, MP3, OGG)</label>
-                    <div class="file-drop-zone" id="fileDropZone">
-                        <p data-i18n="drop_files_text">📂 Dateien hierher ziehen oder klicken zum Auswählen</p>
-                        <p class="muted" data-i18n="sample_hint">5-30 Sekunden pro Sample empfohlen</p>
-                    </div>
-                    <div class="file-list" id="fileList"></div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelNewVoiceBtn" data-i18n="cancel_btn">Abbrechen</button>
-                <button class="btn btn-primary" id="createVoiceBtn" disabled data-i18n="create_voice_btn">Stimme erstellen</button>
             </div>
         </div>
     </div>

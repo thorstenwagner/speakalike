@@ -1,5 +1,5 @@
-"""
-SpeakAlike Backend API - FastAPI Server für Electron Frontend
+﻿"""
+SpeakAlike Backend API - FastAPI server for Electron frontend
 """
 import os
 import sys
@@ -7,23 +7,23 @@ import tempfile
 import shutil
 from pathlib import Path
 
-# PyInstaller-Kompatibilität: Basis-Pfad für Daten-Dateien
+# PyInstaller compatibility: base path for data files
 if getattr(sys, 'frozen', False):
     BASE_DIR = Path(sys._MEIPASS)
 else:
     BASE_DIR = Path(__file__).parent
 
-# Windows Konsole auf UTF-8 setzen, um Unicode-Fehler zu vermeiden
+# Set Windows console to UTF-8 to avoid Unicode errors
 if sys.platform == 'win32':
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
         sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
-        pass  # Falls reconfigure nicht verfügbar ist
+        pass  # reconfigure may not be available on older Python versions
 from typing import Optional, List
 from datetime import datetime
 
-# Füge espeak-ng zum PATH hinzu
+# Add espeak-ng to PATH
 os.environ["PATH"] = r"C:\Program Files\eSpeak NG" + os.pathsep + os.environ.get("PATH", "")
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, Header
@@ -33,15 +33,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
-# Lazy import: TextToSpeech wird erst beim TTS-Start geladen, nicht beim Serverstart
-# from main import TextToSpeech  # -> wird in init_tts_async() importiert
+# Lazy import: TextToSpeech is loaded on first TTS call, not at server startup
+# from main import TextToSpeech  # -> imported in init_tts_async()
 from audio_processor import prepare_samples_for_cloning, get_audio_info
 from catalog import MessageCatalog
 from tag_generator import generate_tags
 
 app = FastAPI(title="SpeakAlike API", version="1.0.0")
 
-# CORS für Electron
+# CORS for Electron
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -50,28 +50,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Globale Instanzen
+# Global instances
 tts = None
 catalog: Optional[MessageCatalog] = None
-_whisper_model = None  # Lazy-loaded für Transkription
+_whisper_model = None  # Lazy-loaded for transcription
 _embedding_model = None  # Lazy-loaded Sentence Transformer
 
-# Temporäre Audio-Dateien
+# Temporary audio files
 TEMP_DIR = Path(tempfile.gettempdir()) / "speakalike"
 TEMP_DIR.mkdir(exist_ok=True)
 
-# Status-Tracking
+# Status tracking
 current_status = {
     "is_speaking": False,
-    "message": "Bereit",
+    "message": "Ready",
     "progress": 0,
-    "loading": True,  # True während TTS lädt
+    "loading": True,  # True while TTS is loading
     "last_audio": None,
     "last_text": None
 }
 
-# History der letzten Nachrichten (unabhängig vom Katalog)
-audio_history = []  # Liste von {"id": str, "text": str, "audio_path": str, "timestamp": str}
+# History of recent messages (independent of catalog)
+audio_history = []  # List of {"id": str, "text": str, "audio_path": str, "timestamp": str}
 
 
 # === Models ===
@@ -79,13 +79,6 @@ audio_history = []  # Liste von {"id": str, "text": str, "audio_path": str, "tim
 class TTSRequest(BaseModel):
     text: str
     language: str = "de"
-
-
-class VoiceModelInfo(BaseModel):
-    name: str
-    path: str
-    sample_count: int
-    created: Optional[str] = None
 
 
 class CatalogMessage(BaseModel):
@@ -106,11 +99,11 @@ class SaveToCatalogRequest(BaseModel):
 
 class TagGenerateRequest(BaseModel):
     text: str
+    num_tags: int = 5
 
 
 class SwitchTTSModelRequest(BaseModel):
     model_id: str
-    num_tags: int = 5
 
 
 class SentenceCompletionRequest(BaseModel):
@@ -124,7 +117,7 @@ class SentenceCompletionRequest(BaseModel):
 # === Lifecycle ===
 
 async def init_tts_async():
-    """Lädt TTS Engine im Hintergrund"""
+    """Loads TTS engine in the background"""
     global tts
     import asyncio
     import time
@@ -134,7 +127,7 @@ async def init_tts_async():
     
     start_time = time.time()
     
-    # TTS in Thread Pool ausführen um Event Loop nicht zu blockieren
+    # Run TTS in thread pool to avoid blocking the event loop
     loop = asyncio.get_event_loop()
     
     def create_tts():
@@ -146,35 +139,35 @@ async def init_tts_async():
         tts.headless_mode = True
         elapsed = time.time() - start_time
         current_status["message"] = "Bereit"
-        print(f"TTS Engine geladen und bereit! ({elapsed:.1f}s)")
+        print(f"TTS engine loaded and ready! ({elapsed:.1f}s)")
     except Exception as e:
-        print(f"Fehler beim Laden der TTS Engine: {e}")
+        print(f"Error loading TTS engine: {e}")
         import traceback
         traceback.print_exc()
-        current_status["message"] = f"TTS Ladefehler: {e}"
+        current_status["message"] = f"TTS load error: {e}"
     finally:
         current_status["loading"] = False
 
 
 @app.on_event("startup")
 async def startup():
-    """Initialisiert Backend beim Start"""
+    """Initialises backend on startup"""
     global catalog
     import asyncio
     
-    # Katalog sofort laden (schnell)
+    # Load catalog immediately (fast)
     catalog = MessageCatalog()
     current_status["message"] = "Backend gestartet, TTS wird geladen..."
     
-    # TTS im Hintergrund laden
+    # Load TTS in background
     asyncio.create_task(init_tts_async())
     
-    # Embeddings im Hintergrund berechnen
+    # Compute embeddings in background
     asyncio.create_task(backfill_embeddings())
 
 
 async def backfill_embeddings():
-    """Berechnet Embeddings für alle Verlaufs-Einträge ohne Embedding."""
+    """Computes embeddings for all history entries that are missing one."""
     import asyncio
     global _embedding_model
     
@@ -187,16 +180,16 @@ async def backfill_embeddings():
         
         missing = catalog.get_history_without_embeddings()
         if not missing:
-            print("Embeddings: Alle Einträge haben bereits Embeddings.")
+            print("Embeddings: All entries already have embeddings.")
             return
         
-        print(f"Embeddings: {len(missing)} Einträge ohne Embedding gefunden, berechne...")
+        print(f"Embeddings: {len(missing)} entries without embedding found, computing...")
         
         from sentence_transformers import SentenceTransformer
         if _embedding_model is None:
             _embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
         
-        # Batch-Verarbeitung
+        # Batch processing
         batch_size = 64
         for i in range(0, len(missing), batch_size):
             batch = missing[i:i + batch_size]
@@ -207,7 +200,7 @@ async def backfill_embeddings():
             catalog.update_embeddings_batch(updates)
             print(f"Embeddings: {min(i + batch_size, len(missing))}/{len(missing)} berechnet")
         
-        print(f"Embeddings: Fertig! {len(missing)} Einträge aktualisiert.")
+        print(f"Embeddings: Done! {len(missing)} entries updated.")
     
     await loop.run_in_executor(None, _backfill)
 
@@ -216,7 +209,7 @@ async def backfill_embeddings():
 
 @app.get("/api/status")
 async def get_status():
-    """Gibt aktuellen Status zurück"""
+    """Returns current status"""
     return {
         **current_status,
         "gpu_available": tts.gpu_available if tts else False,
@@ -231,9 +224,9 @@ async def get_status():
 
 @app.get("/api/tts/models")
 async def get_tts_models():
-    """Gibt alle verfügbaren TTS-Modelle zurück"""
+    """Returns all available TTS models"""
     if not tts:
-        # Fallback: Gib statische Liste zurück
+        # Fallback: return static list
         from main import TextToSpeech
         return {
             "models": TextToSpeech.AVAILABLE_TTS_MODELS,
@@ -252,12 +245,12 @@ async def switch_tts_model(request: SwitchTTSModelRequest):
     global current_status
     
     if not tts or current_status.get("loading", False):
-        raise HTTPException(status_code=503, detail="TTS wird noch geladen, bitte warten...")
+        raise HTTPException(status_code=503, detail="TTS is still loading, please wait...")
     
     if current_status["is_speaking"]:
-        raise HTTPException(status_code=409, detail="Generierung läuft bereits")
+        raise HTTPException(status_code=409, detail="Generation already in progress")
     
-    current_status["message"] = f"Wechsle zu {request.model_id}..."
+    current_status["message"] = f"Switching to {request.model_id}..."
     current_status["loading"] = True
     
     try:
@@ -273,8 +266,8 @@ async def switch_tts_model(request: SwitchTTSModelRequest):
                 "model_info": tts.AVAILABLE_TTS_MODELS.get(tts.current_tts_model_id, {})
             }
         else:
-            current_status["message"] = "Fehler beim Modellwechsel"
-            raise HTTPException(status_code=500, detail="Modellwechsel fehlgeschlagen")
+            current_status["message"] = "Error switching model"
+            raise HTTPException(status_code=500, detail="Model switch failed")
             
     except Exception as e:
         current_status["loading"] = False
@@ -286,28 +279,28 @@ async def switch_tts_model(request: SwitchTTSModelRequest):
 
 @app.post("/api/tts/speak")
 async def speak(request: TTSRequest, background_tasks: BackgroundTasks):
-    """Generiert Sprache aus Text"""
+    """Generates speech from text"""
     global current_status
     
     if not tts or current_status.get("loading", False):
-        raise HTTPException(status_code=503, detail="TTS wird noch geladen, bitte warten...")
+        raise HTTPException(status_code=503, detail="TTS is still loading, please wait...")
     
     if current_status["is_speaking"]:
-        raise HTTPException(status_code=409, detail="Generierung läuft bereits")
+        raise HTTPException(status_code=409, detail="Generation already in progress")
     
     current_status["is_speaking"] = True
-    current_status["message"] = "Generiere Audio..."
+    current_status["message"] = "Generating audio..."
     current_status["last_text"] = request.text
     
     try:
-        # Generiere Audio und speichere
+        # Generate audio and save
         audio_path = tts.speak_and_save(
             text=request.text,
             language=request.language
         )
         
         if audio_path and os.path.exists(audio_path):
-            # Kopiere in temp Verzeichnis
+            # Copy to temp directory
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             dest_path = TEMP_DIR / f"speech_{timestamp}.wav"
             shutil.copy(audio_path, dest_path)
@@ -316,7 +309,7 @@ async def speak(request: TTSRequest, background_tasks: BackgroundTasks):
             current_status["message"] = "Fertig"
             current_status["is_speaking"] = False
             
-            # Zur History hinzufügen
+            # Add to history
             history_entry = {
                 "id": timestamp,
                 "text": request.text,
@@ -325,7 +318,7 @@ async def speak(request: TTSRequest, background_tasks: BackgroundTasks):
                 "timestamp": datetime.now().isoformat()
             }
             audio_history.insert(0, history_entry)
-            # Nur die letzten 10 behalten
+            # Keep only the last 10
             while len(audio_history) > 10:
                 audio_history.pop()
             
@@ -343,13 +336,13 @@ async def speak(request: TTSRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Mikrofon-Ausgabe: Zweites Ausgabegerät (z.B. VB-Cable) für Telefonie
-mic_output_device = None  # Device-Index für Mikrofon-Ausgabe
-mic_output_enabled = False  # Ob Mikrofon-Ausgabe aktiv ist
+# Microphone output: second output device (e.g. VB-Cable) for phone calls
+mic_output_device = None  # Device index for microphone output
+mic_output_enabled = False  # Whether microphone output is active
 
 @app.post("/api/tts/play-audio")
 async def play_audio_on_device(data: dict):
-    """Spielt eine Audio-Datei auf dem ausgewählten Gerät ab"""
+    """Plays an audio file on the selected device"""
     try:
         import sounddevice as sd
         import soundfile as sf
@@ -358,9 +351,9 @@ async def play_audio_on_device(data: dict):
         audio_url = data.get("audio_url", "")
         file_path = None
         
-        # Prüfe ob es eine Katalog-URL ist
+        # Check whether it is a catalog URL
         if "/api/catalog/" in audio_url and "/audio" in audio_url:
-            # Extrahiere message_id aus URL wie /api/catalog/123/audio
+            # Extract message_id from URL like /api/catalog/123/audio
             parts = audio_url.split("/")
             try:
                 message_id = int(parts[-2])
@@ -371,18 +364,18 @@ async def play_audio_on_device(data: dict):
             except (ValueError, IndexError):
                 pass
         else:
-            # Normale Audio-URL aus TEMP_DIR
+            # Regular audio URL from TEMP_DIR
             filename = audio_url.split("/")[-1] if "/" in audio_url else audio_url
             file_path = TEMP_DIR / filename
         
         if not file_path or not file_path.exists():
-            raise HTTPException(status_code=404, detail="Audio nicht gefunden")
+            raise HTTPException(status_code=404, detail="Audio file not found")
         
-        # Audio laden und abspielen
+        # Load and play audio
         audio_data, samplerate = sf.read(str(file_path))
         device = tts.output_device if tts else None
         
-        # Lautstärke anwenden
+        # Apply volume
         volume = data.get("volume", 1.0)
         if isinstance(volume, (int, float)) and 0 <= volume <= 1:
             audio_data = audio_data * volume
@@ -400,7 +393,7 @@ async def play_audio_on_device(data: dict):
             return np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
         
         def get_device_samplerate(dev_index):
-            """Gibt die native Samplerate eines Geräts zurück"""
+            """Returns the native sample rate of a device"""
             if dev_index is None:
                 return None
             try:
@@ -409,11 +402,11 @@ async def play_audio_on_device(data: dict):
             except:
                 return None
         
-        # Gleichzeitig auf Lautsprecher UND Mikrofon-Gerät abspielen
+        # Play simultaneously on speaker AND microphone device
         print(f"[Audio-Play] mic_output_enabled={mic_output_enabled}, mic_output_device={mic_output_device}, samplerate={samplerate}")
         
         if mic_output_enabled and mic_output_device is not None:
-            # Mono konvertieren falls Stereo (für Mic-Ausgabe)
+            # Convert to mono if stereo (for mic output)
             if len(audio_data.shape) > 1:
                 mic_audio = audio_data.mean(axis=1)
             else:
@@ -421,13 +414,13 @@ async def play_audio_on_device(data: dict):
             
             mic_audio = mic_audio.astype(np.float32)
             
-            # Lautsprecher: Resample falls nötig und sd.play (non-blocking)
+            # Speaker: resample if needed and sd.play (non-blocking)
             try:
                 speaker_sr = get_device_samplerate(device)
                 speaker_data = audio_data
                 play_sr = samplerate
                 if speaker_sr and speaker_sr != samplerate:
-                    # Resample für Mono/Stereo
+                    # Resample for mono/stereo
                     if len(audio_data.shape) > 1:
                         speaker_data = np.column_stack([
                             resample_audio(audio_data[:, ch], samplerate, speaker_sr)
@@ -436,23 +429,23 @@ async def play_audio_on_device(data: dict):
                     else:
                         speaker_data = resample_audio(audio_data, samplerate, speaker_sr)
                     play_sr = speaker_sr
-                    print(f"[Audio-Play] Lautsprecher resampled: {samplerate} -> {speaker_sr} Hz")
+                    print(f"[Audio-Play] Speaker resampled: {samplerate} -> {speaker_sr} Hz")
                 sd.play(speaker_data, play_sr, device=device)
-                print(f"[Audio-Play] Lautsprecher-Wiedergabe gestartet (device={device}, sr={play_sr})")
+                print(f"[Audio-Play] Speaker playback started (device={device}, sr={play_sr})")
             except Exception as e:
-                print(f"[Audio-Play] Lautsprecher sd.play Fehler: {e}")
-                # Fallback: ohne explizites Device
+                print(f"[Audio-Play] Speaker sd.play error: {e}")
+                # Fallback: without explicit device
                 try:
                     sd.play(audio_data, samplerate)
-                    print(f"[Audio-Play] Lautsprecher Fallback (Standard-Device) ok")
+                    print(f"[Audio-Play] Speaker fallback (default device) ok")
                 except Exception as e2:
-                    print(f"[Audio-Play] Auch Lautsprecher Fallback fehlgeschlagen: {e2}")
+                    print(f"[Audio-Play] Speaker fallback (default device) also failed: {e2}")
             
-            # Mikrofon-Ausgabe auf separatem Thread
+            # Microphone output on separate thread
             def play_on_mic():
                 nonlocal mic_audio, samplerate
                 
-                # Resample für Mic-Device falls nötig
+                # Resample for mic device if needed
                 mic_sr = get_device_samplerate(mic_output_device)
                 mic_play_sr = samplerate
                 if mic_sr and mic_sr != samplerate:
@@ -460,16 +453,16 @@ async def play_audio_on_device(data: dict):
                     mic_play_sr = mic_sr
                     print(f"[Audio-Play] Mic resampled: {samplerate} -> {mic_sr} Hz")
                 
-                # Versuch 1: sd.play (einfachster Weg, funktionierte als Fallback)
+                # Attempt 1: sd.play (simplest way, works as fallback)
                 try:
                     sd.play(mic_audio, mic_play_sr, device=mic_output_device)
                     sd.wait()
-                    print(f"[Audio-Play] Mikrofon-Ausgabe via sd.play erfolgreich (device={mic_output_device}, sr={mic_play_sr})")
+                    print(f"[Audio-Play] Mic output via sd.play successful (device={mic_output_device}, sr={mic_play_sr})")
                     return
                 except Exception as e1:
-                    print(f"[Audio-Play] sd.play fehlgeschlagen (device={mic_output_device}): {e1}")
+                    print(f"[Audio-Play] sd.play failed (device={mic_output_device}): {e1}")
                 
-                # Versuch 2: OutputStream
+                # Attempt 2: OutputStream
                 try:
                     mic_stream = sd.OutputStream(
                         samplerate=mic_play_sr,
@@ -480,12 +473,12 @@ async def play_audio_on_device(data: dict):
                     mic_stream.write(mic_audio.reshape(-1, 1))
                     mic_stream.stop()
                     mic_stream.close()
-                    print(f"[Audio-Play] Mikrofon-Ausgabe erfolgreich (OutputStream)")
+                    print(f"[Audio-Play] Mic output successful (OutputStream)")
                     return
                 except Exception as e2:
-                    print(f"[Audio-Play] OutputStream fehlgeschlagen: {e2}")
+                    print(f"[Audio-Play] OutputStream failed: {e2}")
                 
-                # Versuch 3: Alternatives Device mit kompatibler Host-API
+                # Attempt 3: alternative device with compatible Host-API
                 try:
                     target_name = None
                     all_devices = sd.query_devices()
@@ -505,17 +498,17 @@ async def play_audio_on_device(data: dict):
                                 if 'wdm' not in api_name and 'ks' not in api_name:
                                     alt_sr = int(dev['default_samplerate'])
                                     alt_audio = resample_audio(mic_audio, mic_play_sr, alt_sr) if alt_sr != mic_play_sr else mic_audio
-                                    print(f"[Audio-Play] Versuche alternatives Device {idx} ({dev['name']}, API: {api_name}, sr={alt_sr})")
+                                    print(f"[Audio-Play] Trying alternative device {idx} ({dev['name']}, API: {api_name}, sr={alt_sr})")
                                     sd.play(alt_audio, alt_sr, device=idx)
                                     sd.wait()
-                                    print(f"[Audio-Play] Mikrofon-Ausgabe über alternatives Device {idx} erfolgreich")
+                                    print(f"[Audio-Play] Microphone output via alternative device {idx} successful")
                                     return
                 except Exception as e3:
-                    print(f"[Audio-Play] Alle Mic-Fallbacks fehlgeschlagen: {e3}")
+                    print(f"[Audio-Play] All mic fallbacks failed: {e3}")
             
             threading.Thread(target=play_on_mic, daemon=True).start()
         else:
-            # Nur Lautsprecher (kein Mic konfiguriert oder deaktiviert)
+            # Speaker only (no mic configured or disabled)
             try:
                 speaker_sr = get_device_samplerate(device)
                 play_data = audio_data
@@ -529,10 +522,10 @@ async def play_audio_on_device(data: dict):
                     else:
                         play_data = resample_audio(audio_data, samplerate, speaker_sr)
                     play_sr = speaker_sr
-                    print(f"[Audio-Play] Lautsprecher resampled: {samplerate} -> {speaker_sr} Hz")
+                    print(f"[Audio-Play] Speaker resampled: {samplerate} -> {speaker_sr} Hz")
                 sd.play(play_data, play_sr, device=device)
             except Exception as e:
-                print(f"[Audio-Play] Lautsprecher Fehler: {e}, versuche Standard-Device...")
+                print(f"[Audio-Play] Speaker error: {e}, trying default device...")
                 try:
                     default_sr = get_device_samplerate(None)
                     if default_sr and default_sr != samplerate:
@@ -547,11 +540,11 @@ async def play_audio_on_device(data: dict):
                     else:
                         sd.play(audio_data, samplerate)
                 except Exception as e2:
-                    print(f"[Audio-Play] Auch Fallback fehlgeschlagen: {e2}")
+                    print(f"[Audio-Play] Fallback also failed: {e2}")
             if not mic_output_enabled:
-                print(f"[Audio-Play] Mikrofon-Ausgabe deaktiviert (🎤 Button nicht aktiv)")
+                print(f"[Audio-Play] Microphone output disabled (🎤 button not active)")
             elif mic_output_device is None:
-                print(f"[Audio-Play] Kein Mikrofon-Gerät konfiguriert")
+                print(f"[Audio-Play] No microphone device configured")
         
         return {"success": True, "device": device, "mic_device": mic_output_device if mic_output_enabled else None}
     except Exception as e:
@@ -560,37 +553,37 @@ async def play_audio_on_device(data: dict):
 
 @app.post("/api/tts/stop")
 async def stop_speaking():
-    """Stoppt die aktuelle Wiedergabe"""
+    """Stops the current playback"""
     import sounddevice as sd
-    sd.stop()  # Stoppe auch sounddevice Wiedergabe
+    sd.stop()  # Stop sounddevice playback too
     if tts:
         tts.stop()
     current_status["is_speaking"] = False
-    current_status["message"] = "Gestoppt"
+    current_status["message"] = "Stopped"
     return {"success": True}
 
 
 @app.get("/api/typing-sound")
 async def get_typing_sound():
-    """Liefert die Typing-Sound MP3-Datei"""
+    """Serves the typing sound MP3 file"""
     sound_path = BASE_DIR / "electron-app" / "typing-sound.mp3"
     if not sound_path.exists():
-        raise HTTPException(status_code=404, detail="typing-sound.mp3 nicht gefunden")
+        raise HTTPException(status_code=404, detail="typing-sound.mp3 not found")
     return FileResponse(str(sound_path), media_type="audio/mpeg")
 
 
 @app.get("/api/audio/{filename}")
 async def get_audio(filename: str):
-    """Liefert eine Audio-Datei"""
+    """Serves an audio file"""
     file_path = TEMP_DIR / filename
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Audio nicht gefunden")
+        raise HTTPException(status_code=404, detail="Audio file not found")
     return FileResponse(file_path, media_type="audio/wav")
 
 
 @app.get("/api/history")
 async def get_history():
-    """Gibt den Wiedergabe-Verlauf zurück (alle abgespielten Nachrichten in zeitlicher Reihenfolge)"""
+    """Returns the playback history (all played messages in chronological order)"""
     if catalog:
         history = catalog.get_playback_history(limit=50)
         result = []
@@ -609,7 +602,7 @@ async def get_history():
 
 @app.post("/api/history/add")
 async def add_to_history(text: str, audio_url: str, catalog_id: int = None):
-    """Fügt einen Eintrag zum Wiedergabe-Verlauf hinzu und berechnet Embedding"""
+    """Adds an entry to the playback history and computes embedding"""
     if catalog:
         import asyncio
         global _embedding_model
@@ -625,7 +618,7 @@ async def add_to_history(text: str, audio_url: str, catalog_id: int = None):
                     _embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
                 embedding = _embedding_model.encode(text, show_progress_bar=False)
             except Exception as e:
-                print(f"Embedding-Fehler: {e}")
+                print(f"Embedding error: {e}")
             catalog.add_to_playback_history(text, audio_url, catalog_id, embedding)
         
         await loop.run_in_executor(None, _embed_and_add)
@@ -634,7 +627,7 @@ async def add_to_history(text: str, audio_url: str, catalog_id: int = None):
 
 @app.get("/api/history/suggest")
 async def suggest_similar(query: str, limit: int = 3):
-    """Gibt semantisch ähnliche Verlaufs-Einträge als Vorschläge zurück"""
+    """Returns semantically similar history entries as suggestions"""
     if not catalog or not query.strip():
         return []
     
@@ -651,137 +644,10 @@ async def suggest_similar(query: str, limit: int = 3):
             query_emb = _embedding_model.encode(query.strip(), show_progress_bar=False)
             return catalog.search_similar(query_emb, limit=limit)
         except Exception as e:
-            print(f"Suggest-Fehler: {e}")
+            print(f"Suggest error: {e}")
             return []
     
     return await loop.run_in_executor(None, _search)
-
-
-# === Voice Model Endpoints ===
-
-@app.get("/api/voice-models")
-async def list_voice_models():
-    """Listet alle verfügbaren Voice-Modelle (.pt Dateien)"""
-    if not tts:
-        return []
-    
-    # Nutze die eingebaute Methode aus main.py
-    saved_models = tts.list_saved_voice_models()
-    
-    models = []
-    for model in saved_models:
-        models.append({
-            "name": model['name'],
-            "path": model['path'],
-            "sample_count": model.get('sample_count', 1),
-            "is_active": tts.current_voice_name == model['name']
-        })
-    
-    return models
-
-
-@app.post("/api/voice-models/{name}/load")
-async def load_voice_model(name: str):
-    """Lädt ein Voice-Modell (.pt Datei)"""
-    if not tts:
-        raise HTTPException(status_code=503, detail="TTS nicht initialisiert")
-    
-    current_status["message"] = f"Lade Voice-Modell: {name}..."
-    
-    try:
-        # Nutze die eingebaute load_voice_model Methode
-        success = tts.load_voice_model(name)
-        
-        if not success:
-            raise HTTPException(status_code=404, detail="Modell nicht gefunden oder konnte nicht geladen werden")
-        
-        current_status["message"] = "Bereit"
-        return {"success": True, "name": name}
-        
-    except Exception as e:
-        current_status["message"] = "Bereit"
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/voice-models/create")
-async def create_voice_model(
-    name: str = Form(...),
-    files: List[UploadFile] = File(...)
-):
-    """Erstellt ein neues Voice-Modell aus Audio-Samples"""
-    if not tts:
-        raise HTTPException(status_code=503, detail="TTS nicht initialisiert")
-    
-    model_dir = tts.VOICE_MODELS_DIR / name
-    if model_dir.exists():
-        raise HTTPException(status_code=409, detail="Modell existiert bereits")
-    
-    model_dir.mkdir(parents=True)
-    
-    try:
-        saved_files = []
-        for i, file in enumerate(files):
-            file_path = model_dir / f"sample_{i+1}.wav"
-            content = await file.read()
-            file_path.write_bytes(content)
-            saved_files.append(str(file_path))
-        
-        # Optimiere Samples
-        current_status["message"] = "Optimiere Audio-Samples..."
-        optimized = prepare_samples_for_cloning(saved_files, min_total_duration=10)
-        
-        # Berechne Speaker-Embeddings
-        current_status["message"] = "Berechne Speaker-Embeddings..."
-        tts.set_speaker_wav(optimized)
-        
-        # Speichere als .pt Voice-Modell
-        current_status["message"] = "Speichere Voice-Modell..."
-        model_path = tts.save_voice_model(name)
-        
-        if not model_path:
-            raise Exception("Konnte Voice-Modell nicht speichern")
-        
-        # Aufräumen: Lösche den temporären Ordner mit den Samples
-        if model_dir.exists():
-            shutil.rmtree(model_dir)
-        
-        current_status["message"] = f"Voice-Modell '{name}' erstellt"
-        
-        return {
-            "success": True,
-            "name": name,
-            "samples": len(optimized),
-            "path": model_path
-        }
-        
-    except Exception as e:
-        # Cleanup bei Fehler
-        if model_dir.exists():
-            shutil.rmtree(model_dir)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.delete("/api/voice-models/{name}")
-async def delete_voice_model(name: str):
-    """Löscht ein Voice-Modell"""
-    if not tts:
-        raise HTTPException(status_code=503, detail="TTS nicht initialisiert")
-    
-    # Voice-Modelle sind .pt Dateien
-    model_path = tts.VOICE_MODELS_DIR / f"{name}.pt"
-    if not model_path.exists():
-        raise HTTPException(status_code=404, detail=f"Modell '{name}' nicht gefunden")
-    
-    # Datei löschen (nicht Verzeichnis)
-    model_path.unlink()
-    
-    if tts.current_voice_name == name:
-        tts.current_voice_name = None
-        tts.speaker_wav = None
-        tts.gpt_cond_latent = None
-        tts.speaker_embedding = None
-    
-    return {"success": True, "message": f"Modell '{name}' gelöscht"}
 
 
 # === Catalog Endpoints ===
@@ -795,11 +661,11 @@ async def list_catalog(
     order_by: str = "created_at",
     limit: int = 50
 ):
-    """Listet Katalog-Einträge"""
+    """Lists catalog entries"""
     if not catalog:
         return []
     
-    # tags Parameter ist eine komma-separierte Liste
+    # tags parameter is a comma-separated list
     tags_list = [t.strip() for t in tags.split(',')] if tags else None
     
     messages = catalog.search(
@@ -842,7 +708,7 @@ async def save_to_catalog(request: SaveToCatalogRequest):
     if not os.path.exists(audio_path):
         raise HTTPException(status_code=404, detail="Audio-Datei nicht gefunden")
     
-    # Audio-Länge
+    # Audio duration
     try:
         import soundfile as sf
         data, sr = sf.read(audio_path)
@@ -865,7 +731,7 @@ async def save_to_catalog(request: SaveToCatalogRequest):
 async def get_catalog_audio(message_id: int):
     """Liefert Audio einer Katalog-Nachricht"""
     if not catalog:
-        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+        raise HTTPException(status_code=503, detail="Catalog not initialised")
     
     messages = catalog.search()
     message = next((m for m in messages if m["id"] == message_id), None)
@@ -874,7 +740,7 @@ async def get_catalog_audio(message_id: int):
         raise HTTPException(status_code=404, detail="Nachricht nicht gefunden")
     
     if not os.path.exists(message["audio_path"]):
-        raise HTTPException(status_code=404, detail="Audio nicht gefunden")
+        raise HTTPException(status_code=404, detail="Audio file not found")
     
     return FileResponse(message["audio_path"], media_type="audio/wav")
 
@@ -883,7 +749,7 @@ async def get_catalog_audio(message_id: int):
 async def toggle_favorite(message_id: int):
     """Toggled Favoriten-Status"""
     if not catalog:
-        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+        raise HTTPException(status_code=503, detail="Catalog not initialised")
     
     catalog.toggle_favorite(message_id)
     return {"success": True}
@@ -893,7 +759,7 @@ async def toggle_favorite(message_id: int):
 async def update_tags(message_id: int, tags: List[str]):
     """Aktualisiert Tags einer Nachricht"""
     if not catalog:
-        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+        raise HTTPException(status_code=503, detail="Catalog not initialised")
     
     catalog.update_tags(message_id, tags)
     return {"success": True}
@@ -901,9 +767,9 @@ async def update_tags(message_id: int, tags: List[str]):
 
 @app.post("/api/catalog/{message_id}/play")
 async def increment_play_count(message_id: int):
-    """Erhöht den Play-Count einer Katalog-Nachricht"""
+    """Increments the play count of a catalog message"""
     if not catalog:
-        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+        raise HTTPException(status_code=503, detail="Catalog not initialised")
     
     catalog.update_play_count(message_id)
     return {"success": True}
@@ -913,7 +779,7 @@ async def increment_play_count(message_id: int):
 async def update_catalog_message(message_id: int, request: dict):
     """Aktualisiert eine Katalog-Nachricht (z.B. is_favorite)"""
     if not catalog:
-        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+        raise HTTPException(status_code=503, detail="Catalog not initialised")
     
     if "is_favorite" in request:
         catalog.set_favorite(message_id, request["is_favorite"])
@@ -923,9 +789,9 @@ async def update_catalog_message(message_id: int, request: dict):
 
 @app.delete("/api/catalog/{message_id}")
 async def delete_message(message_id: int):
-    """Löscht eine Katalog-Nachricht"""
+    """Deletes a catalog message"""
     if not catalog:
-        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+        raise HTTPException(status_code=503, detail="Catalog not initialised")
     
     catalog.delete_message(message_id)
     return {"success": True}
@@ -939,32 +805,32 @@ async def import_audio(
 ):
     """Importiert eine Audio-Datei in den Katalog"""
     if not catalog:
-        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+        raise HTTPException(status_code=503, detail="Catalog not initialised")
     
-    # Temporäre Datei erstellen
+    # Create temporary file
     suffix = Path(audio.filename).suffix.lower()
     if suffix not in ['.mp3', '.wav', '.ogg', '.m4a']:
-        raise HTTPException(status_code=400, detail="Ungültiges Audio-Format")
+        raise HTTPException(status_code=400, detail="Invalid Audio-Format")
     
     temp_path = TEMP_DIR / f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
     
     try:
-        # Audio speichern
+        # Save audio
         with open(temp_path, 'wb') as f:
             content = await audio.read()
             f.write(content)
         
-        # Audio-Info holen
+        # Get audio info
         try:
             audio_info = get_audio_info(str(temp_path))
             duration = audio_info.get('duration', 0)
         except:
             duration = 0
         
-        # Tags parsen
+        # Parse tags
         tags_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
         
-        # Zum Katalog hinzufügen
+        # Add to catalog
         message_id = catalog.add_message(
             text=text,
             source_audio_path=str(temp_path),
@@ -976,7 +842,7 @@ async def import_audio(
         return {"success": True, "message_id": message_id}
         
     finally:
-        # Temporäre Datei löschen
+        # Delete temporary file
         if temp_path.exists():
             temp_path.unlink()
 
@@ -988,52 +854,52 @@ async def transcribe_audio(audio: UploadFile = File(...)):
     import torchaudio
     import numpy as np
     
-    # Temporäre Datei erstellen
+    # Create temporary file
     suffix = Path(audio.filename).suffix.lower()
     if suffix not in ['.mp3', '.wav', '.ogg', '.m4a']:
-        raise HTTPException(status_code=400, detail="Ungültiges Audio-Format")
+        raise HTTPException(status_code=400, detail="Invalid Audio-Format")
     
     temp_path = TEMP_DIR / f"transcribe_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
     
     try:
-        # Audio speichern
+        # Save audio
         with open(temp_path, 'wb') as f:
             content = await audio.read()
             f.write(content)
         
-        # Audio laden
+        # Load audio
         waveform, sample_rate = torchaudio.load(str(temp_path))
         
-        # Mono konvertieren
+        # Convert to mono
         if waveform.shape[0] > 1:
             waveform = waveform.mean(dim=0, keepdim=True)
         
-        # Resample zu 16kHz für Whisper
+        # Resample to 16 kHz for Whisper
         if sample_rate != 16000:
             resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
             waveform = resampler(waveform)
         
         audio_np = waveform.squeeze().numpy().astype(np.float32)
         
-        # Normalisieren
+        # Normalise
         max_val = np.max(np.abs(audio_np))
         if max_val > 0:
             audio_np = audio_np / max_val
         
-        # Whisper laden (lazy)
+        # Load Whisper (lazy)
         try:
             import whisper
         except ImportError:
             raise HTTPException(status_code=503, detail="Whisper nicht installiert")
         
-        # Globales Whisper-Modell
+        # Global Whisper model
         global _whisper_model
         if '_whisper_model' not in globals() or _whisper_model is None:
-            print("Lade Whisper-Modell für Transkription...")
+            print("Loading Whisper model for transcription...")
             _whisper_model = whisper.load_model("base", device="cuda" if torch.cuda.is_available() else "cpu")
             print("Whisper-Modell geladen.")
         
-        # Transkribieren
+        # Transcribe
         result = _whisper_model.transcribe(
             audio_np,
             language="de",
@@ -1050,7 +916,7 @@ async def transcribe_audio(audio: UploadFile = File(...)):
 
 @app.get("/api/catalog/tags")
 async def get_all_tags():
-    """Listet alle Tags mit Häufigkeit"""
+    """Lists all tags with frequency"""
     if not catalog:
         return []
     
@@ -1064,7 +930,7 @@ async def complete_sentence_endpoint(
     request: SentenceCompletionRequest,
     x_api_key: Optional[str] = Header(None)
 ):
-    """Vervollständigt unvollständige Sätze mit Claude AI"""
+    """Completes incomplete sentences using Claude AI"""
     import anthropic
     
     prompt_file = f"prompt_{request.language}.txt"
@@ -1073,15 +939,15 @@ async def complete_sentence_endpoint(
         prompt_path = BASE_DIR / "prompt_de.txt"
     system_prompt = prompt_path.read_text(encoding="utf-8")
     
-    # Dynamischen Kontext einfügen, falls vorhanden
+    # Insert dynamic context if available
     if request.context:
-        context_line = f"Aktueller Gesprächskontext: {request.context}. Berücksichtige diesen Kontext bei der Vervollständigung, aber der Nutzer kann auch Dinge sagen, die nicht direkt zum Kontext passen."
+        context_line = f"Current conversation context: {request.context}. Take this context into account when completing the text, but the user may also say things that do not directly relate to the context."
         system_prompt = system_prompt.replace("{DYNAMIC_CONTEXT}", context_line)
     else:
         system_prompt = system_prompt.replace("{DYNAMIC_CONTEXT}", "")
 
     try:
-        # API Key aus Header oder Umgebungsvariable
+        # API key from header or environment variable
         api_key = x_api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise HTTPException(status_code=401, detail="API Key nicht gesetzt")
@@ -1090,24 +956,24 @@ async def complete_sentence_endpoint(
         
         client = anthropic.Anthropic(api_key=api_key)
         
-        # Nur erlaubte Modelle zulassen
+        # Only allow permitted models
         allowed_models = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6"]
         model = request.model if request.model in allowed_models else "claude-haiku-4-5-20251001"
         
-        # Versuche mit gewähltem Modell, bei Refusal Fallback auf Haiku
+        # Try with selected model, fall back on refusal to Haiku
         models_to_try = [model]
         if model != "claude-haiku-4-5-20251001":
             models_to_try.append("claude-haiku-4-5-20251001")
         
         for try_model in models_to_try:
-            print(f"[AI] Sende an Claude (model={try_model})...")
+            print(f"[AI] Sending to Claude (model={try_model})...")
             
-            # Nachrichten aufbauen: vorherige Nachrichten als Kontext + aktuelle Anfrage
+            # Build messages: previous messages as context + current request
             messages = []
             for msg in request.recent_messages:
                 messages.append({"role": "user", "content": msg})
                 messages.append({"role": "assistant", "content": msg})
-            messages.append({"role": "user", "content": f"Bitte vervollständige folgenden abgekürzten Text: {request.text}"})
+            messages.append({"role": "user", "content": f"Please complete the following abbreviated text: {request.text}"})
             
             message = client.messages.create(
                 model=try_model,
@@ -1116,14 +982,14 @@ async def complete_sentence_endpoint(
                 messages=messages
             )
             
-            print(f"[AI] Antwort: stop_reason={message.stop_reason}, content_blocks={len(message.content)}")
+            print(f"[AI] Response: stop_reason={message.stop_reason}, content_blocks={len(message.content)}")
             
-            # Bei Verweigerung: nächstes Modell versuchen
+            # On refusal: try next model
             if message.stop_reason == 'refusal' or not message.content:
-                print(f"[AI] {try_model} hat verweigert/leer, versuche Fallback...")
+                print(f"[AI] {try_model} refused/empty, trying fallback...")
                 continue
             
-            # Ersten Text-Block finden
+            # Find first text block
             completed_text = None
             for block in message.content:
                 if hasattr(block, 'text'):
@@ -1131,37 +997,37 @@ async def complete_sentence_endpoint(
                     break
             
             if completed_text:
-                print(f"[AI] Ergebnis ({try_model}): '{completed_text[:80]}'")
+                print(f"[AI] Result ({try_model}): '{completed_text[:80]}'")
                 return {"original": request.text, "completed": completed_text}
         
-        # Alle Modelle haben verweigert – Originaltext zurückgeben
-        print(f"[AI] Alle Modelle haben verweigert. Gebe Originaltext zurück.")
+        # All models refused – return original text
+        print(f"[AI] All models refused. Returning original text.")
         return {"original": request.text, "completed": request.text, "refusal": True}
         
     except HTTPException:
         raise
     except anthropic.AuthenticationError:
-        print("[AI] FEHLER: API Key ungültig")
-        raise HTTPException(status_code=401, detail="API Key ungültig")
+        print("[AI] ERROR: API key invalid")
+        raise HTTPException(status_code=401, detail="Invalid API key")
     except anthropic.RateLimitError:
-        print("[AI] FEHLER: Rate Limit erreicht")
-        raise HTTPException(status_code=429, detail="Rate Limit erreicht")
+        print("[AI] ERROR: Rate limit reached")
+        raise HTTPException(status_code=429, detail="Rate limit reached")
     except Exception as e:
-        print(f"[AI] FEHLER: {type(e).__name__}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Claude API Fehler: {str(e)}")
+        print(f"[AI] ERROR: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Claude API error: {str(e)}")
 
 
 # === Tag Generation ===
 
 @app.post("/api/tags/generate")
 async def generate_tags_endpoint(request: TagGenerateRequest, x_api_key: Optional[str] = Header(None)):
-    """Generiert Tags mit Claude AI"""
+    """Generates tags using Claude AI"""
     if not catalog:
-        raise HTTPException(status_code=503, detail="Katalog nicht initialisiert")
+        raise HTTPException(status_code=503, detail="Catalog not initialised")
     
     api_key = x_api_key or os.environ.get("CLAUDE_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=401, detail="Kein Claude API Key konfiguriert")
+        raise HTTPException(status_code=401, detail="No Claude API key configured")
     
     existing_tags = [t[0] for t in catalog.get_all_tags()]
     
@@ -1181,7 +1047,7 @@ async def generate_tags_endpoint(request: TagGenerateRequest, x_api_key: Optiona
 
 @app.get("/api/audio-devices")
 async def get_audio_devices():
-    """Gibt Liste der verfügbaren Ausgabegeräte zurück"""
+    """Returns list of available output devices"""
     try:
         import sounddevice as sd
         devices = []
@@ -1189,31 +1055,31 @@ async def get_audio_devices():
         device_list = sd.query_devices()
         host_apis = sd.query_hostapis()
         
-        # Host-API Prioritäten: WASAPI > MME > DirectSound > Rest
-        # WDM-KS wird vermieden (unterstützt kein blocking API)
+        # Host-API priorities: WASAPI > MME > DirectSound > other
+        # WDM-KS is avoided (does not support blocking API)
         def hostapi_priority(hostapi_index):
             name = host_apis[hostapi_index]['name'].lower() if hostapi_index < len(host_apis) else ''
             if 'wasapi' in name:
-                return 0  # Beste Wahl
+                return 0  # Best choice
             elif 'mme' in name:
                 return 1
             elif 'directsound' in name:
                 return 2
             elif 'wdm' in name or 'ks' in name:
-                return 99  # Vermeiden - unterstützt kein blocking API
+                return 99  # Avoid – does not support blocking API
             return 3
         
         for i, device in enumerate(device_list):
-            # Nur Ausgabegeräte (max_output_channels > 0)
+            # Only output devices (max_output_channels > 0)
             if device['max_output_channels'] > 0:
-                # Gerätenamen bereinigen und deduplizieren
+                # Clean and deduplicate device names
                 name = device['name']
-                # Nur den Hauptnamen verwenden (vor API-Typ wie "MME", "Windows DirectSound" etc.)
+                # Use only the main name (before API type like "MME", "Windows DirectSound" etc.)
                 base_name = name.split(',')[0].strip() if ',' in name else name
                 
                 priority = hostapi_priority(device.get('hostapi', 0))
                 
-                # Überspringe wenn wir dieses Gerät schon haben mit besserer Priorität
+                # Skip if we already have this device with better priority
                 if base_name in seen_names:
                     existing_priority = seen_names[base_name]['priority']
                     if priority >= existing_priority:
@@ -1237,21 +1103,75 @@ async def get_audio_devices():
 
 @app.put("/api/audio-device")
 async def set_audio_device(device: dict):
-    """Setzt das Ausgabegerät"""
+    """Sets the output device"""
     if not tts:
-        raise HTTPException(status_code=503, detail="TTS nicht initialisiert")
+        raise HTTPException(status_code=503, detail="TTS not initialised")
     
     device_index = device.get("index")
-    # None = Standard-Gerät
+    # None = default device
     tts.output_device = device_index if device_index != -1 else None
     return {"success": True, "device": tts.output_device}
 
 
-# === Mikrofon-Ausgabe (für Telefonie) ===
+@app.get("/api/mic-devices")
+async def get_mic_devices():
+    """Returns all audio devices suitable for microphone routing (input + output devices, no deduplication)"""
+    try:
+        import sounddevice as sd
+        device_list = sd.query_devices()
+        host_apis = sd.query_hostapis()
+
+        def api_priority(hostapi_index):
+            name = host_apis[hostapi_index]['name'].lower() if hostapi_index < len(host_apis) else ''
+            if 'wasapi' in name:
+                return 0
+            elif 'mme' in name:
+                return 1
+            elif 'directsound' in name:
+                return 2
+            elif 'wdm' in name or 'ks' in name:
+                return 99
+            return 3
+
+        def api_name(device):
+            idx = device.get('hostapi', 0)
+            return host_apis[idx]['name'] if idx < len(host_apis) else ''
+
+        # Collect and deduplicate: key = (device_name, device_type), keep best API priority
+        seen = {}  # (name, type) -> (priority, entry)
+        for i, device in enumerate(device_list):
+            has_out = device['max_output_channels'] > 0
+            has_in = device['max_input_channels'] > 0
+            if not has_out and not has_in:
+                continue
+            dev_type = 'output' if has_out else 'input'
+            name = device['name']
+            priority = api_priority(device.get('hostapi', 0))
+            if priority == 99:
+                continue  # Skip WDM-KS entirely
+            key = (name, dev_type)
+            if key not in seen or priority < seen[key][0]:
+                seen[key] = (priority, {
+                    'index': i,
+                    'name': name,
+                    'type': dev_type,
+                    'channels': device['max_output_channels'] if has_out else device['max_input_channels'],
+                    'samplerate': device['default_samplerate'],
+                    'api': api_name(device),
+                })
+        devices = [entry for _, entry in seen.values()]
+        # Sort: output devices first, then input, both alphabetically
+        devices.sort(key=lambda d: (0 if d['type'] == 'output' else 1, d['name']))
+        return {"devices": devices}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# === Microphone output (for phone calls) ===
 
 @app.get("/api/mic-device")
 async def get_mic_device():
-    """Gibt das aktuelle Mikrofon-Ausgabegerät und Status zurück"""
+    """Returns the current microphone output device and status"""
     return {
         "device": mic_output_device,
         "enabled": mic_output_enabled
@@ -1260,7 +1180,7 @@ async def get_mic_device():
 
 @app.put("/api/mic-device")
 async def set_mic_device(data: dict):
-    """Setzt das Mikrofon-Ausgabegerät (z.B. VB-Cable)"""
+    """Sets the microphone output device (e.g. VB-Cable)"""
     global mic_output_device, mic_output_enabled
     
     device_index = data.get("index")
@@ -1274,7 +1194,7 @@ async def set_mic_device(data: dict):
 
 @app.put("/api/mic-device/toggle")
 async def toggle_mic_output(data: dict = {}):
-    """Schaltet Mikrofon-Ausgabe ein/aus"""
+    """Toggles microphone output on/off"""
     global mic_output_enabled
     
     if "enabled" in data:
@@ -1285,14 +1205,14 @@ async def toggle_mic_output(data: dict = {}):
     return {"success": True, "enabled": mic_output_enabled, "device": mic_output_device}
 
 
-# === Tipp-Geräusch über Mikrofon ===
+# === Typing sound via microphone ===
 _typing_thread = None
 _typing_active = False
-_typing_audio_data = None  # Geladene Tastatur-Aufnahme
+_typing_audio_data = None  # Loaded keyboard recording
 _typing_audio_sr = None
 
 def _load_typing_sound():
-    """Lädt die Tastatur-Sound-Datei"""
+    """Loads the keyboard sound file"""
     global _typing_audio_data, _typing_audio_sr
     if _typing_audio_data is not None:
         return True
@@ -1302,22 +1222,22 @@ def _load_typing_sound():
     
     sound_path = BASE_DIR / "electron-app" / "typing-sound.mp3"
     if not sound_path.exists():
-        print(f"[Typing-Mic] Sound-Datei nicht gefunden: {sound_path}")
+        print(f"[Typing-Mic] Sound file not found: {sound_path}")
         return False
     
     try:
-        # MP3 laden (soundfile kann mp3 über libsndfile lesen)
+        # Load MP3 (soundfile can read mp3 via libsndfile)
         data, sr = sf.read(str(sound_path), dtype='float32')
-        # Mono konvertieren
+        # Convert to mono
         if len(data.shape) > 1:
             data = data.mean(axis=1)
         _typing_audio_data = data
         _typing_audio_sr = sr
-        print(f"[Typing-Mic] Sound geladen: {len(data)/sr:.2f}s, {sr} Hz")
+        print(f"[Typing-Mic] Sound loaded: {len(data)/sr:.2f}s, {sr} Hz")
         return True
     except Exception as e:
-        print(f"[Typing-Mic] Fehler beim Laden: {e}")
-        # Fallback: mit pydub probieren
+        print(f"[Typing-Mic] Error loading sound: {e}")
+        # Fallback: try with pydub
         try:
             from pydub import AudioSegment
             import numpy as np
@@ -1328,14 +1248,14 @@ def _load_typing_sound():
             samples /= 32768.0
             _typing_audio_data = samples
             _typing_audio_sr = audio.frame_rate
-            print(f"[Typing-Mic] Sound via pydub geladen: {len(samples)/audio.frame_rate:.2f}s, {audio.frame_rate} Hz")
+            print(f"[Typing-Mic] Sound loaded via pydub: {len(samples)/audio.frame_rate:.2f}s, {audio.frame_rate} Hz")
             return True
         except Exception as e2:
-            print(f"[Typing-Mic] Auch pydub Fallback fehlgeschlagen: {e2}")
+            print(f"[Typing-Mic] pydub fallback also failed: {e2}")
             return False
 
 def _typing_loop():
-    """Spielt zufällige Ausschnitte der Tastatur-Aufnahme auf dem Mic-Device ab"""
+    """Plays random clips of the keyboard recording on the mic device"""
     import sounddevice as sd
     import numpy as np
     import time
@@ -1347,20 +1267,20 @@ def _typing_loop():
         return
     
     if not _load_typing_sound():
-        print("[Typing-Mic] Kein Sound verfügbar, verwende synthetisch")
+        print("[Typing-Mic] No sound available, using synthetic")
         return
     
     audio = _typing_audio_data
     sr = _typing_audio_sr
     
-    # Samplerate des Mic-Geräts ermitteln
+    # Determine sample rate of the mic device
     try:
         dev_info = sd.query_devices(device)
         dev_sr = int(dev_info['default_samplerate'])
     except:
         dev_sr = sr
     
-    # Resample wenn nötig
+    # Resample if needed
     if dev_sr != sr:
         ratio = dev_sr / sr
         n_samples = int(len(audio) * ratio)
@@ -1369,11 +1289,11 @@ def _typing_loop():
         audio = np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
         sr = dev_sr
     
-    print(f"[Typing-Mic] Tipp-Sound gestartet auf Device {device} ({sr} Hz)")
+    print(f"[Typing-Mic] Typing sound started on device {device} ({sr} Hz)")
     
     try:
         while _typing_active:
-            # Zufälligen Ausschnitt wählen (60-120ms Clip)
+            # Choose random clip (60-120ms)
             clip_duration = 0.06 + random.random() * 0.06
             clip_samples = int(sr * clip_duration)
             max_start = max(0, len(audio) - clip_samples - int(sr * 0.1))
@@ -1386,10 +1306,10 @@ def _typing_loop():
             if fade_len > 0:
                 clip[-fade_len:] *= np.linspace(1, 0, fade_len)
             
-            # Lautstärke-Variation
+            # Volume variation
             clip *= 0.3 + random.random() * 0.2
             
-            # Stille-Pause zwischen Klicks (60-130ms)
+            # Silent gap between clicks (60-130ms)
             gap = int(sr * (0.06 + random.random() * 0.07))
             chunk = np.concatenate([clip, np.zeros(gap, dtype=np.float32)])
             
@@ -1399,18 +1319,18 @@ def _typing_loop():
             except:
                 time.sleep(0.085)
     except Exception as e:
-        print(f"[Typing-Mic] Fehler: {e}")
+        print(f"[Typing-Mic] Error: {e}")
     
-    print(f"[Typing-Mic] Tipp-Sound gestoppt")
+    print(f"[Typing-Mic] Typing sound stopped")
 
 @app.post("/api/mic-device/typing/start")
 async def start_typing_on_mic():
-    """Startet Tipp-Geräusch auf dem Mikrofon-Ausgabegerät"""
+    """Starts typing sound on the microphone output device"""
     global _typing_thread, _typing_active
     import threading
     
     if not mic_output_enabled or mic_output_device is None:
-        return {"success": False, "reason": "Mikrofon-Ausgabe nicht aktiv"}
+        return {"success": False, "reason": "Microphone output not active"}
     
     if _typing_active:
         return {"success": True, "already_running": True}
@@ -1422,7 +1342,7 @@ async def start_typing_on_mic():
 
 @app.post("/api/mic-device/typing/stop")
 async def stop_typing_on_mic():
-    """Stoppt Tipp-Geräusch auf dem Mikrofon-Ausgabegerät"""
+    """Stops typing sound on the microphone output device"""
     global _typing_active, _typing_thread
     _typing_active = False
     if _typing_thread:
@@ -1433,20 +1353,20 @@ async def stop_typing_on_mic():
 
 @app.post("/api/mic-device/echo-test")
 async def mic_echo_test():
-    """Spielt einen Testton auf dem Mikrofon-Ausgabegerät ab und nimmt ihn gleichzeitig auf,
-    dann gibt er das aufgenommene Audio auf dem Lautsprecher wieder."""
+    """Plays a test tone on the microphone output device and simultaneously records it,
+    then plays back the recorded audio on the speaker."""
     import sounddevice as sd
     import numpy as np
     import threading
     
     if mic_output_device is None:
-        raise HTTPException(status_code=400, detail="Kein Mikrofon-Gerät konfiguriert")
+        raise HTTPException(status_code=400, detail="No microphone device configured")
     
     sample_rate = 24000
     duration = 1.5  # Sekunden
     t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
     
-    # Erkennbarer Testton: drei aufsteigende Töne (Ding-Ding-Ding)
+    # Recognisable test tone: three ascending tones (ding-ding-ding)
     tone = np.zeros_like(t)
     freqs = [523.25, 659.25, 783.99]  # C5, E5, G5
     note_len = int(sample_rate * 0.4)
@@ -1457,7 +1377,7 @@ async def mic_echo_test():
         if end > len(t):
             end = len(t)
         segment = t[start:end] - t[start]
-        # Hüllkurve (Attack/Release)
+        # Envelope (attack/release)
         env = np.ones(end - start)
         attack = min(int(sample_rate * 0.02), len(env))
         release = min(int(sample_rate * 0.05), len(env))
@@ -1467,29 +1387,29 @@ async def mic_echo_test():
     
     tone = tone.astype(np.float32)
     
-    # Testton auf Mikrofon-Gerät abspielen
+    # Play test tone on microphone device
     try:
         sd.play(tone, sample_rate, device=mic_output_device)
         sd.wait()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Fehler beim Abspielen auf Mic-Gerät: {e}")
+        raise HTTPException(status_code=500, detail=f"Error playing on mic device: {e}")
     
-    # Gleichen Testton auf Lautsprecher abspielen (damit User hört was gesendet wurde)
+    # Play same test tone on speaker (so user can hear what was sent)
     try:
         output_device = tts.output_device if tts else None
         sd.play(tone, sample_rate, device=output_device)
         sd.wait()
     except Exception as e:
-        print(f"Lautsprecher-Wiedergabe Fehler: {e}")
+        print(f"Speaker playback error: {e}")
     
-    return {"success": True, "message": "Testton wurde auf Mic-Gerät und Lautsprecher abgespielt"}
+    return {"success": True, "message": "Test tone played on mic device and speaker"}
 
 
 # === Settings ===
 
 @app.get("/api/settings")
 async def get_settings():
-    """Gibt TTS-Einstellungen zurück"""
+    """Returns TTS settings"""
     if not tts:
         return {}
     
@@ -1514,9 +1434,9 @@ async def get_settings():
 
 @app.put("/api/settings")
 async def update_settings(settings: dict):
-    """Aktualisiert TTS-Einstellungen"""
+    """Updates TTS settings"""
     if not tts:
-        raise HTTPException(status_code=503, detail="TTS nicht initialisiert")
+        raise HTTPException(status_code=503, detail="TTS not initialised")
     
     if "temperature" in settings:
         tts.temperature = settings["temperature"]
@@ -1527,7 +1447,7 @@ async def update_settings(settings: dict):
     if "top_p" in settings:
         tts.top_p = settings["top_p"]
     if "repetition_penalty" in settings:
-        # XTTS erfordert penalty > 1.0 und < 2.0
+        # XTTS requires penalty > 1.0 and < 2.0
         penalty = min(max(float(settings["repetition_penalty"]), 1.01), 1.99)
         tts.repetition_penalty = penalty
     if "pyttsx3_voice_id" in settings:
@@ -1545,7 +1465,7 @@ async def update_settings(settings: dict):
 
 @app.get("/api/pyttsx3/voices")
 async def get_pyttsx3_voices():
-    """Gibt verfügbare pyttsx3 System-Stimmen zurück"""
+    """Returns available pyttsx3 system voices"""
     if not tts:
         return []
     return tts.get_pyttsx3_voices()
@@ -1562,12 +1482,12 @@ class ElevenLabsConfigRequest(BaseModel):
 
 
 class ProviderSwitchRequest(BaseModel):
-    provider: str  # "elevenlabs" oder "pyttsx3"
+    provider: str  # "elevenlabs" or "pyttsx3"
 
 
 @app.get("/api/tts/provider")
 async def get_provider():
-    """Gibt den aktuellen TTS-Provider zurück"""
+    """Returns the current TTS provider"""
     if not tts:
         return {"provider": "pyttsx3", "elevenlabs_configured": False}
     
@@ -1581,17 +1501,17 @@ async def get_provider():
 
 @app.post("/api/tts/provider/switch")
 async def switch_provider(request: ProviderSwitchRequest):
-    """Wechselt den TTS-Provider"""
+    """Switches the TTS provider"""
     if request.provider not in ("elevenlabs", "pyttsx3"):
-        raise HTTPException(status_code=400, detail="Ungültiger Provider. Erlaubt: 'elevenlabs', 'pyttsx3'")
+        raise HTTPException(status_code=400, detail="Invalid provider. Allowed: 'elevenlabs', 'pyttsx3'")
     
     if tts:
         if request.provider == "elevenlabs" and not tts.elevenlabs_api_key:
-            raise HTTPException(status_code=400, detail="ElevenLabs API-Key nicht konfiguriert")
+            raise HTTPException(status_code=400, detail="ElevenLabs API key not configured")
         success = tts.set_tts_provider(request.provider)
         return {"success": success, "provider": tts.tts_provider}
     
-    # TTS noch nicht geladen — Provider in Config speichern
+    # TTS not yet loaded — save provider to config
     try:
         import json
         from main import TextToSpeech
@@ -1681,3 +1601,6 @@ async def get_elevenlabs_voices():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8765)
+
+
+

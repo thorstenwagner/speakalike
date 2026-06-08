@@ -19,7 +19,7 @@ class MessageCatalog:
         
         Args:
             db_path: Pfad zur SQLite-Datenbank (Standard: catalog.db im App-Verzeichnis)
-            audio_dir: Verzeichnis für Audio-Dateien (Standard: catalog_audio/)
+            audio_dir: directory for audio files (default: catalog_audio/)
         """
         base_dir = os.path.dirname(os.path.abspath(__file__))
         
@@ -37,7 +37,7 @@ class MessageCatalog:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            # Haupttabelle für Nachrichten
+            # Main table for messages
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +60,7 @@ class MessageCatalog:
                 )
             ''')
             
-            # Verknüpfungstabelle Message <-> Tags
+            # Junction table Message <-> Tags
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS message_tags (
                     message_id INTEGER,
@@ -77,7 +77,7 @@ class MessageCatalog:
                 USING fts5(text, content='messages', content_rowid='id')
             ''')
             
-            # Trigger für Volltextsuche-Sync
+            # Trigger for full-text search sync
             cursor.execute('''
                 CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
                     INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
@@ -110,7 +110,7 @@ class MessageCatalog:
                 )
             ''')
             
-            # Migration: embedding-Spalte hinzufügen falls nicht vorhanden
+            # Migration: add embedding column if not present
             cursor.execute("PRAGMA table_info(playback_history)")
             columns = [col[1] for col in cursor.fetchall()]
             if 'embedding' not in columns:
@@ -122,14 +122,14 @@ class MessageCatalog:
                     tags: List[str] = None, voice_model: str = None,
                     duration_seconds: float = None) -> int:
         """
-        Fügt eine neue Nachricht zum Katalog hinzu.
+        Adds a new message to the catalog.
         
         Args:
             text: Der gesprochene Text
             source_audio_path: Pfad zur Audio-Datei (wird in Katalog kopiert)
             tags: Liste von Schlagworten
             voice_model: Name des verwendeten Voice-Modells
-            duration_seconds: Länge der Audio-Datei in Sekunden
+            duration_seconds: length of the audio file in seconds
             
         Returns:
             ID der neuen Nachricht
@@ -143,7 +143,7 @@ class MessageCatalog:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            # Nachricht einfügen
+            # Insert message
             cursor.execute('''
                 INSERT INTO messages (text, audio_path, voice_model, duration_seconds)
                 VALUES (?, ?, ?, ?)
@@ -151,7 +151,7 @@ class MessageCatalog:
             
             message_id = cursor.lastrowid
             
-            # Tags hinzufügen
+            # Add tags
             if tags:
                 for tag in tags:
                     tag = tag.strip().lower()
@@ -164,7 +164,7 @@ class MessageCatalog:
                         cursor.execute('SELECT id FROM tags WHERE name = ?', (tag,))
                         tag_id = cursor.fetchone()[0]
                         
-                        # Verknüpfung erstellen
+                        # Create association
                         cursor.execute(
                             'INSERT OR IGNORE INTO message_tags (message_id, tag_id) VALUES (?, ?)',
                             (message_id, tag_id)
@@ -184,7 +184,7 @@ class MessageCatalog:
         Args:
             query: Suchtext (durchsucht den Text)
             tags: Filtere nach diesen Tags
-            tag_mode: "and" = alle Tags müssen vorhanden sein, "or" = mindestens ein Tag
+            tag_mode: "and" = all tags must be present, "or" = at least one tag
             favorites_only: Nur Favoriten anzeigen
             order_by: Sortierung (created_at, play_count, last_played_at)
             limit: Maximale Anzahl Ergebnisse
@@ -222,7 +222,7 @@ class MessageCatalog:
                     '''
                     params = [clean_query + '*', f'%{clean_query}%']  # Prefix-Suche im Text, LIKE in Tags
                 else:
-                    # Fallback auf LIKE wenn keine gültigen Zeichen übrig
+                    # Fallback to LIKE when no valid characters remain
                     sql = '''
                         SELECT m.*, GROUP_CONCAT(t.name) as tags_str
                         FROM messages m
@@ -249,10 +249,10 @@ class MessageCatalog:
             if favorites_only:
                 sql += ' AND m.is_favorite = 1'
             
-            # Filter: Tags mit AND oder OR Verknüpfung
+            # Filter: tags with AND or OR logic
             if tags:
                 if tag_mode == "or":
-                    # OR-Verknüpfung: mindestens ein Tag muss vorhanden sein
+                    # OR logic: at least one tag must be present
                     placeholders = ','.join(['?' for _ in tags])
                     sql += f'''
                         AND m.id IN (
@@ -263,7 +263,7 @@ class MessageCatalog:
                     '''
                     params.extend([tag.strip().lower() for tag in tags])
                 else:
-                    # AND-Verknüpfung: alle Tags müssen vorhanden sein
+                    # AND logic: all tags must be present
                     for tag in tags:
                         sql += '''
                             AND m.id IN (
@@ -315,7 +315,7 @@ class MessageCatalog:
             return None
     
     def update_play_count(self, message_id: int):
-        """Erhöht den Abspiel-Zähler und setzt last_played_at."""
+        """Increments the play counter and sets last_played_at."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -326,7 +326,7 @@ class MessageCatalog:
             conn.commit()
     
     def toggle_favorite(self, message_id: int) -> bool:
-        """Schaltet Favoriten-Status um. Gibt neuen Status zurück."""
+        """Toggles favourite status. Returns new status."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -356,7 +356,7 @@ class MessageCatalog:
             # Alte Tags entfernen
             cursor.execute('DELETE FROM message_tags WHERE message_id = ?', (message_id,))
             
-            # Neue Tags hinzufügen
+            # Add new tags
             for tag in tags:
                 tag = tag.strip().lower()
                 if tag:
@@ -371,7 +371,7 @@ class MessageCatalog:
             conn.commit()
     
     def delete_message(self, message_id: int):
-        """Löscht eine Nachricht und ihre Audio-Datei."""
+        """Deletes a message and its audio file."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
@@ -381,11 +381,11 @@ class MessageCatalog:
             
             if result:
                 audio_path = result[0]
-                # Audio-Datei löschen
+                # Delete audio file
                 if os.path.exists(audio_path):
                     os.remove(audio_path)
                 
-                # Datenbankeinträge löschen (CASCADE löscht auch message_tags)
+                # Delete database entries (CASCADE also deletes message_tags)
                 cursor.execute('DELETE FROM messages WHERE id = ?', (message_id,))
                 conn.commit()
     
@@ -412,7 +412,7 @@ class MessageCatalog:
         return self.search(order_by="created_at", limit=limit)
     
     def get_frequent_messages(self, limit: int = 10) -> List[dict]:
-        """Holt die am häufigsten abgespielten Nachrichten."""
+        """Returns the most frequently played messages."""
         return self.search(order_by="play_count", limit=limit)
     
     def get_played_messages(self, limit: int = 10) -> List[dict]:
@@ -444,7 +444,7 @@ class MessageCatalog:
     
     def add_to_playback_history(self, text: str, audio_url: str, catalog_id: int = None, embedding: np.ndarray = None):
         """
-        Fügt einen Eintrag zum Wiedergabe-Verlauf hinzu.
+        Adds an entry to the playback history.
         
         Args:
             text: Der abgespielte Text
@@ -482,7 +482,7 @@ class MessageCatalog:
             return [dict(row) for row in rows]
     
     def get_history_without_embeddings(self) -> List[dict]:
-        """Holt alle Verlaufs-Einträge ohne Embedding."""
+        """Returns all history entries without an embedding."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -494,7 +494,7 @@ class MessageCatalog:
             return [dict(row) for row in cursor.fetchall()]
     
     def update_embedding(self, history_id: int, embedding: np.ndarray):
-        """Speichert ein Embedding für einen Verlaufs-Eintrag."""
+        """Saves an embedding for a history entry."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -504,7 +504,7 @@ class MessageCatalog:
             conn.commit()
     
     def update_embeddings_batch(self, entries: List[Tuple[int, np.ndarray]]):
-        """Speichert Embeddings für mehrere Einträge auf einmal."""
+        """Saves embeddings for multiple entries at once."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.executemany(
@@ -514,7 +514,7 @@ class MessageCatalog:
             conn.commit()
 
     def search_similar(self, query_embedding: np.ndarray, limit: int = 3, min_similarity: float = 0.3) -> List[dict]:
-        """Sucht semantisch ähnliche Verlaufs-Einträge per Cosine Similarity."""
+        """Searches for semantically similar history entries using cosine similarity."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -539,7 +539,7 @@ class MessageCatalog:
             return results[:limit]
 
     def get_stats(self) -> dict:
-        """Gibt Statistiken zum Katalog zurück."""
+        """Returns statistics about the catalog."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             

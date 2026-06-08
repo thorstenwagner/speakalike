@@ -157,6 +157,8 @@
             // Dynamic (JS)
             chars: 'Zeichen',
             not_connected: 'Nicht verbunden',
+            status_ready: 'Bereit',
+            status_voice_loaded: 'Stimme geladen:',
             loading_model: (name) => `Lade ${name}...`,
             deleting_voice: (name) => `Lösche ${name}...`,
             voice_deleted: (name) => `Stimme "${name}" gelöscht`,
@@ -333,6 +335,8 @@
             // Dynamic (JS)
             chars: 'characters',
             not_connected: 'Not connected',
+            status_ready: 'Ready',
+            status_voice_loaded: 'Voice loaded:',
             loading_model: (name) => `Loading ${name}...`,
             deleting_voice: (name) => `Deleting ${name}...`,
             voice_deleted: (name) => `Voice "${name}" deleted`,

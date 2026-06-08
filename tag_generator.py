@@ -6,8 +6,8 @@ from typing import List, Optional
 
 # API Key aus .env oder Umgebungsvariable laden
 def get_api_key() -> Optional[str]:
-    """Lädt den Claude API Key aus verschiedenen Quellen."""
-    # Erst Umgebungsvariable prüfen
+    """Loads the Claude API key from various sources."""
+    # Check environment variable first
     key = os.environ.get("CLAUDE_API_KEY")
     if key:
         return key
@@ -40,16 +40,16 @@ def get_api_key() -> Optional[str]:
 def generate_tags(text: str, existing_tags: List[str] = None, 
                   num_tags: int = 5, api_key: str = None) -> List[str]:
     """
-    Generiert Schlagwörter für einen Text mit Claude.
+    Generates keywords for a text using Claude.
     
     Args:
-        text: Der Text, für den Tags generiert werden sollen
+        text: the text for which tags should be generated
         existing_tags: Liste bereits vorhandener Tags (werden bevorzugt)
         num_tags: Anzahl der zu generierenden Tags
         api_key: Claude API Key (optional, wird sonst aus .env geladen)
         
     Returns:
-        Liste von Schlagwörtern
+        List of keywords
     """
     if not api_key:
         api_key = get_api_key()
@@ -61,37 +61,37 @@ def generate_tags(text: str, existing_tags: List[str] = None,
     try:
         import anthropic
     except ImportError:
-        print("anthropic Paket nicht installiert. Bitte 'pip install anthropic' ausführen.")
+        print("anthropic package not installed. Please run 'pip install anthropic'.")
         return []
     
     # Existing tags formatieren
     existing_tags_str = ""
     if existing_tags:
         existing_tags_str = f"""
-Bereits vorhandene Schlagwörter in der Datenbank (bevorzuge diese wenn passend):
+Existing keywords in the database (prefer these if applicable):
 {', '.join(existing_tags)}
 """
     
-    prompt = f"""Generiere genau {num_tags} passende Schlagwörter für folgenden gesprochenen Text.
+    prompt = f"""Generate exactly {num_tags} suitable keywords for the following spoken text.
 
 Text:
 "{text}"
 {existing_tags_str}
 Regeln:
-1. Schlagwörter sollen den Inhalt/Thema beschreiben
-2. Einwortige, kurze Tags (keine Sätze)
+1. Keywords should describe the content/topic
+2. Single-word, short tags (no sentences)
 3. Kleingeschrieben
 4. Auf Deutsch
 5. Wenn ein vorhandenes Schlagwort passt, verwende es
-6. Kategorien wie: thema, emotion, anlass, empfänger, etc.
+6. Categories such as: topic, emotion, occasion, recipient, etc.
 
-Antworte NUR mit den {num_tags} Schlagwörtern, getrennt durch Kommas, ohne weitere Erklärung."""
+Reply ONLY with the {num_tags} keywords, separated by commas, without further explanation."""
 
     try:
         client = anthropic.Anthropic(api_key=api_key)
         
         message = client.messages.create(
-            model="claude-3-haiku-20240307",  # Schnell und günstig
+            model="claude-haiku-4-5-20251001",  # Fast and cost-effective
             max_tokens=100,
             messages=[
                 {"role": "user", "content": prompt}
@@ -110,14 +110,14 @@ Antworte NUR mit den {num_tags} Schlagwörtern, getrennt durch Kommas, ohne weit
         return tags
         
     except Exception as e:
-        print(f"Fehler bei Tag-Generierung: {e}")
-        return []
+        print(f"Tag generation error: {e}")
+        raise
 
 
 # Test
 if __name__ == "__main__":
-    test_text = "Hallo, ich wollte nur kurz fragen, ob wir uns morgen zum Mittagessen treffen können?"
-    existing = ["frage", "termin", "begrüßung", "arbeit", "privat", "familie"]
+    test_text = "Hello, I just wanted to ask if we could meet for lunch tomorrow?"
+    existing = ["question", "appointment", "greeting", "work", "personal", "family"]
     
     print(f"Text: {test_text}")
     print(f"Vorhandene Tags: {existing}")
