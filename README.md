@@ -1,114 +1,114 @@
 ﻿# SpeakAlike
 
-**Sprachsynthese-Tool für Augensteuerung – mit KI-Korrektur, Mini-Modus und Telefonie-Integration**
+**Speech synthesis tool for eye-tracking control – with AI correction, mini mode, and telephony integration**
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
 ![Electron](https://img.shields.io/badge/Electron-28-47848F.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-SpeakAlike wurde für Menschen entwickelt, die per Augensteuerung kommunizieren. Es verwandelt kurze, fehlerhafte Texteingaben in natürlich klingende Sprache – unterstützt durch Claude AI, die Tippfehler automatisch korrigiert und den Gesprächskontext versteht.
+SpeakAlike was built for people who communicate via eye-tracking. It converts short, error-prone text input into natural-sounding speech – assisted by Claude AI, which automatically corrects typos and understands the conversation context.
 
-Zwei besonders wichtige Features: Der **Mini-Modus** – ein kompaktes Always-on-Top-Overlay, das jederzeit per `Strg+M` erreichbar ist – und die vollständige **Tastatursteuerung** aller Kernfunktionen per Tastenkürzel, damit Mausbedienung nie notwendig ist.
+Two particularly important features: **Mini Mode** – a compact always-on-top overlay accessible at any time via `Ctrl+M` – and full **keyboard control** of all core functions via shortcuts, so mouse operation is never required.
 
 ---
 
 ## Highlights
 
-- **KI-Korrektur** – Claude AI korrigiert Augensteuerungs-Tippfehler, ohne Wörter hinzuzufügen
-- **ElevenLabs TTS** – natürlich klingende Stimmen in der Cloud (mehrere Modelle und Stimmen wählbar)
-- **Mini-Modus** – kompaktes Always-on-Top-Fenster, ideal für den Einsatz neben anderen Apps
-- **Mikrofon-Ausgabe** – Sprache über virtuelles Audiokabel direkt in Zoom, Teams oder Telefon einspeisen
-- **A–Z Schnellzugriff** – bis zu 26 Sätze per einzelner Taste sofort abrufen
-- **Privacy-Modus** – Eingabe wird verborgen, nur das letzte Zeichen bleibt sichtbar
+- **AI Correction** – Claude AI corrects eye-tracking typos without adding extra words
+- **ElevenLabs TTS** – natural-sounding cloud voices (multiple models and voices selectable)
+- **Mini Mode** – compact always-on-top window, ideal for use alongside other apps
+- **Microphone Output** – feed speech into Zoom, Teams or phone calls via virtual audio cable
+- **A–Z Quick Access** – recall up to 26 phrases instantly with a single key
+- **Privacy Mode** – input is hidden, only the last character remains visible
 
 ---
 
 ## Features
 
-### Sprachsynthese
+### Speech Synthesis
 
-| Feature | Beschreibung |
+| Feature | Description |
 |---------|-------------|
-| **ElevenLabs (Cloud)** | Natürlich klingende Stimmen; Modelle: Multilingual v2/v3, Flash v2.5, Turbo v2.5 |
-| **pyttsx3 (Offline)** | Systemstimmen über Windows SAPI5, kein Internet erforderlich |
-| **Dual-Output** | Gleichzeitige Ausgabe über Lautsprecher und virtuelles Mikrofon |
-| **Lautstärkeregelung** | Stummschalten und Lautstärke per Schieberegler |
+| **ElevenLabs (Cloud)** | Natural-sounding voices; models: Multilingual v2/v3, Flash v2.5, Turbo v2.5 |
+| **pyttsx3 (Offline)** | System voices via Windows SAPI5, no internet required |
+| **Dual Output** | Simultaneous output to speakers and virtual microphone |
+| **Volume Control** | Mute and adjust volume via slider |
 
-### KI-Korrektur (Claude)
+### AI Correction (Claude)
 
-| Feature | Beschreibung |
+| Feature | Description |
 |---------|-------------|
-| **Automatische Korrektur** | Fehlende/falsche Buchstaben werden ergänzt, keine inhaltlichen Änderungen |
-| **Gesprächskontext** | Letzte Nachrichten und ein frei beschreibbares Kontextfeld werden mitgesendet |
-| **Bestätigungsdialog** | KI-Vorschlag vor dem Sprechen prüfen und manuell bearbeiten |
-| **Modellwahl** | Claude Haiku 4.5 (schnell) oder Claude Sonnet 4.6 (präziser) |
+| **Auto Correction** | Missing/wrong characters are completed, no content changes |
+| **Conversation Context** | Recent messages and a freely editable context field are included |
+| **Confirmation Dialog** | Review and edit the AI suggestion before speaking |
+| **Model Selection** | Claude Haiku 4.5 (fast) or Claude Sonnet 4.6 (more precise) |
 
-### Tastenkürzel
+### Keyboard Shortcuts
 
-| Kürzel | Funktion |
-|--------|----------|
-| **Enter** | Text sprechen (bei leerem Feld: letzte Nachricht wiederholen) |
-| **A–Z + Enter** | Schnellzugriff-Satz für den jeweiligen Buchstaben abspielen |
-| **Strg+Enter** | KI-Vervollständigung auslösen |
-| **Strg+Shift+Enter** | KI-Modus dauerhaft ein/aus |
-| **Strg+S** | Audio generieren und zum Schnellzugriff hinzufügen |
-| **Strg+L** | Sprache wechseln |
-| **Strg+D** | Signalton abspielen |
-| **Strg+Shift+D** | Vorsignal abspielen |
-| **Strg+P** | Privacy-Modus ein/aus |
-| **Strg+M** | Mini-Modus ein/aus |
-| **Escape** | Dialoge schließen |
+| Shortcut | Function |
+|----------|----------|
+| **Enter** | Speak text (empty field: repeat last message) |
+| **A–Z + Enter** | Play quick-access phrase for that letter |
+| **Ctrl+Enter** | Trigger AI completion |
+| **Ctrl+Shift+Enter** | Toggle AI mode permanently on/off |
+| **Ctrl+S** | Generate audio and add to quick access |
+| **Ctrl+L** | Switch language |
+| **Ctrl+D** | Play signal tone |
+| **Ctrl+Shift+D** | Toggle pre-signal mode |
+| **Ctrl+P** | Toggle privacy mode |
+| **Ctrl+M** | Toggle mini mode |
+| **Escape** | Close dialogs |
 
-### Schnellzugriff (A–Z)
+### Quick Access (A–Z)
 
-- Bis zu **26 Sätze** (A bis Z) als Schnellzugriff speicherbar
-- Abruf durch Eingabe des Buchstabens + Enter im Textfeld
-- **Sets** speichern und laden – unterschiedliche Sets für verschiedene Situationen
-- Sätze aus dem Katalog oder direkt per `Strg+S` hinzufügen
+- Up to **26 phrases** (A to Z) storable as quick access
+- Triggered by typing the letter + Enter in the text field
+- **Sets** – save and load different sets for different situations
+- Add phrases from the catalog or directly via `Ctrl+S`
 
-### Katalog
+### Catalog
 
-| Feature | Beschreibung |
+| Feature | Description |
 |---------|-------------|
-| **Nachrichtenkatalog** | Häufig verwendete Sätze mit Audio, Tags und Metadaten speichern |
-| **Auto-Tagging** | Claude AI generiert automatisch passende Tags |
-| **Tag-Filter** | UND/ODER-Filterung nach beliebig vielen Tags |
-| **Favoriten** | Sätze markieren für schnellen Zugriff |
-| **Wiedergabezähler** | Zeigt am häufigsten verwendete Sätze |
-| **Audio-Import** | MP3/WAV/OGG importieren mit automatischer Transkription (Whisper) |
+| **Message Catalog** | Store frequently used phrases with audio, tags and metadata |
+| **Auto-Tagging** | Claude AI automatically generates suitable tags |
+| **Tag Filter** | AND/OR filtering by any number of tags |
+| **Favorites** | Mark phrases for quick access |
+| **Play Counter** | Shows most frequently used phrases |
+| **Audio Import** | Import MP3/WAV/OGG with automatic transcription (Whisper) |
 
-### Barrierefreiheit & Mini-Modus
+### Accessibility & Mini Mode
 
-| Feature | Beschreibung |
+| Feature | Description |
 |---------|-------------|
-| **Mini-Modus** | Kompaktes Always-on-Top-Overlay (`Strg+M`), Position oben/unten wählbar |
-| **Privacy-Modus** | Eingabe unlesbar, nur letztes Zeichen sichtbar (`Strg+P`) |
-| **Große Bedienelemente** | Optimiert für Augensteuerung und eingeschränkte Motorik |
-| **Visuelle Badges** | „KI" (grün) und „MIC" (rot) zeigen aktive Features auf einen Blick |
+| **Mini Mode** | Compact always-on-top overlay (`Ctrl+M`), position top/bottom selectable |
+| **Privacy Mode** | Input hidden, only last character visible (`Ctrl+P`) |
+| **Large Controls** | Optimised for eye-tracking and limited motor control |
+| **Visual Badges** | "AI" (green) and "MIC" (red) show active features at a glance |
 
-### Telefonie-Integration
+### Telephony Integration
 
-| Feature | Beschreibung |
+| Feature | Description |
 |---------|-------------|
-| **Virtuelles Mikrofon** | Sprachausgabe über VB-Cable o.ä. in Zoom, Teams, Telefon einspeisen |
-| **Tipp-Geräusche** | Simuliert Tastaturklicks auf dem Mikrofon-Kanal während der Eingabe |
-| **Echo-Test** | Mikrofon-Gerät direkt in den Einstellungen testen |
-| **MIC-Badge** | Pulsierender Badge zeigt aktive Mikrofon-Ausgabe |
+| **Virtual Microphone** | Feed speech into Zoom, Teams or phone via VB-Cable or similar |
+| **Typing Sounds** | Simulates keyboard clicks on the microphone channel during input |
+| **Echo Test** | Test the microphone device directly in settings |
+| **MIC Badge** | Pulsing badge indicates active microphone output |
 
 ---
 
 ## Installation
 
-### Entwicklermodus
+### Developer Mode
 
 ```bash
-# 1. Abhängigkeiten installieren
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Backend starten
+# 2. Start backend
 python backend_api.py
 
-# 3. Frontend starten (separates Terminal)
+# 3. Start frontend (separate terminal)
 cd electron-app
 npm install
 npm start
@@ -116,15 +116,15 @@ npm start
 
 ---
 
-## Konfiguration
+## Configuration
 
 ### ElevenLabs
 
-ElevenLabs API-Key und Stimme in den **Einstellungen → Sprache** hinterlegen. Der Key wird lokal in `voice_models/.elevenlabs_config` gespeichert (nicht in der Versionskontrolle).
+Add your ElevenLabs API key and voice in **Settings → Voice**. The key is stored locally in `voice_models/.elevenlabs_config` (not tracked by version control).
 
-### Claude AI (für KI-Korrektur und Auto-Tagging)
+### Claude AI (for AI correction and auto-tagging)
 
-Claude API-Key in den **Einstellungen → Allgemein** hinterlegen oder als Umgebungsvariable setzen:
+Add your Claude API key in **Settings → General** or set it as an environment variable:
 
 ```bash
 CLAUDE_API_KEY=sk-ant-...
@@ -132,54 +132,55 @@ CLAUDE_API_KEY=sk-ant-...
 
 ---
 
-## Architektur
+## Architecture
 
 ```
 ┌─────────────────────┐     HTTP/REST     ┌──────────────────────┐
-│   Electron-App      │ ◄──────────────►  │   Python Backend     │
+│   Electron App      │ ◄──────────────►  │   Python Backend     │
 │   (Frontend)        │    Port 8765      │   (FastAPI/Uvicorn)  │
 │                     │                   │                      │
 │  • index.html       │                   │  • pyttsx3 (SAPI5)   │
 │  • renderer.js      │                   │  • ElevenLabs API    │
 │  • styles.css       │                   │  • Claude AI API     │
 │  • preload.js       │                   │  • Whisper (Import)  │
-│  • quick-access.html│                   │  • SQLite (Katalog)  │
+│  • quick-access.html│                   │  • SQLite (Catalog)  │
 └─────────────────────┘                   └──────────────────────┘
 ```
 
 ---
 
-## Projektstruktur
+## Project Structure
 
 ```
 fastspeak/
-├── backend_api.py        # FastAPI-Server (alle REST-Endpunkte)
-├── main.py               # TTS-Engine (ElevenLabs / pyttsx3)
-├── catalog.py            # SQLite-Katalog
-├── tag_generator.py      # Claude-basiertes Auto-Tagging
-├── audio_processor.py    # Audio-Vorverarbeitung (Whisper-Import)
+├── backend_api.py        # FastAPI server (all REST endpoints)
+├── main.py               # TTS engine (ElevenLabs / pyttsx3)
+├── catalog.py            # SQLite catalog
+├── tag_generator.py      # Claude-based auto-tagging
+├── audio_processor.py    # Audio preprocessing (Whisper import)
 ├── requirements.txt
 └── electron-app/
-    ├── main.js           # Electron-Hauptprozess
-    ├── renderer.js       # Frontend-Logik
-    ├── index.html        # Haupt-UI
-    ├── quick-access.html # Schnellzugriff-Popup
-    ├── i18n.js           # Übersetzungen (DE/EN)
+    ├── main.js           # Electron main process
+    ├── renderer.js       # Frontend logic
+    ├── index.html        # Main UI
+    ├── quick-access.html # Quick access popup
+    ├── i18n.js           # Translations (DE/EN)
     └── styles.css
 ```
 
 ---
 
-## Systemanforderungen
+## System Requirements
 
 - **OS**: Windows 10/11
 - **Python**: 3.11+
-- **RAM**: 4 GB (8 GB empfohlen)
-- **Internet**: für ElevenLabs und Claude AI erforderlich
-- **Optional**: VB-Cable für Telefonie-Integration
+- **RAM**: 4 GB (8 GB recommended)
+- **Internet**: required for ElevenLabs and Claude AI
+- **Optional**: VB-Cable for telephony integration
 
 ---
 
-## Lizenz
+## License
 
 MIT
+
