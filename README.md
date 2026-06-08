@@ -77,13 +77,6 @@ Zwei besonders wichtige Features: Der **Mini-Modus** – ein kompaktes Always-on
 | **Wiedergabezähler** | Zeigt am häufigsten verwendete Sätze |
 | **Audio-Import** | MP3/WAV/OGG importieren mit automatischer Transkription (Whisper) |
 
-### Smarte Vorschläge
-
-| Feature | Beschreibung |
-|---------|-------------|
-| **Semantische Suche** | Ähnliche Sätze aus dem Verlauf erscheinen beim Tippen als Vorschlag |
-| **Multilingual-Embeddings** | Ähnlichkeit basiert auf Bedeutung, nicht Wortgleichheit |
-
 ### Barrierefreiheit & Mini-Modus
 
 | Feature | Beschreibung |

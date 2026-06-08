@@ -26,9 +26,6 @@ let confirmSend = true; // default: confirmation dialog active
 let currentProvider = 'pyttsx3';
 let kiAutoCorrect = false;
 let signalBeforeSpeak = false;
-let _suggestTimer = null;
-let _suggestions = [];
-let _suggestIndex = -1;
 
 // DOM Elements
 const elements = {
@@ -46,7 +43,6 @@ const elements = {
     
     // Text
     textInput: document.getElementById('textInput'),
-    suggestionsDropdown: document.getElementById('suggestionsDropdown'),
     privacyLastWord: document.getElementById('privacyLastWord'),
     privacyIndicator: document.getElementById('privacyIndicator'),
     languageSelect: document.getElementById('languageSelect'),
@@ -473,7 +469,6 @@ function showAiConfirmModal(original, completed) {
 }
 
 async function speak() {
-    hideSuggestions();
     let text = elements.textInput.value.trim();
     if (!text) {
         showToast(t('toast_no_text'), 'error');
@@ -2977,53 +2972,6 @@ function playSignalTone() {
 }
 
 // === Privacy Mode ===
-// === Suggestions ===
-async function fetchSuggestions(query) {
-    try {
-        const res = await fetch(`${window.API_URL}/api/history/suggest?query=${encodeURIComponent(query)}&limit=3`);
-        if (!res.ok) return;
-        _suggestions = await res.json();
-        _suggestIndex = -1;
-        renderSuggestions();
-    } catch (e) {
-        // Netzwerkfehler ignorieren
-    }
-}
-
-function renderSuggestions() {
-    const dd = elements.suggestionsDropdown;
-    if (!_suggestions.length) {
-        hideSuggestions();
-        return;
-    }
-    dd.innerHTML = '<div class="suggestion-hint"><span>Tab ↹ switch · Enter ↵ apply · Esc close</span></div>' +
-        _suggestions.map((s, i) =>
-            `<div class="suggestion-item${i === _suggestIndex ? ' active' : ''}" data-index="${i}">${escapeHtml(s.text)}</div>`
-        ).join('');
-    dd.classList.add('visible');
-
-    dd.querySelectorAll('.suggestion-item').forEach(el => {
-        el.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            const idx = parseInt(el.dataset.index);
-            elements.textInput.value = _suggestions[idx].text;
-            hideSuggestions();
-            if (elements.charCount) {
-                elements.charCount.textContent = `${elements.textInput.value.length} ${t('chars')}`;
-            }
-            updatePrivacyOverlay();
-            elements.textInput.focus();
-        });
-    });
-}
-
-function hideSuggestions() {
-    _suggestions = [];
-    _suggestIndex = -1;
-    elements.suggestionsDropdown.classList.remove('visible');
-    elements.suggestionsDropdown.innerHTML = '';
-}
-
 // === Mini-Modus Schnellzugriff-Fenster ===
 const QUICK_ACCESS_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
@@ -3166,30 +3114,6 @@ function setupEventListeners() {
     
     // Enter key to speak, Ctrl+Enter for AI completion
     elements.textInput.addEventListener('keydown', async (e) => {
-        // Suggestions-Navigation
-        if (_suggestions.length > 0 && elements.suggestionsDropdown.classList.contains('visible')) {
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                _suggestIndex = (_suggestIndex + 1) % _suggestions.length;
-                renderSuggestions();
-                return;
-            }
-            if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey && _suggestIndex >= 0) {
-                e.preventDefault();
-                elements.textInput.value = _suggestions[_suggestIndex].text;
-                hideSuggestions();
-                if (elements.charCount) {
-                    elements.charCount.textContent = `${elements.textInput.value.length} ${t('chars')}`;
-                }
-                updatePrivacyOverlay();
-                return;
-            }
-            if (e.key === 'Escape') {
-                hideSuggestions();
-                return;
-            }
-        }
-
         if (e.key === 'Escape' && miniSetPickerMode) {
             hideMiniSetPicker();
             return;
@@ -3372,22 +3296,6 @@ function setupEventListeners() {
         });
         elements.privacyIndicator.title = 'Letztes Wort anzeigen';
     }
-
-    // Suggestions bei Texteingabe laden
-    elements.textInput.addEventListener('input', () => {
-        clearTimeout(_suggestTimer);
-        const text = elements.textInput.value.trim();
-        if (text.length < 3) {
-            hideSuggestions();
-            return;
-        }
-        _suggestTimer = setTimeout(() => fetchSuggestions(text), 300);
-    });
-
-    // Hide suggestions on blur (with delay for click events)
-    elements.textInput.addEventListener('blur', () => {
-        setTimeout(() => hideSuggestions(), 150);
-    });
 
     // Mini-Modus Transparenz: fokussiert = opak, unfokussiert = halbtransparent
     // + Schnellzugriff-Dropdown ein-/ausblenden

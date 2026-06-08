@@ -4,7 +4,6 @@ SpeakAlike Katalog - Speicherung und Verwaltung von Sprachnachrichten
 import os
 import sqlite3
 import json
-import numpy as np
 from datetime import datetime
 from typing import List, Optional, Tuple
 import shutil
@@ -442,23 +441,14 @@ class MessageCatalog:
             
             return results
     
-    def add_to_playback_history(self, text: str, audio_url: str, catalog_id: int = None, embedding: np.ndarray = None):
-        """
-        Adds an entry to the playback history.
-        
-        Args:
-            text: Der abgespielte Text
-            audio_url: URL zur Audio-Datei
-            catalog_id: Optional - ID der Katalog-Nachricht falls vorhanden
-            embedding: Optional - vorberechnetes Embedding
-        """
-        emb_blob = embedding.astype(np.float32).tobytes() if embedding is not None else None
+    def add_to_playback_history(self, text: str, audio_url: str, catalog_id: int = None):
+        """Adds an entry to the playback history."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO playback_history (text, audio_url, catalog_id, embedding)
-                VALUES (?, ?, ?, ?)
-            ''', (text, audio_url, catalog_id, emb_blob))
+                INSERT INTO playback_history (text, audio_url, catalog_id)
+                VALUES (?, ?, ?)
+            ''', (text, audio_url, catalog_id))
             conn.commit()
     
     def get_playback_history(self, limit: int = 10) -> List[dict]:
@@ -481,63 +471,6 @@ class MessageCatalog:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
     
-    def get_history_without_embeddings(self) -> List[dict]:
-        """Returns all history entries without an embedding."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT id, text FROM playback_history
-                WHERE embedding IS NULL
-                ORDER BY id ASC
-            ''')
-            return [dict(row) for row in cursor.fetchall()]
-    
-    def update_embedding(self, history_id: int, embedding: np.ndarray):
-        """Saves an embedding for a history entry."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                'UPDATE playback_history SET embedding = ? WHERE id = ?',
-                (embedding.astype(np.float32).tobytes(), history_id)
-            )
-            conn.commit()
-    
-    def update_embeddings_batch(self, entries: List[Tuple[int, np.ndarray]]):
-        """Saves embeddings for multiple entries at once."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.executemany(
-                'UPDATE playback_history SET embedding = ? WHERE id = ?',
-                [(emb.astype(np.float32).tobytes(), hid) for hid, emb in entries]
-            )
-            conn.commit()
-
-    def search_similar(self, query_embedding: np.ndarray, limit: int = 3, min_similarity: float = 0.3) -> List[dict]:
-        """Searches for semantically similar history entries using cosine similarity."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT id, text, embedding FROM playback_history
-                WHERE embedding IS NOT NULL
-            ''')
-            
-            q_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-10)
-            results = []
-            seen_texts = set()
-            
-            for row in cursor:
-                emb = np.frombuffer(row['embedding'], dtype=np.float32)
-                similarity = float(np.dot(q_norm, emb / (np.linalg.norm(emb) + 1e-10)))
-                text = row['text']
-                if similarity >= min_similarity and text not in seen_texts and len(text.split()) > 3:
-                    seen_texts.add(text)
-                    results.append({'text': text, 'similarity': similarity})
-            
-            results.sort(key=lambda x: x['similarity'], reverse=True)
-            return results[:limit]
-
     def get_stats(self) -> dict:
         """Returns statistics about the catalog."""
         with sqlite3.connect(self.db_path) as conn:
