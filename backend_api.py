@@ -35,7 +35,7 @@ import uvicorn
 
 # Lazy import: TextToSpeech is loaded on first TTS call, not at server startup
 # from main import TextToSpeech  # -> imported in init_tts_async()
-from audio_processor import prepare_samples_for_cloning, get_audio_info
+from audio_processor import get_audio_info
 from catalog import MessageCatalog
 from tag_generator import generate_tags
 
