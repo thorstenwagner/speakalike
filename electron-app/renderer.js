@@ -434,7 +434,7 @@ async function completeWithAI(text) {
         return result.completed;
     } catch (error) {
         console.error('AI Completion Error:', error);
-        showToast(`KI-Fehler: ${error.message}`, 'error');
+        showToast(tf('toast_ai_error', error.message), 'error');
         return null;
     }
 }
@@ -476,7 +476,7 @@ async function speak() {
     hideSuggestions();
     let text = elements.textInput.value.trim();
     if (!text) {
-        showToast('Bitte geben Sie einen Text ein.', 'error');
+        showToast(t('toast_no_text'), 'error');
         return;
     }
 
@@ -538,7 +538,7 @@ async function speak() {
             }
         }
     } catch (error) {
-        showToast(`Fehler: ${error.message}`, 'error');
+        showToast(tf('toast_error', error.message), 'error');
     } finally {
         elements.speakBtn.disabled = false;
         checkStatus();
@@ -549,7 +549,7 @@ async function speak() {
 async function generateOnly() {
     const text = elements.textInput.value.trim();
     if (!text) {
-        showToast('Bitte geben Sie einen Text ein.', 'error');
+        showToast(t('toast_no_text'), 'error');
         return;
     }
     
@@ -585,10 +585,10 @@ async function generateOnly() {
                 elements.charCount.textContent = charStr(0);
             }
             
-            showToast('Audio erfolgreich generiert!', 'success');
+            showToast(t('toast_audio_generated'), 'success');
         }
     } catch (error) {
-        showToast(`Fehler: ${error.message}`, 'error');
+        showToast(tf('toast_error', error.message), 'error');
     } finally {
         elements.generateBtn.disabled = false;
         elements.speakBtn.disabled = false;
@@ -1089,7 +1089,7 @@ function addToQuickAccess(item) {
     
     saveQuickAccessToStorage();
     renderQuickAccess();
-    showToast('Added to quick access', 'success');
+    showToast(t('toast_added_to_qa'), 'success');
 }
 
 function removeFromQuickAccess(itemId) {
@@ -1106,7 +1106,7 @@ function clearQuickAccess() {
     // Double-click to confirm
     if (!clearQuickAccessPending) {
         clearQuickAccessPending = true;
-        showToast('Click again to confirm', 'info');
+        showToast(t('toast_click_confirm'), 'info');
         setTimeout(() => {
             clearQuickAccessPending = false;
         }, 2000);
@@ -1117,7 +1117,7 @@ function clearQuickAccess() {
     quickAccessItems = [];
     saveQuickAccessToStorage();
     renderQuickAccess();
-    showToast('Schnellzugriff geleert', 'success');
+    showToast(t('toast_qa_cleared'), 'success');
 }
 
 // === Quick Access Sets ===
@@ -1187,7 +1187,7 @@ function saveQuickAccessSet() {
         const sets = getQuickAccessSets();
         sets[selected] = JSON.parse(JSON.stringify(quickAccessItems));
         saveQuickAccessSets(sets);
-        showToast(`Set "${selected}" aktualisiert`, 'success');
+        showToast(tf('toast_set_updated', selected), 'success');
         return;
     }
     
@@ -1212,7 +1212,7 @@ function saveQuickAccessSet() {
         saveQuickAccessSets(sets);
         currentQuickAccessSetName = name;
         renderQuickAccessSetSelect();
-        showToast(`Set "${name}" gespeichert`, 'success');
+        showToast(tf('toast_set_saved', name), 'success');
     };
     
     input.addEventListener('keydown', (e) => {
@@ -1231,7 +1231,7 @@ function loadQuickAccessSet(name) {
     updateSetBtn();
     saveQuickAccessToStorage();
     renderQuickAccess();
-    showToast(`Set "${name}" geladen`, 'success');
+    showToast(tf('toast_set_loaded', name), 'success');
 }
 
 // Set-Manager in Settings
@@ -1329,7 +1329,7 @@ function deleteQuickAccessSet(name) {
     saveQuickAccessSets(sets);
     renderQuickAccessSetSelect();
     renderSetManager();
-    showToast(`Set "${name}" deleted`, 'success');
+    showToast(tf('toast_set_deleted', name), 'success');
 }
 
 function renderQuickAccess() {
@@ -1391,7 +1391,7 @@ async function playQuickAccessItem(item) {
 
     // Hilfsfunktion: Audio neu generieren und abspielen
     async function regenerateAndPlay() {
-        showToast('Audio neu generieren...', 'info');
+        showToast(t('toast_audio_regenerating'), 'info');
         try {
             const result = await api('/api/tts/speak', {
                 method: 'POST',
@@ -1419,7 +1419,7 @@ async function playQuickAccessItem(item) {
             }
         } catch (err) {
             console.error('Regenerierung fehlgeschlagen:', err);
-            showToast('Fehler beim Abspielen', 'error');
+            showToast(t('toast_play_error'), 'error');
         }
     }
 
@@ -1707,13 +1707,13 @@ async function loadTagBrowserMessages() {
             item.querySelectorAll('.tag-browser-msg-actions .btn')[1].onclick = (e) => {
                 e.stopPropagation();
                 addToQuickAccess(msg);
-                showToast('Added to quick access', 'success');
+                showToast(t('toast_added_to_qa'), 'success');
             };
             item.querySelectorAll('.tag-browser-msg-actions .btn')[2].onclick = (e) => {
                 e.stopPropagation();
                 elements.textInput.value = msg.text;
                 if (elements.charCount) elements.charCount.textContent = `${msg.text.length} ${t('chars')}`;
-                showToast('Text copied', 'info');
+                showToast(t('toast_copied'), 'info');
             };
             
             elements.tagBrowserMessagesList.appendChild(item);
@@ -1890,13 +1890,13 @@ async function saveToCatalog() {
         closeSaveCatalogModal();
         
         // Toast statt alert, um Fokus-Probleme zu vermeiden
-        showToast('Added to catalog!', 'success');
+        showToast(t('toast_saved_catalog'), 'success');
         
         loadCatalogTags();
         loadFavorites();
         loadCatalogPreview();
     } catch (error) {
-        showToast(`Fehler: ${error.message}`, 'error');
+        showToast(tf('toast_error', error.message), 'error');
     }
 }
 
@@ -2164,10 +2164,10 @@ async function importMp3() {
         closeImportMp3Modal();
         loadCatalog();
         loadCatalogPreview();
-        showToast('Audio erfolgreich importiert!', 'success');
+        showToast(t('toast_audio_imported'), 'success');
         
     } catch (error) {
-        showToast(`Fehler beim Import: ${error.message}`, 'error');
+        showToast(tf('toast_import_error', error.message), 'error');
     } finally {
         elements.confirmImportMp3Btn.disabled = false;
         elements.confirmImportMp3Btn.textContent = '📥 Importieren';
@@ -2438,7 +2438,7 @@ async function saveSettings() {
         }
         
         closeSettingsModal();
-        showToast('Einstellungen gespeichert', 'success');
+        showToast(t('toast_settings_saved'), 'success');
     } catch (error) {
         alert(`Fehler: ${error.message}`);
     }
@@ -2517,13 +2517,13 @@ async function loadElevenLabsVoices() {
         }
         
         if (result.voices.length > 0) {
-            showToast(`${result.voices.length} Stimmen geladen`, 'success');
+            showToast(tf('toast_voices_loaded', result.voices.length), 'success');
         } else {
-            showToast('Keine Stimmen gefunden. API Key korrekt?', 'error');
+            showToast(t('toast_no_voices'), 'error');
         }
     } catch (error) {
         console.error('Failed to load ElevenLabs voices:', error);
-        showToast('Fehler beim Laden der Stimmen', 'error');
+        showToast(t('toast_voices_error'), 'error');
     }
 }
 
@@ -2731,7 +2731,7 @@ async function repeatLastMessage() {
             await elements.audioPlayer.play();
         }
     } catch (error) {
-        showToast(`Fehler beim Wiederholen: ${error.message}`, 'error');
+        showToast(tf('toast_repeat_error', error.message), 'error');
     } finally {
         elements.miniRepeatBtn.disabled = false;
     }
@@ -2881,7 +2881,7 @@ async function toggleMicOutput() {
         // Check whether a mic device is configured
         const micData = await api('/api/mic-device');
         if (micData.device === null || micData.device === undefined) {
-            showToast('Please configure a microphone device in settings first (e.g. VB-Cable)', 'error');
+            showToast(t('toast_mic_not_configured'), 'error');
             openSettingsModal();
             return;
         }
@@ -2895,13 +2895,13 @@ async function toggleMicOutput() {
         localStorage.setItem('micEnabled', result.enabled.toString());
         
         if (result.enabled) {
-            showToast('🎙️ Microphone output enabled – speech will also be sent via the virtual microphone', 'success');
+            showToast(t('toast_mic_enabled'), 'success');
         } else {
-            showToast('🎤 Mikrofon-Ausgabe deaktiviert', 'info');
+            showToast(t('toast_mic_disabled'), 'info');
         }
     } catch (error) {
         console.error('Mikrofon-Toggle Fehler:', error);
-        showToast('Fehler beim Umschalten der Mikrofon-Ausgabe', 'error');
+        showToast(t('toast_mic_toggle_error'), 'error');
     }
 }
 
@@ -2912,7 +2912,7 @@ async function micEchoTest() {
     
     const micIndex = parseInt(elements.micDeviceSelect.value);
     if (micIndex === -1) {
-        showToast('Please select a microphone device first', 'error');
+        showToast(t('toast_mic_select_first'), 'error');
         return;
     }
     
@@ -2924,16 +2924,16 @@ async function micEchoTest() {
     
     btn.disabled = true;
     btn.textContent = '⏳ Test...';
-    showToast('🔊 Playing test tone on mic device...', 'info');
+    showToast(t('toast_mic_test_playing'), 'info');
     
     try {
         const result = await api('/api/mic-device/echo-test', {
             method: 'POST'
         });
-        showToast('✅ Test tone played – if you hear it in the phone app, the connection works!', 'success');
+        showToast(t('toast_mic_test_ok'), 'success');
     } catch (error) {
         console.error('Echo-Test Fehler:', error);
-        showToast('❌ Testton fehlgeschlagen: ' + (error.message || error), 'error');
+        showToast(tf('toast_mic_test_error', error.message || error), 'error');
     } finally {
         btn.disabled = false;
         btn.textContent = '🔊 Test';
@@ -3041,7 +3041,7 @@ async function showMiniSetPicker() {
     const sets = await getQuickAccessSets();
     const setNames = Object.keys(sets);
     if (setNames.length === 0) {
-        showToast('Keine Sets vorhanden', 'info');
+        showToast(t('toast_no_sets'), 'info');
         return;
     }
     const setList = setNames.slice(0, QUICK_ACCESS_KEYS.length).map(name => ({
@@ -3064,12 +3064,12 @@ function togglePrivacyMode() {
     if (privacyMode) {
         wrapper.classList.add('privacy-active');
         updatePrivacyOverlay();
-        showToast('🔒 Privacy-Modus aktiviert', 'info');
+        showToast(t('toast_privacy_on'), 'info');
     } else {
         wrapper.classList.remove('privacy-active');
         elements.privacyLastWord.textContent = '';
         elements.privacyLastWord.classList.remove('has-word');
-        showToast('🔓 Privacy-Modus deaktiviert', 'info');
+        showToast(t('toast_privacy_off'), 'info');
     }
 }
 
@@ -3201,7 +3201,7 @@ function setupEventListeners() {
             kiAutoCorrect = !kiAutoCorrect;
             const badge = document.getElementById('kiBadge');
             if (badge) badge.classList.toggle('active', kiAutoCorrect);
-            showToast(kiAutoCorrect ? 'KI-Korrektur aktiviert' : 'KI-Korrektur deaktiviert', kiAutoCorrect ? 'success' : 'info');
+            showToast(kiAutoCorrect ? t('toast_ai_on') : t('toast_ai_off'), kiAutoCorrect ? 'success' : 'info');
             return;
         }
 
@@ -3213,7 +3213,7 @@ function setupEventListeners() {
                 kiAutoCorrect = !kiAutoCorrect;
                 const badge = document.getElementById('kiBadge');
                 if (badge) badge.classList.toggle('active', kiAutoCorrect);
-                showToast(kiAutoCorrect ? 'KI-Korrektur aktiviert' : 'KI-Korrektur deaktiviert', kiAutoCorrect ? 'success' : 'info');
+                showToast(kiAutoCorrect ? t('toast_ai_on') : t('toast_ai_off'), kiAutoCorrect ? 'success' : 'info');
                 return;
             }
             // Ctrl+Enter with text = AI completion
@@ -3240,7 +3240,7 @@ function setupEventListeners() {
                     const setNames = Object.keys(sets).slice(0, QUICK_ACCESS_KEYS.length);
                     if (keyIdx < setNames.length) {
                         await loadQuickAccessSet(setNames[keyIdx]);
-                        showToast(`Set geladen: ${setNames[keyIdx]}`, 'success');
+                        showToast(tf('toast_set_loaded', setNames[keyIdx]), 'success');
                     }
                     hideMiniSetPicker();
                 }
@@ -3297,7 +3297,7 @@ function setupEventListeners() {
                 tempItems.forEach(q => { delete q._temporary; });
                 saveQuickAccessToStorage();
                 renderQuickAccess();
-                showToast(`${tempItems.length} Eintrag${tempItems.length > 1 ? 'e' : ''} dauerhaft gespeichert`, 'success');
+                showToast(tf('toast_items_saved', tempItems.length), 'success');
                 return;
             }
             elements.generateBtn && (elements.generateBtn.disabled = true);
@@ -3323,10 +3323,10 @@ function setupEventListeners() {
                     updatePrivacyOverlay();
                     if (elements.charCount) elements.charCount.textContent = charStr(0);
                     elements.statusText.textContent = 'Bereit';
-                    showToast('Generated & added to quick access', 'success');
+                    showToast(t('toast_generated_added'), 'success');
                 }
             } catch (error) {
-                showToast(`Fehler: ${error.message}`, 'error');
+                showToast(tf('toast_error', error.message), 'error');
             } finally {
                 elements.generateBtn && (elements.generateBtn.disabled = false);
                 elements.speakBtn && (elements.speakBtn.disabled = false);
@@ -3339,7 +3339,7 @@ function setupEventListeners() {
             const idx = sel.selectedIndex;
             sel.selectedIndex = (idx + 1) % sel.options.length;
             sel.dispatchEvent(new Event('change'));
-            showToast(`Sprache: ${sel.options[sel.selectedIndex].text}`, 'info');
+            showToast(tf('toast_lang_changed', sel.options[sel.selectedIndex].text), 'info');
             updateTitle();
         } else if (e.key === 'd' && e.ctrlKey && !e.shiftKey) {
             // Strg+D = Signalton
@@ -3351,7 +3351,7 @@ function setupEventListeners() {
             signalBeforeSpeak = !signalBeforeSpeak;
             const badge = document.getElementById('bellBadge');
             if (badge) badge.classList.toggle('active', signalBeforeSpeak);
-            showToast(signalBeforeSpeak ? '🔔 Vor-Signal aktiviert' : '🔕 Vor-Signal deaktiviert', signalBeforeSpeak ? 'success' : 'info');
+            showToast(signalBeforeSpeak ? t('toast_signal_on') : t('toast_signal_off'), signalBeforeSpeak ? 'success' : 'info');
         } else if (e.key === 'p' && e.ctrlKey) {
             // Strg+P = Privacy-Modus
             e.preventDefault();
@@ -3417,7 +3417,7 @@ function setupEventListeners() {
     // Set-Picker: Set-Auswahl via Klick im Popup-Fenster
     window.electronAPI.onSetPickerSelected(async (name) => {
         await loadQuickAccessSet(name);
-        showToast(`Set geladen: ${name}`, 'success');
+        showToast(tf('toast_set_loaded', name), 'success');
         hideMiniSetPicker();
     });
     
@@ -3477,7 +3477,7 @@ function setupEventListeners() {
                     body: JSON.stringify({ voice_id: voiceId })
                 });
                 const selectedText = e.target.options[e.target.selectedIndex]?.text || '';
-                showToast(`Stimme: ${selectedText}`, 'success');
+                showToast(tf('toast_voice_selected', selectedText), 'success');
             } catch (err) {
                 console.error('ElevenLabs voice change error:', err);
             }
