@@ -331,6 +331,7 @@ async def play_audio_on_device(data: dict):
         # Load and play audio
         audio_data, samplerate = sf.read(str(file_path))
         device = tts.output_device if tts else None
+        print(f"[Audio-Play] file={file_path.name}, shape={audio_data.shape}, sr={samplerate}, device={device}")
         
         # Apply volume
         volume = data.get("volume", 1.0)
@@ -1311,51 +1312,50 @@ async def mic_echo_test():
     then plays back the recorded audio on the speaker."""
     import sounddevice as sd
     import numpy as np
-    import threading
-    
+
     if mic_output_device is None:
         raise HTTPException(status_code=400, detail="No microphone device configured")
-    
-    sample_rate = 24000
-    duration = 1.5  # Sekunden
-    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
-    
-    # Recognisable test tone: three ascending tones (ding-ding-ding)
-    tone = np.zeros_like(t)
-    freqs = [523.25, 659.25, 783.99]  # C5, E5, G5
-    note_len = int(sample_rate * 0.4)
-    gap_len = int(sample_rate * 0.05)
-    for i, freq in enumerate(freqs):
-        start = i * (note_len + gap_len)
-        end = start + note_len
-        if end > len(t):
-            end = len(t)
-        segment = t[start:end] - t[start]
-        # Envelope (attack/release)
-        env = np.ones(end - start)
-        attack = min(int(sample_rate * 0.02), len(env))
-        release = min(int(sample_rate * 0.05), len(env))
-        env[:attack] = np.linspace(0, 1, attack)
-        env[-release:] = np.linspace(1, 0, release)
-        tone[start:end] = np.sin(2 * np.pi * freq * segment) * 0.5 * env
-    
-    tone = tone.astype(np.float32)
-    
+
+    def make_tone(sample_rate):
+        duration = 1.5
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        tone = np.zeros_like(t)
+        freqs = [523.25, 659.25, 783.99]  # C5, E5, G5
+        note_len = int(sample_rate * 0.4)
+        gap_len = int(sample_rate * 0.05)
+        for i, freq in enumerate(freqs):
+            start = i * (note_len + gap_len)
+            end = min(start + note_len, len(t))
+            segment = t[start:end] - t[start]
+            env = np.ones(end - start)
+            attack = min(int(sample_rate * 0.02), len(env))
+            release = min(int(sample_rate * 0.05), len(env))
+            env[:attack] = np.linspace(0, 1, attack)
+            env[-release:] = np.linspace(1, 0, release)
+            tone[start:end] = np.sin(2 * np.pi * freq * segment) * 0.5 * env
+        return tone.astype(np.float32)
+
+    # Use native sample rate of each device
+    mic_sr = int(sd.query_devices(mic_output_device)['default_samplerate'])
+    mic_tone = make_tone(mic_sr)
+
     # Play test tone on microphone device
     try:
-        sd.play(tone, sample_rate, device=mic_output_device)
+        sd.play(mic_tone, mic_sr, device=mic_output_device)
         sd.wait()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error playing on mic device: {e}")
-    
+
     # Play same test tone on speaker (so user can hear what was sent)
     try:
         output_device = tts.output_device if tts else None
-        sd.play(tone, sample_rate, device=output_device)
+        spk_sr = int(sd.query_devices(output_device)['default_samplerate']) if output_device is not None else mic_sr
+        spk_tone = make_tone(spk_sr)
+        sd.play(spk_tone, spk_sr, device=output_device)
         sd.wait()
     except Exception as e:
         print(f"Speaker playback error: {e}")
-    
+
     return {"success": True, "message": "Test tone played on mic device and speaker"}
 
 
