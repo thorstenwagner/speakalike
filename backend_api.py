@@ -358,6 +358,30 @@ async def play_audio_on_device(data: dict):
                 return int(dev_info['default_samplerate'])
             except:
                 return None
+
+        def get_device_channels(dev_index):
+            """Returns the max output channels of a device (None = use default)"""
+            if dev_index is None:
+                return None
+            try:
+                dev_info = sd.query_devices(dev_index)
+                return int(dev_info['max_output_channels'])
+            except:
+                return None
+
+        def match_channels(audio, device_max_ch):
+            """Downmix audio only if it has more channels than the device supports.
+            Never upmix — PortAudio accepts fewer channels than the device maximum."""
+            if device_max_ch is None or device_max_ch <= 0:
+                return audio
+            current_ch = 1 if audio.ndim == 1 else audio.shape[1]
+            if current_ch <= device_max_ch:
+                return audio  # already within range, no conversion needed
+            # Too many channels for this device → downmix
+            if device_max_ch == 1:
+                return audio.mean(axis=1).astype(np.float32) if audio.ndim > 1 else audio
+            # Keep first device_max_ch channels
+            return audio[:, :device_max_ch].astype(np.float32)
         
         # Play simultaneously on speaker AND microphone device
         print(f"[Audio-Play] mic_output_enabled={mic_output_enabled}, mic_output_device={mic_output_device}, samplerate={samplerate}")
@@ -374,6 +398,7 @@ async def play_audio_on_device(data: dict):
             # Speaker: resample if needed and sd.play (non-blocking)
             try:
                 speaker_sr = get_device_samplerate(device)
+                speaker_ch = get_device_channels(device)
                 speaker_data = audio_data
                 play_sr = samplerate
                 if speaker_sr and speaker_sr != samplerate:
@@ -387,6 +412,7 @@ async def play_audio_on_device(data: dict):
                         speaker_data = resample_audio(audio_data, samplerate, speaker_sr)
                     play_sr = speaker_sr
                     print(f"[Audio-Play] Speaker resampled: {samplerate} -> {speaker_sr} Hz")
+                speaker_data = match_channels(speaker_data, speaker_ch)
                 sd.play(speaker_data, play_sr, device=device)
                 print(f"[Audio-Play] Speaker playback started (device={device}, sr={play_sr})")
             except Exception as e:
@@ -468,6 +494,7 @@ async def play_audio_on_device(data: dict):
             # Speaker only (no mic configured or disabled)
             try:
                 speaker_sr = get_device_samplerate(device)
+                speaker_ch = get_device_channels(device)
                 play_data = audio_data
                 play_sr = samplerate
                 if speaker_sr and speaker_sr != samplerate:
@@ -480,6 +507,7 @@ async def play_audio_on_device(data: dict):
                         play_data = resample_audio(audio_data, samplerate, speaker_sr)
                     play_sr = speaker_sr
                     print(f"[Audio-Play] Speaker resampled: {samplerate} -> {speaker_sr} Hz")
+                play_data = match_channels(play_data, speaker_ch)
                 sd.play(play_data, play_sr, device=device)
             except Exception as e:
                 print(f"[Audio-Play] Speaker error: {e}, trying default device...")
