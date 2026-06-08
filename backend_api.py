@@ -1031,6 +1031,9 @@ async def get_audio_devices():
                 name = device['name']
                 # Use only the main name (before API type like "MME", "Windows DirectSound" etc.)
                 base_name = name.split(',')[0].strip() if ',' in name else name
+                # Normalise to 31 chars – MME truncates names at 31 chars, this ensures
+                # MME and WASAPI/DS variants of the same device map to the same key
+                base_name = base_name[:31]
                 
                 priority = hostapi_priority(device.get('hostapi', 0))
                 
@@ -1092,8 +1095,9 @@ async def get_mic_devices():
             idx = device.get('hostapi', 0)
             return host_apis[idx]['name'] if idx < len(host_apis) else ''
 
-        # Collect and deduplicate: key = (device_name, device_type), keep best API priority
-        seen = {}  # (name, type) -> (priority, entry)
+        # Collect and deduplicate: key = (name_prefix, device_type)
+        # MME truncates names at 31 chars, so normalise to first 31 chars to match across APIs
+        seen = {}  # (name_prefix, type) -> (priority, entry)
         for i, device in enumerate(device_list):
             has_out = device['max_output_channels'] > 0
             has_in = device['max_input_channels'] > 0
@@ -1104,7 +1108,7 @@ async def get_mic_devices():
             priority = api_priority(device.get('hostapi', 0))
             if priority == 99:
                 continue  # Skip WDM-KS entirely
-            key = (name, dev_type)
+            key = (name[:31], dev_type)
             if key not in seen or priority < seen[key][0]:
                 seen[key] = (priority, {
                     'index': i,
