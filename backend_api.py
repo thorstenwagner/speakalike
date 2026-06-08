@@ -417,12 +417,21 @@ async def play_audio_on_device(data: dict):
                 print(f"[Audio-Play] Speaker playback started (device={device}, sr={play_sr})")
             except Exception as e:
                 print(f"[Audio-Play] Speaker sd.play error: {e}")
-                # Fallback: without explicit device
+                # Fallback: resample for default device and play without explicit device
                 try:
-                    sd.play(audio_data, samplerate)
-                    print(f"[Audio-Play] Speaker fallback (default device) ok")
+                    default_sr = get_device_samplerate(None)
+                    fb_data = audio_data
+                    fb_sr = samplerate
+                    if default_sr and default_sr != samplerate:
+                        fb_data = resample_audio(
+                            audio_data if audio_data.ndim == 1 else audio_data.mean(axis=1),
+                            samplerate, default_sr
+                        )
+                        fb_sr = default_sr
+                    sd.play(fb_data, fb_sr)
+                    print(f"[Audio-Play] Speaker fallback (default device, sr={fb_sr}) ok")
                 except Exception as e2:
-                    print(f"[Audio-Play] Speaker fallback (default device) also failed: {e2}")
+                    print(f"[Audio-Play] Speaker fallback also failed: {e2}")
             
             # Microphone output on separate thread
             def play_on_mic():
@@ -447,16 +456,18 @@ async def play_audio_on_device(data: dict):
                 
                 # Attempt 2: OutputStream
                 try:
+                    mic_dev_ch = min(1, int(sd.query_devices(mic_output_device)['max_output_channels']))
+                    stream_audio = mic_audio if mic_audio.ndim == 1 else mic_audio.mean(axis=1)
                     mic_stream = sd.OutputStream(
                         samplerate=mic_play_sr,
-                        channels=1,
+                        channels=mic_dev_ch,
                         device=mic_output_device
                     )
                     mic_stream.start()
-                    mic_stream.write(mic_audio.reshape(-1, 1))
+                    mic_stream.write(stream_audio.reshape(-1, 1) if mic_dev_ch == 1 else stream_audio)
                     mic_stream.stop()
                     mic_stream.close()
-                    print(f"[Audio-Play] Mic output successful (OutputStream)")
+                    print(f"[Audio-Play] Mic output successful (OutputStream, ch={mic_dev_ch})")
                     return
                 except Exception as e2:
                     print(f"[Audio-Play] OutputStream failed: {e2}")
