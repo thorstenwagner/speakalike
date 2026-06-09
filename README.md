@@ -6,9 +6,18 @@
 ![Electron](https://img.shields.io/badge/Electron-28-47848F.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-SpeakAlike was built for people who communicate via eye-tracking. It converts short, error-prone text input into natural-sounding speech – assisted by Claude AI, which automatically corrects typos and understands the conversation context.
+Written by an ALS patient for other people with ALS (pwALS). SpeakAlike was built for people who communicate via eye-tracking.  I was frustrated by other commercial systems that were clearly developed for a different target group like older patients and rather not for power users. These programs use the entire screen and are hard to use while you are doing something else like gaming.
 
-Two particularly important features: **Mini Mode** – a compact always-on-top overlay accessible at any time via `Ctrl+M` – and full **keyboard control** of all core functions via shortcuts, so mouse operation is never required.
+Speakalike uses ElevenLabs to convert text to natural-sounding speech including voice cloning and addresses many annoying things that come with communication by eyes:
+
+- Typing by eye tracking is more error prone. Speakalike uses Claude to fix typos, add punctuation and addresses certain flaws of ElevenLabs like pronouncing numbers by converting numbers to text. The AI correction is robust enough to correct every sentence without double checking it - simply by using a toggle.
+
+- You can define sets of messages you use often. I personally have one for everyday use like help requests, one for my kids and several for board and video games. You can quickly access them via the mini mode
+
+- **Mini Mode** – a compact always-on-top, transparent overlay accessible at any time from within any program – and full **keyboard control** of all core functions via shortcuts and quick-access to your sets of predefined sets so mouse operation is never required.
+
+- Other people are standing behind you and are reading what you are typing. This is so annoying. Therefore Speakalike comes with a **privacy mode** that blurs everything you type simply by one hotkey.
+
 
 ---
 
