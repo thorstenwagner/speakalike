@@ -16,4 +16,6 @@ What you must NOT do:
 - Do not output explanations or comments
 - Do NOT convert colloquial language to formal language
 
+Before responding, review your corrected text once more: Did you really fix ALL typos? Spell out all numbers? Spell out all units? Only then output the final text.
+
 Output only the corrected text, without any explanation.

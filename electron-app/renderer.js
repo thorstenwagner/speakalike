@@ -16,6 +16,7 @@ if (window.i18n) window.i18n.apply();
 // State
 let currentAudioUrl = null;
 let currentText = null;
+let lastOriginalText = null;
 let catalogTags = [];
 let selectedFiles = [];
 let currentTTSModel = 'xtts_v2';
@@ -3119,6 +3120,16 @@ function setupEventListeners() {
             return;
         }
 
+        if (e.key === 'z' && e.ctrlKey && !e.shiftKey) {
+            if (lastOriginalText) {
+                e.preventDefault();
+                elements.textInput.value = lastOriginalText;
+                if (elements.charCount) elements.charCount.textContent = charStr(lastOriginalText.length);
+                updatePrivacyOverlay();
+                return;
+            }
+        }
+
         if (e.key === 'Enter' && e.ctrlKey && e.shiftKey) {
             // Strg+Shift+Enter = KI-Auto-Korrektur togglen
             e.preventDefault();
@@ -3185,6 +3196,7 @@ function setupEventListeners() {
                     const confirmed = await showConfirmSend(text);
                     if (!confirmed) return;
                 }
+                lastOriginalText = text;
                 if (kiAutoCorrect) {
                     // KI-Korrektur + Sprechen
                     elements.statusText.textContent = 'KI korrigiert...';
