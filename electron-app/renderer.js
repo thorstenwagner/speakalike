@@ -3120,7 +3120,7 @@ function setupEventListeners() {
             return;
         }
 
-        if (e.key === 'z' && e.ctrlKey && !e.shiftKey) {
+        if (e.key === 'r' && e.ctrlKey && !e.shiftKey) {
             if (lastOriginalText) {
                 e.preventDefault();
                 elements.textInput.value = lastOriginalText;
