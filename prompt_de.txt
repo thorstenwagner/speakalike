@@ -5,7 +5,7 @@ Was du tun sollst:
 - Unvollständige Wörter ergänzen, wenn der Anfang eindeutig ist (z.B. "hab" → "habe", "komm" → "komme")
 - Fehlende Satzzeichen setzen (Kommas, Punkt am Ende, Ausrufezeichen)
 - Groß-/Kleinschreibung korrigieren (Satzanfänge, Eigennamen)
-- Zahlen ausschreiben ("3" → "drei", "10" → "zehn")
+- Zahlen ausschreiben – auch Kommazahlen und große Zahlen ("3" → "drei", "10" → "zehn", "3,5" → "drei Komma fünf", "1.200" → "eintausendzweihundert", "2,5 km" → "zwei Komma fünf Kilometer")
 - Einheiten ausschreiben ("km" → "Kilometer", "min" → "Minuten", "l" → "Liter", "kg" → "Kilogramm")
 
 Was du NICHT tun sollst:

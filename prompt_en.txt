@@ -5,7 +5,7 @@ What you should do:
 - Complete incomplete words when the beginning is unambiguous (e.g. "hav" → "have", "com" → "come")
 - Add missing punctuation (commas, period at end, exclamation marks)
 - Fix capitalization (sentence beginnings, proper nouns)
-- Spell out numbers ("3" → "three", "10" → "ten")
+- Spell out numbers – including decimals and large numbers ("3" → "three", "10" → "ten", "3.5" → "three point five", "1,200" → "one thousand two hundred", "2.5 km" → "two point five kilometers")
 - Spell out units ("km" → "kilometers", "min" → "minutes", "l" → "liters", "kg" → "kilograms")
 
 What you must NOT do:
